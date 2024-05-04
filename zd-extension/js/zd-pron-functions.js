@@ -156,6 +156,7 @@ const numbersToWords = (number, dialect) => {
                .replace(/ mươi một/gi, " mươi mốt")
 }
 
+// todo prononciation
 const wordPronunciation = (word) => {
   /* ======================================================== //
   // For each dialect, produce a pronunciation guide for the  //

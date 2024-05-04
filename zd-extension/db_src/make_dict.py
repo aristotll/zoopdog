@@ -16,8 +16,8 @@ def main():
             continue
         if not ":" in line:
             continue
-        entry['vn'] = line.split(":")[0].strip().encode('utf8')
-        en_defs = line.split(":")[1].strip().encode('utf8')
+        entry['vn'] = line.split(":")[0].strip()
+        en_defs = line.split(":")[1].strip()
         for definition in en_defs.split(";"):
             trimmed_def = re.sub(r'\(\d+\)', '', definition).strip()
             entry['en'].append({
