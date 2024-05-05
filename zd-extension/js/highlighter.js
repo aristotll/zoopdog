@@ -30,7 +30,7 @@ class Highlighter {
     // find endpoint (measured by number of spaces)
     var words = 0,
         prevChar = "";
-    for (i = begin; i < node.data.length; i++) {
+    for (var i = begin; i < node.data.length; i++) {
       if (node.data[i] === " ") {
         if (prevChar && prevChar.match(chars)) words++
       } else if (!node.data[i].match(chars)) { // break on punctuation

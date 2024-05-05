@@ -103,7 +103,7 @@ window.onload = function() {
   })
 
   var oldWord
-  this.addEventListener('mousemove', function(e){
+  let mainListener = function(e){
 
     if (this.popup.locked || !this.zoopdogIsOn) return true
 
@@ -141,7 +141,9 @@ window.onload = function() {
       }
     })
 
-  })
+  };
+  this.addEventListener('mousemove', mainListener)
+  this.addEventListener('click', mainListener)
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
