@@ -6,6 +6,11 @@
 - Use another language only when the user explicitly asks for it.
 - Keep implementation notes, final summaries, and status updates in Vietnamese unless instructed otherwise.
 
+## Local Rules
+
+- At the start of a session, also read and follow any project-specific rules in `.claude/rules/*.md` when that directory exists.
+- These local rules supplement this `AGENTS.md`; if they conflict, ask the user before proceeding unless the newer user instruction clearly resolves the conflict.
+
 ## Project Overview
 
 Zoopdog is a static website plus a Chrome extension for a Vietnamese-English popup dictionary and Vietnamese pronunciation tools.
@@ -136,7 +141,7 @@ To add hand-maintained Chu Nom/CJK entries, use the Codex command:
 /add-chu-nom tiếng Anh
 ```
 
-The command preprocesses no-diacritic or lightly mistyped Vietnamese input, resolves candidate Chu Nom/CJK forms plus English explanations, asks for user review/approval, then upserts `zd-extension/db_src/user_nom_entries.jsonc`, rebuilds `zoopdog-nom-ruby.user.js` and `zoopdog-popupdict.user.js`, and verifies the generated embeds.
+The command accepts inline words or a file input, defaults to `.idea/newfile.md` when no input is specified, preprocesses no-diacritic or lightly mistyped Vietnamese input, resolves candidate Chu Nom/CJK forms plus English explanations, asks for user review/approval, then upserts `zd-extension/db_src/user_nom_entries.jsonc`, rebuilds `zoopdog-nom-ruby.user.js` and `zoopdog-popupdict.user.js`, and verifies the generated embeds.
 
 ## Manual Verification
 

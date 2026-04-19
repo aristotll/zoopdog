@@ -18,5 +18,40 @@
     "vi": "ăn xong",
     "nom": ["咹歱"],
     "explain": ["finish eating", "after eating"]
+  },
+  {
+    "vi": "kiểm tra xem",
+    "nom": ["檢查䀡"],
+    "explain": ["check and see"]
+  },
+  {
+    "vi": "mưa dông",
+    "nom": ["𩄎𩄱"],
+    "explain": ["rainstorm", "thunderstorm"]
+  },
+  {
+    "vi": "đêm nay",
+    "nom": ["𣈘𠉞"],
+    "explain": ["tonight"]
+  },
+  {
+    "vi": "Thanh Hóa",
+    "nom": ["清化"],
+    "explain": ["Thanh Hoa province"]
+  },
+  {
+    "vi": "lượng mưa",
+    "nom": ["量𩄎"],
+    "explain": ["rainfall"]
+  },
+  {
+    "vi": "mưa to",
+    "nom": ["𩄎𡚢"],
+    "explain": ["heavy rain"]
+  },
+  {
+    "vi": "Sao Vàng",
+    "nom": ["𣋀黃"],
+    "explain": ["Sao Vang", "yellow star"]
   }
 ]
