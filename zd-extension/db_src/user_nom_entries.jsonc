@@ -1,0 +1,22 @@
+[
+  {
+    // Vietnamese lookup text.
+    "vi": "tiếng Anh",
+
+    // One or more Chu Nom/CJK renderings.
+    "nom": ["㗂英"],
+
+    // Optional extra popup dictionary explanations.
+    "explain": ["English language"]
+  },
+  {
+    "vi": "quản lý",
+    "nom": ["管理"],
+    "explain": ["manager, manage, administer"]
+  },
+  {
+    "vi": "ăn xong",
+    "nom": ["咹歱"],
+    "explain": ["finish eating", "after eating"]
+  }
+]

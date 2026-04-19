@@ -36,6 +36,8 @@ There is no `package.json`, task runner, or test framework in this repo. Do not 
 - `scripts/build-popupdict-userscript.js`: generator for the standalone popup dictionary userscript.
 - `scripts/build-nom-userscript.js`: generator for the standalone Chu Nom ruby userscript.
 - `zd-extension/db_src/mdx_nom.json`: generated supplemental Chu Nom/CJK mappings extracted from the external Vietnamese-Chinese MDX dictionary.
+- `zd-extension/db_src/user_nom_entries.jsonc`: hand-maintained user Chu Nom/CJK entries shared by the Nom ruby and popup dictionary userscript generators.
+- `.codex/commands/add-chu-nom.md`: Codex slash command workflow for resolving Vietnamese words to Chu Nom/CJK user entries, asking for review, and rebuilding generated userscripts after approval.
 - `zoopdog-popupdict.user.js`: generated userscript that ports the extension popup/highlight/pronunciation behavior without Chrome extension APIs.
 - `zoopdog-nom-ruby.user.js`: generated userscript with embedded dictionary data from `zd-extension/db_src/vnedict2.json`.
 
@@ -100,7 +102,7 @@ To regenerate the standalone popup dictionary userscript:
 node scripts/build-popupdict-userscript.js
 ```
 
-The generated `zoopdog-popupdict.user.js` embeds dictionary data from `zd-extension/db_src/vnedict2.json` and pronunciation rendering code from `zd-extension/js/zd-pron-*.js`.
+The generated `zoopdog-popupdict.user.js` embeds dictionary data from `zd-extension/db_src/vnedict2.json`, user Chu Nom entries from `zd-extension/db_src/user_nom_entries.jsonc`, and pronunciation rendering code from `zd-extension/js/zd-pron-*.js`.
 
 To regenerate the standalone Chu Nom ruby userscript:
 
@@ -108,7 +110,7 @@ To regenerate the standalone Chu Nom ruby userscript:
 node scripts/build-nom-userscript.js
 ```
 
-The generated `zoopdog-nom-ruby.user.js` embeds a compact lookup table from `zd-extension/db_src/vnedict2.json` plus `zd-extension/db_src/mdx_nom.json` when that supplemental file exists. Edit the generator or source JSON, not the embedded map by hand.
+The generated `zoopdog-nom-ruby.user.js` embeds a compact lookup table from `zd-extension/db_src/vnedict2.json` plus `zd-extension/db_src/mdx_nom.json` and `zd-extension/db_src/user_nom_entries.jsonc` when those supplemental files exist. Edit the generator or source JSON/JSONC, not the embedded map by hand.
 
 To regenerate `zd-extension/db_src/mdx_nom.json` from an external MDX dictionary, install `js-mdict` outside the repo and expose it via `NODE_PATH`, for example:
 
@@ -127,6 +129,14 @@ node scripts/merge-mdx-nom-into-vnedict2.js
 node scripts/build-nom-userscript.js
 node scripts/build-popupdict-userscript.js
 ```
+
+To add hand-maintained Chu Nom/CJK entries, use the Codex command:
+
+```text
+/add-chu-nom tiếng Anh
+```
+
+The command preprocesses no-diacritic or lightly mistyped Vietnamese input, resolves candidate Chu Nom/CJK forms plus English explanations, asks for user review/approval, then upserts `zd-extension/db_src/user_nom_entries.jsonc`, rebuilds `zoopdog-nom-ruby.user.js` and `zoopdog-popupdict.user.js`, and verifies the generated embeds.
 
 ## Manual Verification
 
