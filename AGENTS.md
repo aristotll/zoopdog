@@ -26,6 +26,7 @@ There is no `package.json`, task runner, or test framework in this repo. Do not 
 - `zd-extension/js/content.js`, `zd-extension/js/showframe.js`, `zd-extension/js/highlighter.js`, `zd-extension/js/frame.js`, `zd-extension/js/popup.js`: extension UI/content behavior.
 - `zd-extension/db_src/make_dict.py`: dictionary source conversion helper.
 - `scripts/extract-mdx-nom-data.js`: extracts Vietnamese-to-Chu-Nom/CJK mappings from an external MDX dictionary into JSON.
+- `scripts/merge-mdx-nom-into-vnedict2.js`: merges extracted MDX Chu Nom/CJK mappings into `zd-extension/db_src/vnedict2.json` and removes duplicate definitions.
 - `scripts/build-popupdict-userscript.js`: generator for the standalone popup dictionary userscript.
 - `scripts/build-nom-userscript.js`: generator for the standalone Chu Nom ruby userscript.
 - `zd-extension/db_src/mdx_nom.json`: generated supplemental Chu Nom/CJK mappings extracted from the external Vietnamese-Chinese MDX dictionary.
@@ -93,7 +94,7 @@ To regenerate the standalone popup dictionary userscript:
 node scripts/build-popupdict-userscript.js
 ```
 
-The generated `zoopdog-popupdict.user.js` embeds dictionary data from `zd-extension/js/vnedict.json` and pronunciation rendering code from `zd-extension/js/zd-pron-*.js`.
+The generated `zoopdog-popupdict.user.js` embeds dictionary data from `zd-extension/db_src/vnedict2.json` and pronunciation rendering code from `zd-extension/js/zd-pron-*.js`.
 
 To regenerate the standalone Chu Nom ruby userscript:
 
@@ -112,6 +113,14 @@ NODE_PATH="$tmp/node_modules" node /Users/Yao/Mine/JavaScript/zoopdog/scripts/ex
 ```
 
 The extractor intentionally keeps only real Unicode CJK/Nom code points and skips private-use glyphs from MDX font encodings.
+
+After regenerating `zd-extension/db_src/mdx_nom.json`, merge it into `vnedict2.json` before rebuilding userscripts:
+
+```sh
+node scripts/merge-mdx-nom-into-vnedict2.js
+node scripts/build-nom-userscript.js
+node scripts/build-popupdict-userscript.js
+```
 
 ## Manual Verification
 
