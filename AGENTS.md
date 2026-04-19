@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Communication
+
+- Always reply to the user in Vietnamese (`vi`) by default.
+- Use another language only when the user explicitly asks for it.
+- Keep implementation notes, final summaries, and status updates in Vietnamese unless instructed otherwise.
+
 ## Project Overview
 
 Zoopdog is a static website plus a Chrome extension for a Vietnamese-English popup dictionary and Vietnamese pronunciation tools.
