@@ -4,14 +4,16 @@ Project-specific rules for resolving Vietnamese lookup terms to Chu Nom/CJK entr
 
 ## Lessons Learned
 
-### Lesson Learned: Expand Subphrases and Skip Existing Dictionary Keys (from conversation on 2026-04-19)
+### Lesson Learned: Expand Subphrases, Skip User Entries Only, and Merge Original Definitions (from conversation on 2026-04-19)
 
-**Context**: When processing a phrase such as `kiểm tra xem`, useful candidates can include the full phrase and subphrases such as `kiểm tra`. However, `kiểm tra` already exists in the main dictionary, so adding it again to user-maintained entries would duplicate local data.
+**Context**: When processing a phrase such as `kiểm tra xem`, useful candidates can include the full phrase and subphrases such as `kiểm tra`. Some candidates may already exist in the main dictionary but still need user-maintained Chu Nom/CJK or explanation data.
 
 **Rule**:
-For multi-word Vietnamese input, check the full phrase and meaningful contiguous subphrases of at least two words. Before proposing any candidate, check both `user_nom_entries.jsonc` and the main dictionary sources (`vnedict2.json`, `mdx_nom.json`). Skip candidates that already exist in user-added entries, the main dictionary, or earlier in the same batch; only propose missing candidates.
+For multi-word Vietnamese input, check the full phrase and meaningful contiguous subphrases of at least two words. Before proposing any candidate, check `user_nom_entries.jsonc` first. If the word already exists there, skip it. If the word does not exist in `user_nom_entries.jsonc`, it may be proposed even when it exists in the main dictionary sources (`vnedict2.json`, `mdx_nom.json`). Also skip candidates already proposed or added earlier in the same batch.
 
-**Why**: Subphrase expansion catches useful missing entries, while existence checks prevent user-maintained data from becoming a duplicate overlay for entries that the dictionary already owns.
+When user entries overlap original dictionary keys, merge their popup definitions with the original dictionary definitions during generation and remove duplicate definitions in that process.
+
+**Why**: `user_nom_entries.jsonc` is the authority for whether a user entry has already been handled. Original dictionary overlap is allowed because user entries can supplement missing Chu Nom/CJK data; the generated popup output should dedupe the merged definitions instead of showing duplicate blocks.
 
 ### Lesson Learned: Clean Processed Input Files After Successful Adds (from conversation on 2026-04-19)
 

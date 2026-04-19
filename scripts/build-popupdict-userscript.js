@@ -19,6 +19,8 @@ const sourceFiles = [
   'zd-extension/js/zd-pron-drawtones.js'
 ];
 
+const cjkPattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
+
 function cleanText(value) {
   return String(value || '')
     .replace(/^\uFEFF/, '')
@@ -30,6 +32,10 @@ function normalizeTerm(value) {
   return cleanText(value)
     .toLocaleLowerCase('vi-VN')
     .replace(/\s+/g, ' ');
+}
+
+function isCjkDefinition(definition) {
+  return cjkPattern.test(definition[0]) && !/[A-Za-z]/.test(definition[0]);
 }
 
 function buildDictionary(entries) {
@@ -45,17 +51,40 @@ function buildDictionary(entries) {
 
     maxWords = Math.max(maxWords, key.split(/\s+/).length);
 
-    if (!dictionary[key]) {
-      dictionary[key] = [];
-    }
-
-    dictionary[key].push([
-      cleanText(entry.vn),
-      (entry.en || []).map((item) => [
+    const definitions = (entry.en || [])
+      .map((item) => [
         cleanText(item.def),
         cleanText(item.pos)
       ])
-    ]);
+      .filter((item) => item[0] || item[1]);
+
+    if (!dictionary[key]) {
+      dictionary[key] = [[cleanText(entry.vn), []]];
+    }
+
+    const existingDefinitions = dictionary[key][0][1];
+    const seenDefinitions = new Set(
+      existingDefinitions.map((item) => `${item[0]}\u0000${item[1]}`)
+    );
+
+    const orderedDefinitions = definitions.filter(isCjkDefinition).concat(
+      definitions.filter((definition) => !isCjkDefinition(definition))
+    );
+
+    for (const definition of orderedDefinitions) {
+      const definitionKey = `${definition[0]}\u0000${definition[1]}`;
+
+      if (seenDefinitions.has(definitionKey)) {
+        continue;
+      }
+
+      seenDefinitions.add(definitionKey);
+      if (isCjkDefinition(definition)) {
+        existingDefinitions.unshift(definition);
+      } else {
+        existingDefinitions.push(definition);
+      }
+    }
   }
 
   return {dictionary, maxWords};

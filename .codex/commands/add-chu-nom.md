@@ -46,14 +46,16 @@ Before resolving Chu Nom/CJK forms, clean and interpret the input:
 2. Expand multi-word inputs into candidate phrases before lookup:
    - Include the full phrase and meaningful contiguous subphrases of at least two words.
    - Prefer longer phrases first, then shorter subphrases.
-   - Example: `kiểm tra xem` should check `kiểm tra xem` and `kiểm tra`; do not add `kiểm tra` if it already exists locally.
+   - Example: `kiểm tra xem` should check `kiểm tra xem` and `kiểm tra`; do not add a candidate only if it already exists in `user_nom_entries.jsonc` or earlier in the same batch.
    - De-duplicate candidates by normalized key across the current batch.
 3. Check existing local data before proposing anything:
    - `zd-extension/db_src/user_nom_entries.jsonc`
    - `zd-extension/db_src/vnedict2.json`
    - `zd-extension/db_src/mdx_nom.json` when present
    - generated output only as a verification target, not as source of truth
-   - If a candidate key already exists in user-added entries or the main dictionary data, skip adding it and note the skip in the review.
+   - If a candidate key already exists in user-added entries, skip adding it and note the skip in the review.
+   - Do not skip a candidate only because it exists in the main dictionary data. User entries may intentionally add Chu Nom/CJK or explanation data for an existing dictionary key.
+   - When a user entry overlaps an original dictionary key, the popup userscript build merges definitions and removes duplicate definitions during generation.
    - Treat keys added earlier in the same batch as existing for later candidates, so repeated input does not create duplicates.
 4. Resolve Chu Nom/CJK candidates:
    - Prefer exact local matches from existing dictionary data.
@@ -71,7 +73,8 @@ Before resolving Chu Nom/CJK forms, clean and interpret the input:
    - Preserve Vietnamese text and diacritics exactly.
 6. Ask the user to review before editing files:
    - Present a compact table with original input, corrected `vi`, `nom`, `explain`, and source/notes.
-   - Include skipped candidates in the review notes when they already exist in `user_nom_entries.jsonc`, `vnedict2.json`, `mdx_nom.json`, or were already added earlier in the same batch.
+   - Include skipped candidates in the review notes when they already exist in `user_nom_entries.jsonc` or were already added earlier in the same batch.
+   - If a candidate also exists in `vnedict2.json` or `mdx_nom.json`, note that it will be merged/deduped with original dictionary definitions after approval.
    - Ask a direct question such as: "Bạn muốn áp dụng các entry này không, hay sửa candidate nào trước?"
    - Do not update `user_nom_entries.jsonc`, do not rebuild, and do not touch generated userscripts until the user approves.
    - If the user edits the proposal, apply the edited version.
