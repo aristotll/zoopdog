@@ -15,6 +15,7 @@ const targetPath = path.join(rootDir, 'zoopdog-nom-ruby.user.js');
 
 const cjkPattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
 const cjkSequencePattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]+/gu;
+const nonAsciiPattern = /[^\x00-\x7F]/;
 
 function cleanText(value) {
   return String(value || '')
@@ -27,6 +28,13 @@ function normalizeTerm(value) {
   return cleanText(value)
     .toLocaleLowerCase('vi-VN')
     .replace(/\s+/g, ' ');
+}
+
+function isEmbeddableTerm(term) {
+  return term && (
+    Array.from(term.replace(/\s/g, '')).length >= 2 ||
+    nonAsciiPattern.test(term)
+  );
 }
 
 function extractNomCandidates(definition) {
@@ -48,7 +56,7 @@ function buildNomMap(entries) {
   for (const entry of entries) {
     const term = normalizeTerm(entry.vn);
 
-    if (!term || Array.from(term.replace(/\s/g, '')).length < 2) {
+    if (!isEmbeddableTerm(term)) {
       continue;
     }
 
@@ -85,7 +93,7 @@ function mergeExtractedNomMap(nomMap, extractedPayload) {
   for (const [term, candidates] of Object.entries(extractedEntries)) {
     const normalizedTerm = normalizeTerm(term);
 
-    if (!normalizedTerm || Array.from(normalizedTerm.replace(/\s/g, '')).length < 2) {
+    if (!isEmbeddableTerm(normalizedTerm)) {
       continue;
     }
 
@@ -125,9 +133,10 @@ function buildUserscript(nomMap) {
   var NOM_MAP = ${nomMapJson};
 
   var SETTINGS = {
-    // False avoids noisy matches on English words such as "an", "to", or "no".
-    // Set to true if you want ASCII-only Vietnamese entries to be annotated too.
-    annotateAsciiTerms: false,
+    // "safe" annotates longer ASCII-only Vietnamese words while still skipping
+    // short/common English words such as "an", "to", or "no".
+    // Set to true to annotate every ASCII-only entry, or false to skip all of them.
+    annotateAsciiTerms: 'safe',
     // False shows only the first known Chu Nom candidate as ruby; all candidates stay in title.
     showAllVariants: false,
     rescanIntervalMs: 500
@@ -138,13 +147,38 @@ function buildUserscript(nomMap) {
   var wordCharPattern = /[-0-9A-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\\u0300-\\u036f]/u;
   var whitespacePattern = /\\s/u;
   var nonAsciiPattern = /[^\\x00-\\x7F]/;
+  var vietnameseSignalPattern = /[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\\u0300-\\u036f]/u;
+  var asciiBlocklist = {
+    a: true,
+    am: true,
+    an: true,
+    as: true,
+    at: true,
+    be: true,
+    by: true,
+    can: true,
+    do: true,
+    go: true,
+    he: true,
+    in: true,
+    is: true,
+    it: true,
+    me: true,
+    no: true,
+    on: true,
+    or: true,
+    so: true,
+    to: true,
+    us: true,
+    we: true
+  };
   var trie = buildTrie(NOM_MAP);
 
   function buildTrie(map) {
     var root = {};
 
     Object.keys(map).forEach(function(term) {
-      if (!SETTINGS.annotateAsciiTerms && !nonAsciiPattern.test(term)) {
+      if (SETTINGS.annotateAsciiTerms === false && !nonAsciiPattern.test(term)) {
         return;
       }
 
@@ -285,7 +319,7 @@ function buildUserscript(nomMap) {
         i++;
       }
 
-      if (node.value && !isWordChar(text.charAt(i))) {
+      if (node.value && !isWordChar(text.charAt(i)) && shouldAnnotateMatch(text, start, i)) {
         best = {
           index: start,
           length: i - start,
@@ -295,6 +329,33 @@ function buildUserscript(nomMap) {
     }
 
     return best;
+  }
+
+  function shouldAnnotateMatch(text, start, end) {
+    var matchedText = text.substring(start, end);
+
+    if (nonAsciiPattern.test(matchedText) || SETTINGS.annotateAsciiTerms === true) {
+      return true;
+    }
+
+    if (SETTINGS.annotateAsciiTerms === false) {
+      return false;
+    }
+
+    var normalized = matchedText.toLowerCase().replace(/\\s+/g, ' ');
+    var letterCount = normalized.replace(/\\s/g, '').length;
+
+    if (letterCount >= 3 && !asciiBlocklist[normalized]) {
+      return true;
+    }
+
+    return hasVietnameseContext(text, start, end);
+  }
+
+  function hasVietnameseContext(text, start, end) {
+    var contextStart = Math.max(0, start - 80);
+    var contextEnd = Math.min(text.length, end + 80);
+    return vietnameseSignalPattern.test(text.substring(contextStart, contextEnd));
   }
 
   function addStyle(css) {
