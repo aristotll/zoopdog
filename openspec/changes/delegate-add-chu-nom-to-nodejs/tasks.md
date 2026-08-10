@@ -16,6 +16,8 @@
 - [x] 2.6 Implement single-load local indexes for user entries, `vnedict2.json`, and optional `mdx_nom.json`, then implement deterministic phrase resolution without inferred unsupported values.
 - [x] 2.7 Add tests that two identical plans are byte-stable, contain the versioned review/provenance schema and relevant SHA-256 source snapshot, report skipped/unresolved entries, and leave all repository bytes unchanged.
 - [x] 2.8 Implement manifest serialization and the `plan` operation until all planning tests pass.
+- [x] 2.9 Add failing tests for one-entry-per-line mixed Vietnamese/CJK input, filtering non-Vietnamese-only lines, discarding embedded CJK, and mandatory review metadata.
+- [x] 2.10 Implement filtered-input preprocessing and `input-filtered` review status without changing ordinary separator or slash-triple behavior.
 
 ## 3. Approval Validation and Source Mutation
 
@@ -34,14 +36,16 @@
 
 ## 5. Canonical Codex Command and Claude Reference
 
-- [ ] 5.1 Refactor `.codex/commands/add-chu-nom.md` to document exact Node.js `plan` and `apply` invocations, temporary-manifest handling, Vietnamese review presentation, reviewer edits/decisions, and structured-result summary.
+- [x] 5.1 Refactor `.codex/commands/add-chu-nom.md` to document exact Node.js `plan` and `apply` invocations, temporary-manifest handling, Vietnamese review presentation, reviewer edits/decisions, and structured-result summary.
 - [x] 5.2 Add `.claude/commands/add-chu-nom.md` containing only a heading and a working Markdown reference to `.codex/commands/add-chu-nom.md`.
-- [ ] 5.3 Remove duplicated mechanical algorithms and direct mutation/build instructions from the canonical Codex command, retaining only input gathering, linguistic review help, approval gating, delegation, and unrelated-worktree safeguards.
+- [x] 5.3 Remove duplicated mechanical algorithms and direct mutation/build instructions from the canonical Codex command, retaining only input gathering, linguistic review help, approval gating, delegation, and unrelated-worktree safeguards.
 - [x] 5.4 Add a focused test that the Claude command resolves to the canonical Codex document and contains no Node.js invocation or duplicated workflow sections.
-- [ ] 5.5 Verify manually that inline input, a file path, a ranged file mention, edits, rejection, and approval following the canonical instructions delegate all repository reads/writes/builds/checks to `scripts/add-chu-nom.js`.
+- [x] 5.5 Verify manually that inline input, a file path, a ranged file mention, edits, rejection, and approval following the canonical instructions delegate all repository reads/writes/builds/checks to `scripts/add-chu-nom.js`.
+- [ ] 5.6 Update the canonical review instructions to require dictionary-grounded AI review and explanation completion for `input-filtered` candidates.
 
 ## 6. Final Verification
 
-- [ ] 6.1 Run `node --test test/add-chu-nom.test.js`, builder characterization tests, and the documented Node syntax checks, recording any unavailable local tooling.
+- [x] 6.1 Run `node --test test/add-chu-nom.test.js`, builder characterization tests, and the documented Node syntax checks, recording any unavailable local tooling.
 - [x] 6.2 Run `plan` twice against current repository data and compare manifests while confirming `git status --short` shows no plan-induced changes.
 - [x] 6.3 Exercise a complete approved apply in an isolated temporary repository, verify both embedded maps and item cleanup, then review the final diff to ensure only shared helpers/builders, the Node.js CLI, tests, the canonical Codex command, the Claude reference document, and intended generated artifacts are affected.
+- [x] 6.4 Run a read-only plan for `đích的 thực食` and `đánh打 lạc洛`, verify one candidate per line with `的食` and `打洛` absent, and document the AI-reviewed proposals without applying them.

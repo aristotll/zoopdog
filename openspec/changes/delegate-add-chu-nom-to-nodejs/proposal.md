@@ -7,6 +7,7 @@ The current `/add-chu-nom` command describes parsing, normalization, dictionary 
 - Add a repository-local Node.js CommonJS CLI that implements the Chu Nom entry workflow as deterministic, machine-readable `plan` and `apply` phases and reuses the project's existing dictionary helpers.
 - Make preprocessing, phrase expansion, local dictionary lookup, duplicate detection, approved-entry upsert, source-file cleanup, userscript rebuilding, and verification reproducible for the same repository state and inputs.
 - Represent the review boundary with a persisted JSON manifest: planning never mutates tracked dictionary/generated files, and applying requires an explicitly approved, validated manifest.
+- Accept mixed Vietnamese/CJK input such as `đích的 thực食` as one phrase per line, discard the embedded non-Vietnamese characters, resolve the clean Vietnamese phrase only from dictionary evidence, and force the result through AI-assisted review.
 - Return structured output and stable exit codes so humans, Node.js callers, Codex commands, Claude commands, and subprocess callers can consume the same behavior.
 - Refactor `.codex/commands/add-chu-nom.md` into a thin orchestration prompt that invokes the Node.js CLI, presents unresolved/uncertain candidates for review, records approved edits in the manifest, and delegates mutation and verification back to the CLI.
 - Add `.claude/commands/add-chu-nom.md` as a minimal reference document linking to the canonical Codex command instructions, avoiding a second copy of the workflow.

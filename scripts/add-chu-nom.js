@@ -93,6 +93,31 @@ function splitLineRecords(line) {
   return records;
 }
 
+function parseMixedAnnotatedLine(line) {
+  if (line.includes('/')) return undefined;
+  if (!(String(line).match(CJK_SEQUENCE_PATTERN) || []).length) return undefined;
+
+  let latinRun = false;
+  const vietnamese = cleanText(Array.from(String(line).normalize('NFC'), (character) => {
+    if (/\p{Script=Latin}/u.test(character)) {
+      latinRun = true;
+      return character;
+    }
+    if (/\p{Mark}/u.test(character) && latinRun) return character;
+    latinRun = false;
+    return ' ';
+  }).join('')).replace(/\s+/g, ' ');
+  if (!/\p{Script=Latin}/u.test(vietnamese)) return null;
+
+  return {
+    original: vietnamese,
+    rawInput: cleanText(line),
+    inlineNom: [],
+    inlineExplain: [],
+    filteredInput: true
+  };
+}
+
 function parseInputText(source, options = {}) {
   const startLine = options.startLine || 1;
   const endLine = options.endLine || Number.POSITIVE_INFINITY;
@@ -101,6 +126,19 @@ function parseInputText(source, options = {}) {
   String(source || '').split(/\r?\n/).forEach((line, index) => {
     const lineNumber = index + 1;
     if (lineNumber < startLine || lineNumber > endLine || !line.trim() || isIgnoredMarkdownLine(line)) {
+      return;
+    }
+
+    const annotated = parseMixedAnnotatedLine(line);
+    if (annotated !== undefined) {
+      if (annotated) {
+        items.push({
+          id: `L${lineNumber}:I1`,
+          line: lineNumber,
+          itemIndex: 1,
+          ...annotated
+        });
+      }
       return;
     }
 
@@ -319,17 +357,22 @@ function makeCandidate(item, vi, key, sources, options = {}) {
 
   const choices = options.choices || [];
   const skipped = sources.userKeys.has(key);
-  const needsReview = !skipped && (!nom.length || choices.length > 0 || composed);
+  if (item.filteredInput && options.primary) {
+    notes.push('Non-Vietnamese annotations were filtered before dictionary lookup; AI review required.');
+  }
+  const needsReview = !skipped && (!nom.length || choices.length > 0 || composed ||
+    (item.filteredInput && options.primary));
   return {
     id: `${item.id}:${options.primary ? 'full' : key}`,
     sourceItemId: item.id,
     primary: Boolean(options.primary),
-    original: item.original,
+    original: item.rawInput || item.original,
     vi,
     key,
     nom,
     explain,
     provenance: stableUnique([
+      ...(item.filteredInput && options.primary ? ['input-filtered'] : []),
       ...(inlineNom.length || inlineExplain.length ? ['inline'] : []),
       ...(local ? local.sources : []),
       ...(composed ? ['composed'] : [])
@@ -367,7 +410,7 @@ function resolveItems(items, sources) {
       choices: spelling.choices
     }));
 
-    if (spelling.choices.length) {
+    if (spelling.choices.length || item.filteredInput) {
       continue;
     }
     const tokens = spelling.vi.split(/\s+/);
@@ -419,8 +462,9 @@ function createPlan(options = {}) {
   let source;
   let inputPath = null;
   if (options.words !== undefined) {
-    items = parseInputText(options.words);
-    source = {kind: 'inline', path: null, range: null, items};
+    const input = String(options.words);
+    items = parseInputText(input);
+    source = {kind: 'inline', path: null, range: null, input, items};
   } else {
     const mention = parseFileMention(options.file || '.idea/newfile.md');
     inputPath = resolveInsideRoot(repoRoot, mention.path);
@@ -519,17 +563,41 @@ function validateManifest(manifest, options = {}) {
     }
   }
 
+  const existingUserKeys = new Set(readUserNomEntries(resolveInsideRoot(
+    repoRoot,
+    'zd-extension/db_src/user_nom_entries.jsonc'
+  )).map((entry) => entry.key));
   const sourceItems = new Map();
   for (const item of manifest.source.items) {
     if (!item || typeof item.id !== 'string' || !/^L\d+:I\d+$/.test(item.id) ||
         !Number.isInteger(item.line) || item.line < 1 ||
         !Number.isInteger(item.itemIndex) || item.itemIndex < 1 ||
-        typeof item.original !== 'string' || sourceItems.has(item.id)) {
+        typeof item.original !== 'string' ||
+        (item.rawInput !== undefined && typeof item.rawInput !== 'string') ||
+        (item.filteredInput !== undefined && typeof item.filteredInput !== 'boolean') ||
+        sourceItems.has(item.id)) {
       throw new WorkflowError('Manifest contains invalid source item metadata.');
     }
     assertTextArray(item.inlineNom, `Source item ${item.id} inlineNom`);
     assertTextArray(item.inlineExplain, `Source item ${item.id} inlineExplain`);
+    const reparsedFiltered = item.rawInput === undefined
+      ? undefined
+      : parseMixedAnnotatedLine(item.rawInput);
+    if ((reparsedFiltered !== undefined || item.filteredInput) &&
+        (!reparsedFiltered || item.filteredInput !== true ||
+         reparsedFiltered.original !== item.original ||
+         item.inlineNom.length || item.inlineExplain.length)) {
+      throw new WorkflowError(`Source item ${item.id} has invalid filtered input metadata.`);
+    }
     sourceItems.set(item.id, item);
+  }
+
+  if (manifest.source.kind === 'inline') {
+    if (typeof manifest.source.input !== 'string' ||
+        JSON.stringify(parseInputText(manifest.source.input)) !==
+          JSON.stringify(manifest.source.items)) {
+      throw new WorkflowError('Manifest inline source items do not match the planned input.');
+    }
   }
 
   if (manifest.source.kind === 'file') {
@@ -550,6 +618,7 @@ function validateManifest(manifest, options = {}) {
 
   const approvedKeys = new Set();
   const primaryItemIds = new Set();
+  const seenEntryKeys = new Set();
   for (const entry of manifest.entries) {
     if (!entry || !['proposed', 'needs-review', 'skipped'].includes(entry.status)) {
       throw new WorkflowError(`Entry ${entry && entry.id ? entry.id : '(unknown)'} has invalid status.`);
@@ -564,8 +633,14 @@ function validateManifest(manifest, options = {}) {
     assertTextArray(entry.provenance || [], `Entry ${entry.id} provenance`);
     assertTextArray(entry.choices || [], `Entry ${entry.id} choices`);
     assertTextArray(entry.notes || [], `Entry ${entry.id} notes`);
-    if (entry.original !== sourceItems.get(entry.sourceItemId).original) {
+    const sourceItem = sourceItems.get(entry.sourceItemId);
+    if (entry.original !== (sourceItem.rawInput || sourceItem.original)) {
       throw new WorkflowError(`Entry ${entry.id} no longer matches its source item.`);
+    }
+    if (sourceItem.filteredInput && (!entry.primary ||
+        !entry.provenance.includes('input-filtered') ||
+        !['needs-review', 'skipped'].includes(entry.status))) {
+      throw new WorkflowError(`Entry ${entry.id} has invalid filtered input metadata.`);
     }
     if (entry.primary) {
       if (entry.id !== `${entry.sourceItemId}:full` || primaryItemIds.has(entry.sourceItemId)) {
@@ -574,11 +649,17 @@ function validateManifest(manifest, options = {}) {
       primaryItemIds.add(entry.sourceItemId);
     }
     if (entry.status === 'skipped') {
+      const skippedKey = normalizeTerm(entry.vi);
+      if (!existingUserKeys.has(skippedKey) && !seenEntryKeys.has(skippedKey)) {
+        throw new WorkflowError(`Entry ${entry.id} has invalid skipped status.`);
+      }
+      seenEntryKeys.add(skippedKey);
       if (entry.decision === 'apply') {
         throw new WorkflowError(`Skipped entry ${entry.id} cannot be applied.`);
       }
       continue;
     }
+    seenEntryKeys.add(normalizeTerm(entry.vi));
     if (!['apply', 'reject'].includes(entry.decision)) {
       throw new WorkflowError(`Entry ${entry.id || entry.vi} requires a final apply/reject decision.`);
     }

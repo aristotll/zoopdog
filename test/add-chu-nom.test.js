@@ -262,6 +262,85 @@ test('input parsing preserves comma-rich inline explanations and compresses empt
   );
 });
 
+test('mixed Vietnamese/CJK lines discard annotations before dictionary resolution', (t) => {
+  const items = cli.parseInputText([
+    'đích的 thực食',
+    '',
+    '純漢字\u0301！？',
+    'đánh打 lạc洛'
+  ].join('\n'));
+
+  assert.deepEqual(items, [
+    {
+      id: 'L1:I1',
+      line: 1,
+      itemIndex: 1,
+      original: 'đích thực',
+      rawInput: 'đích的 thực食',
+      inlineNom: [],
+      inlineExplain: [],
+      filteredInput: true
+    },
+    {
+      id: 'L4:I1',
+      line: 4,
+      itemIndex: 1,
+      original: 'đánh lạc',
+      rawInput: 'đánh打 lạc洛',
+      inlineNom: [],
+      inlineExplain: [],
+      filteredInput: true
+    }
+  ]);
+
+  const fixture = makeFixture(t);
+  const manifest = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'đích的 thực食\nđánh打 lạc洛'
+  });
+  assert.deepEqual(manifest.entries.map((entry) => ({
+    original: entry.original,
+    vi: entry.vi,
+    nom: entry.nom,
+    status: entry.status,
+    provenance: entry.provenance
+  })), [
+    {
+      original: 'đích的 thực食',
+      vi: 'đích thực',
+      nom: [],
+      status: 'needs-review',
+      provenance: ['input-filtered']
+    },
+    {
+      original: 'đánh打 lạc洛',
+      vi: 'đánh lạc',
+      nom: [],
+      status: 'needs-review',
+      provenance: ['input-filtered']
+    }
+  ]);
+  assert.match(manifest.entries[0].notes.join(' '), /filtered.*dictionary.*AI review/i);
+  assert.equal(manifest.entries.some((entry) => entry.nom.includes('的食') || entry.nom.includes('打洛')), false);
+
+  assert.deepEqual(
+    cli.parseInputText([
+      'đích (的) thực',
+      'đích的\u0301 thực食',
+      'đích-的thực食!'
+    ].join('\n')).map((item) => item.original),
+    ['đích thực', 'đích thực', 'đích thực']
+  );
+
+  const oneLinePlan = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'kiểm檢 tra查 xem'
+  });
+  assert.equal(oneLinePlan.entries.length, 1);
+  assert.equal(oneLinePlan.entries[0].vi, 'kiểm tra xem');
+  assert.equal(oneLinePlan.entries[0].provenance.includes('input-filtered'), true);
+});
+
 test('Vietnamese accent folding and typo distance are deterministic', () => {
   assert.equal(cli.foldAccents('  Đặng   Văn  '), 'dang van');
   assert.equal(cli.levenshtein('quan ly', 'quan li'), 1);
@@ -513,6 +592,58 @@ test('manifest validation rejects unsafe paths, invalid Nom, and duplicate apply
   assert.throws(
     () => cli.validateManifest(invalidShape, {repoRoot: fixture.root, approved: true}),
     /invalid status|text arrays/i
+  );
+
+  const filteredMetadata = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'đích的 thực食'
+  });
+  filteredMetadata.entries[0].status = 'proposed';
+  filteredMetadata.entries[0].provenance = [];
+  filteredMetadata.entries[0].decision = 'reject';
+  assert.throws(
+    () => cli.validateManifest(filteredMetadata, {repoRoot: fixture.root, approved: true}),
+    /filtered input metadata/i
+  );
+
+  const downgradedFiltered = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'đích的 thực食'
+  });
+  downgradedFiltered.source.items[0].filteredInput = false;
+  downgradedFiltered.entries[0].status = 'proposed';
+  downgradedFiltered.entries[0].provenance = [];
+  downgradedFiltered.entries[0].decision = 'reject';
+  assert.throws(
+    () => cli.validateManifest(downgradedFiltered, {repoRoot: fixture.root, approved: true}),
+    /filtered input metadata/i
+  );
+
+  const deletedFilteredMetadata = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'đích的 thực食'
+  });
+  delete deletedFilteredMetadata.source.items[0].rawInput;
+  delete deletedFilteredMetadata.source.items[0].filteredInput;
+  deletedFilteredMetadata.source.items[0].original = 'đích thực';
+  deletedFilteredMetadata.entries[0].original = 'đích thực';
+  deletedFilteredMetadata.entries[0].status = 'proposed';
+  deletedFilteredMetadata.entries[0].provenance = [];
+  deletedFilteredMetadata.entries[0].nom = ['的實'];
+  deletedFilteredMetadata.entries[0].decision = 'apply';
+  assert.throws(
+    () => cli.validateManifest(deletedFilteredMetadata, {repoRoot: fixture.root, approved: true}),
+    /inline source items/i
+  );
+
+  const skippedFiltered = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'đích的 thực食'
+  });
+  skippedFiltered.entries[0].status = 'skipped';
+  assert.throws(
+    () => cli.validateManifest(skippedFiltered, {repoRoot: fixture.root, approved: true}),
+    /invalid skipped status/i
   );
 
   const fileManifest = approveActionable(cli.createPlan({

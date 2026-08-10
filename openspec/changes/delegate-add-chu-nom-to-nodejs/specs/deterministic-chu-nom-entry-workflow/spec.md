@@ -34,6 +34,14 @@ The planner SHALL deterministically select inline input or a file mention, defau
 - **WHEN** the caller supplies a file mention with an inclusive line range
 - **THEN** only eligible items from that range appear in the plan and source coordinates identify their original locations
 
+#### Scenario: Mixed Vietnamese and CJK line becomes one annotated phrase
+- **WHEN** one input line is `đích的 thực食`
+- **THEN** the planner emits one source item with Vietnamese `đích thực`, retains the original line for review, and does not carry `的` or `食` into Nom candidates
+
+#### Scenario: Non-Vietnamese-only line is filtered
+- **WHEN** a mixed-input line contains CJK or punctuation but no Vietnamese or Latin letters
+- **THEN** the planner omits that line from candidate generation
+
 ### Requirement: Deterministic phrase expansion and local resolution
 The planner SHALL emit each full phrase and eligible known contiguous subphrases in a documented stable order, de-duplicate normalized keys in first-seen order, detect existing user entries before proposing writes, and resolve candidates from local sources with stable source precedence and de-duplication. It MUST NOT infer unsupported linguistic data.
 
@@ -56,6 +64,10 @@ The planner SHALL emit each full phrase and eligible known contiguous subphrases
 #### Scenario: Unsupported resolution is not fabricated
 - **WHEN** local data cannot provide a unique correction, Nom value, composition, or English explanation
 - **THEN** the planner leaves the missing or ambiguous field for review and records why it could not be resolved
+
+#### Scenario: Filtered mixed input requires AI review
+- **WHEN** the planner removes embedded CJK from a mixed Vietnamese/CJK line
+- **THEN** it records `input-filtered` provenance, resolves only the clean Vietnamese phrase from local dictionaries, marks the full phrase `needs-review`, and notes that AI review is required before approval
 
 ### Requirement: Explicit, auditable review handoff
 The planning manifest SHALL record schema version, relevant source hashes, original inputs and coordinates, normalized keys, candidates, provenance, review notes, and decisions. The apply operation SHALL require an explicit approval argument and final per-entry decisions, and SHALL reject incomplete or unsafe actionable entries.
@@ -135,3 +147,7 @@ After source edits, apply SHALL invoke `scripts/build-nom-userscript.js` and `sc
 #### Scenario: User requests changes before approval
 - **WHEN** the user corrects or rejects one or more proposed candidates
 - **THEN** the agent updates only the review manifest and does not apply until the revised proposal is explicitly approved
+
+#### Scenario: AI reviews a filtered mixed input
+- **WHEN** a planned candidate has `input-filtered` provenance
+- **THEN** the agent checks phrase meaning and local dictionary evidence, supplies or corrects the Nom and concise explanation without reusing filtered characters, and presents the revision without applying it

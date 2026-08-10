@@ -28,6 +28,8 @@ node scripts/add-chu-nom.js plan --manifest "<manifest>"
 
 Read the generated JSON manifest and present a compact Vietnamese review table containing original input, proposed `vi`, `nom`, `explain`, status, and provenance/notes. Include skipped candidates and unresolved choices.
 
+For candidates with `input-filtered` provenance, treat the removed characters as noise: do not restore filtered characters as Nom evidence. Review the cleaned Vietnamese phrase against local dictionary evidence, supply or correct `nom` and a concise English `explain` when needed, and present the reviewed result for approval.
+
 Help resolve linguistic ambiguity only. Record the reviewed values in the manifest and set every actionable entry's `decision` to `apply` or `reject`. Do not invoke apply, edit dictionary data, clean the input file, or rebuild generated files before the user explicitly approves the reviewed proposal.
 
 If the user requests changes, update only the temporary manifest and present the revised review again.
