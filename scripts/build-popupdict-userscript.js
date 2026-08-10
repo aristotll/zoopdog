@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const {
+  cleanText,
+  normalizeTerm,
   readUserNomEntries,
   toDictionaryEntries
 } = require('./user-nom-entries');
@@ -20,19 +22,6 @@ const sourceFiles = [
 ];
 
 const cjkPattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
-
-function cleanText(value) {
-  return String(value || '')
-    .replace(/^\uFEFF/, '')
-    .normalize('NFC')
-    .trim();
-}
-
-function normalizeTerm(value) {
-  return cleanText(value)
-    .toLocaleLowerCase('vi-VN')
-    .replace(/\s+/g, ' ');
-}
 
 function isCjkDefinition(definition) {
   return cjkPattern.test(definition[0]) && !/[A-Za-z]/.test(definition[0]);

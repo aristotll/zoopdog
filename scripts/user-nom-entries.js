@@ -138,6 +138,11 @@ function toDictionaryEntries(userEntries) {
 }
 
 module.exports = {
+  cleanText,
+  normalizeTerm,
+  stripJsonComments,
+  asTextArray,
+  parseUserNomEntries,
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap,
   toDictionaryEntries

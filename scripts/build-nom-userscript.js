@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const {
+  cleanText,
+  normalizeTerm,
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap
 } = require('./user-nom-entries');
@@ -16,19 +18,6 @@ const targetPath = path.join(rootDir, 'zoopdog-nom-ruby.user.js');
 const cjkPattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
 const cjkSequencePattern = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]+/gu;
 const nonAsciiPattern = /[^\x00-\x7F]/;
-
-function cleanText(value) {
-  return String(value || '')
-    .replace(/^\uFEFF/, '')
-    .normalize('NFC')
-    .trim();
-}
-
-function normalizeTerm(value) {
-  return cleanText(value)
-    .toLocaleLowerCase('vi-VN')
-    .replace(/\s+/g, ' ');
-}
 
 function isEmbeddableTerm(term) {
   return term && (
