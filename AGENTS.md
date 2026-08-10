@@ -8,7 +8,7 @@
 
 ## Local Rules
 
-- At the start of a session, also read and follow any project-specific rules in `.claude/rules/*.md` when that directory exists.
+- At the start of a session, also read and follow any project-specific rules in `.claude/no-autoload-rules/*.md` when that directory exists.
 - These local rules supplement this `AGENTS.md`; if they conflict, ask the user before proceeding unless the newer user instruction clearly resolves the conflict.
 
 ## Project Overview
@@ -22,7 +22,14 @@ The repository intentionally tracks generated assets:
 - Extension pages/styles follow the same pattern under `zd-extension/`.
 - Extension runtime code lives in `zd-extension/js/`; website JavaScript lives in `js/`.
 
-There is no `package.json`, task runner, or test framework in this repo. Do not assume npm scripts exist.
+There is no `package.json` and no npm dependency in this repo; do not assume npm scripts exist. Maintenance tasks run through the dependency-free `Makefile`, and the Chu Nom entry workflow has a `node:test` suite:
+
+```sh
+make verify
+node --test test/*.test.js
+```
+
+`make verify` runs every suite under `test/` and syntax-checks every file under `scripts/`, including the extracted userscript runtime.
 
 ## Important Paths
 
@@ -42,7 +49,13 @@ There is no `package.json`, task runner, or test framework in this repo. Do not 
 - `scripts/build-nom-userscript.js`: generator for the standalone Chu Nom ruby userscript.
 - `zd-extension/db_src/mdx_nom.json`: generated supplemental Chu Nom/CJK mappings extracted from the external Vietnamese-Chinese MDX dictionary.
 - `zd-extension/db_src/user_nom_entries.jsonc`: hand-maintained user Chu Nom/CJK entries shared by the Nom ruby and popup dictionary userscript generators.
-- `.codex/commands/add-chu-nom.md`: Codex slash command workflow for resolving Vietnamese words to Chu Nom/CJK user entries, asking for review, and rebuilding generated userscripts after approval.
+- `scripts/lib/`: shared primitives for every script — text normalization, CJK patterns and candidate extraction, repository path constants, JSON/JSONC source helpers, and userscript assembly. Each primitive is defined here once; scripts import rather than redefine them.
+- `scripts/userscript/`: the browser runtime and CSS embedded in the generated userscripts, stored as real source files. **Edit the userscript runtime here, never inside `scripts/build-*.js`**, then rebuild. The builders substitute `__ZOOPDOG_*__` placeholders and fail if any is missing or repeated.
+- `scripts/add-chu-nom.js`: CLI entry point for the deterministic Chu Nom entry workflow; parses arguments and dispatches `plan`/`apply`.
+- `scripts/add-chu-nom/`: the workflow's modules — input parsing, local-source resolution, planning, manifest validation, JSONC editing, and the apply transaction.
+- `test/*.test.js`: `node:test` suites covering the Chu Nom workflow, the shared script library, the MDX extract/merge transforms, and the `scripts/` structure contracts (no duplicated primitives, no side effects on import, byte-identical generated output).
+- `Makefile`: dependency-free entry points for planning, approved apply, userscript rebuilds, and verification.
+- `.codex/commands/add-chu-nom.md`: the sole canonical `/add-chu-nom` agent workflow. It provides the conversational review layer only — `scripts/add-chu-nom.js` performs every dictionary, input-file, and generated-file write. `.claude/commands/add-chu-nom.md` is a pointer to it and must not duplicate the instructions.
 - `zoopdog-popupdict.user.js`: generated userscript that ports the extension popup/highlight/pronunciation behavior without Chrome extension APIs.
 - `zoopdog-nom-ruby.user.js`: generated userscript with embedded dictionary data from `zd-extension/db_src/vnedict2.json`.
 
@@ -141,7 +154,21 @@ To add hand-maintained Chu Nom/CJK entries, use the Codex command:
 /add-chu-nom tiếng Anh
 ```
 
-The command accepts inline words or a file input, defaults to `.idea/newfile.md` when no input is specified, preprocesses no-diacritic or lightly mistyped Vietnamese input, resolves candidate Chu Nom/CJK forms plus English explanations, asks for user review/approval, then upserts `zd-extension/db_src/user_nom_entries.jsonc`, rebuilds `zoopdog-nom-ruby.user.js` and `zoopdog-popupdict.user.js`, and verifies the generated embeds.
+The command is the conversational review layer only. `scripts/add-chu-nom.js` does all the work in two phases and is the only writer:
+
+```sh
+node scripts/add-chu-nom.js plan --file .idea/newfile.md --manifest "$manifest"
+node scripts/add-chu-nom.js apply --manifest "$manifest" --approve
+```
+
+`plan` is read-only: it accepts inline words or a file mention, defaults to `.idea/newfile.md`, preprocesses no-diacritic or lightly mistyped input, and writes a reviewable JSON manifest. After the user approves the reviewed manifest, `apply` upserts `zd-extension/db_src/user_nom_entries.jsonc`, removes the applied input items, rebuilds both userscripts through their builders, verifies the generated embeds, and restores every file it owns if any step fails. Never edit the dictionary data, the input queue, or the generated userscripts by hand for this workflow, and never run `apply` before explicit approval.
+
+The same operations are available through Make:
+
+```sh
+make add-chu-nom-plan INPUT=.idea/newfile.md MANIFEST=/path/to/manifest.json
+make import-chu-nom MANIFEST=/path/to/reviewed.json
+```
 
 ## Manual Verification
 

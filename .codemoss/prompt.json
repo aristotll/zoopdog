@@ -1,0 +1,29 @@
+{
+  "prompts": {
+    "4db22114-5777-474d-b51b-8411038738f0": {
+      "id": "4db22114-5777-474d-b51b-8411038738f0",
+      "name": "continue",
+      "content": "follow the project convention, continue from the last stop part\n\nuse the vietnamese to reply in this conversation",
+      "createdAt": 1778425410846
+    },
+    "ba3c63b3-5dc5-4d36-b711-dc697364a076": {
+      "id": "ba3c63b3-5dc5-4d36-b711-dc697364a076",
+      "name": "vi",
+      "content": "reply vietnamese in this conversation",
+      "createdAt": 1778872664443
+    },
+    "33436821-d6fc-4dff-bfb8-12cd5777eff0": {
+      "id": "33436821-d6fc-4dff-bfb8-12cd5777eff0",
+      "name": "ja",
+      "content": "remember: reply Japanese in this conversation!!",
+      "createdAt": 1778872677618,
+      "updatedAt": 1778882091490
+    },
+    "5ff21051-b984-42df-9b9b-09a28e43b20c": {
+      "id": "5ff21051-b984-42df-9b9b-09a28e43b20c",
+      "name": "book",
+      "content": "build all books that have done polish, but no output epub",
+      "createdAt": 1782020062591
+    }
+  }
+}

@@ -1,0 +1,201 @@
+
+@import url("https://fonts.googleapis.com/css?family=Fira+Sans:300,800");
+
+#zoopdog-userscript-popup {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2147483646;
+  visibility: hidden;
+  box-sizing: border-box;
+  margin-top: 5px;
+  padding: 10px 20px;
+  min-width: 220px;
+  max-width: 440px;
+  max-height: 320px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  white-space: nowrap;
+  background: #F2ECE1;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 4px 4px 19px -2px rgba(0, 0, 0, 0.47);
+  color: #000;
+  font-family: "Fira Sans", sans-serif;
+  font-size: 16px;
+  line-height: normal;
+  touch-action: pan-x pan-y;
+}
+
+#zoopdog-userscript-popup * {
+  box-sizing: border-box;
+}
+
+#zoopdog-userscript-popup-lock-icon {
+  position: fixed;
+  right: 15px;
+  top: 12px;
+  z-index: 2147483647;
+  font-size: 16pt;
+  line-height: 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#zoopdog-userscript-popup-body {
+  white-space: normal;
+}
+
+#zoopdog-userscript-popup-body h1 {
+  color: #5BB1B7;
+  margin: 5px 0 10px;
+  white-space: nowrap;
+  font-weight: 800;
+  font-size: 18pt;
+  line-height: 1.2;
+}
+
+#zoopdog-userscript-popup-body ul {
+  font-weight: 300;
+  font-size: 10pt;
+  margin: 0;
+  padding: 10px 0 0 20px;
+  line-height: 1.5em;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+#zoopdog-userscript-popup-body ul li {
+  margin: 5px 0;
+  padding: 0;
+}
+
+#zoopdog-userscript-popup-body ul li .zoopdog-pos {
+  background: #B6638F;
+  color: #fff;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 5px;
+}
+
+#zoopdog-userscript-popup-body ul li.zoopdog-cjk-def {
+  font-size: 12pt;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+#zoopdog-userscript-popup-body .zd-definition:not(:last-child) ul {
+  border-bottom: 1px solid #5BB1B7;
+  padding-bottom: 20px !important;
+  margin-bottom: 20px !important;
+}
+
+#zoopdog-userscript-popup-body .zd-pronunciation {
+  white-space: nowrap;
+}
+
+#zoopdog-userscript-popup-body .zd-pronunciation .zoopdog-word {
+  font-size: 16pt;
+  user-select: none;
+  cursor: default;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.zoopdog-word {
+  font-family: "DejaVuSansMono-Regular", "DejaVu Sans Mono", monospace;
+  position: relative;
+  display: inline-block;
+  margin-bottom: 30px;
+}
+
+.zoopdog-word .zd-tone-canvas {
+  height: 200%;
+  width: 100%;
+}
+
+.zoopdog-word .source-word,
+.zoopdog-word .source-ipa {
+  display: none;
+  font-size: 10pt;
+  font-weight: 300;
+  position: absolute;
+  left: 11px;
+}
+
+.zoopdog-word .source-word {
+  font-family: "Fira Sans", sans-serif;
+  top: -15px;
+}
+
+.zoopdog-word .source-ipa {
+  font-family: "Charis SIL", "CharisSILW", "Lucida Grande", "Lucida Sans Unicode", "Arial Unicode MS", sans-serif;
+  top: -20px;
+}
+
+.zoopdog-word .phonemic-unit {
+  display: inline;
+  vertical-align: middle;
+  background: #BFB5AF;
+  color: #BFB5AF;
+  margin: 0;
+  padding: 0;
+}
+
+.zoopdog-word .phonemic-unit:first-child {
+  border-radius: 10px 0 0 10px;
+  padding-left: 10px;
+}
+
+.zoopdog-word .phonemic-unit:last-child {
+  border-radius: 0 10px 10px 0;
+  padding-right: 10px;
+}
+
+.zoopdog-word .phonemic-unit:only-child {
+  border-radius: 10px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.zoopdog-word .phonemic-unit.short-vowel {
+  background: #5BB1B7;
+  color: #5BB1B7;
+}
+
+.zoopdog-word .phonemic-unit.glide {
+  background: #ECE2D0;
+  color: #ECE2D0;
+}
+
+.zoopdog-word .phonemic-unit.glide .super {
+  font-size: 0.75em;
+  vertical-align: top;
+  margin: 2px;
+}
+
+.zoopdog-word .phonemic-unit.long-vowel,
+.zoopdog-word .phonemic-unit.long-consonant {
+  padding-right: 20px;
+}
+
+.zoopdog-word .phonemic-unit.long-vowel {
+  background: #0685AA;
+  color: #0685AA;
+}
+
+.zoopdog-word .phonemic-unit.long-consonant {
+  background: #9B2966;
+  color: #9B2966;
+}
+
+.phonemes.blank-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.phonemes.blank-bg .phonemic-unit {
+  color: #fff;
+  background: none;
+}

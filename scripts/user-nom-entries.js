@@ -1,17 +1,5 @@
 const fs = require('fs');
-
-function cleanText(value) {
-  return String(value || '')
-    .replace(/^\uFEFF/, '')
-    .normalize('NFC')
-    .trim();
-}
-
-function normalizeTerm(value) {
-  return cleanText(value)
-    .toLocaleLowerCase('vi-VN')
-    .replace(/\s+/g, ' ');
-}
+const {cleanText, normalizeTerm} = require('./lib/text');
 
 function stripJsonComments(source) {
   let result = '';

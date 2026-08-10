@@ -85,6 +85,15 @@ function installRealBuilders(fixtureRoot) {
       path.join(fixtureRoot, 'scripts', script)
     );
   }
+  // The builders import the shared primitives and assemble the extracted userscript
+  // runtime, so the fixture needs both directories.
+  for (const directory of ['scripts/lib', 'scripts/userscript']) {
+    fs.cpSync(
+      path.join(repoRoot, directory),
+      path.join(fixtureRoot, directory),
+      {recursive: true}
+    );
+  }
   for (const relative of [
     'zd-extension/js/lib/chroma.min.js',
     'zd-extension/js/zd-pron-data.js',
@@ -339,6 +348,66 @@ test('mixed Vietnamese/CJK lines discard annotations before dictionary resolutio
   assert.equal(oneLinePlan.entries.length, 1);
   assert.equal(oneLinePlan.entries[0].vi, 'kiểm tra xem');
   assert.equal(oneLinePlan.entries[0].provenance.includes('input-filtered'), true);
+});
+
+test('separators split a mixed Vietnamese/CJK line into distinct items', () => {
+  assert.deepEqual(
+    cli.parseInputText('đích的 thực食, đánh打 lạc洛').map((item) => ({
+      id: item.id,
+      itemIndex: item.itemIndex,
+      original: item.original,
+      rawInput: item.rawInput,
+      filteredInput: item.filteredInput
+    })),
+    [
+      {
+        id: 'L1:I1',
+        itemIndex: 1,
+        original: 'đích thực',
+        rawInput: 'đích的 thực食',
+        filteredInput: true
+      },
+      {
+        id: 'L1:I2',
+        itemIndex: 2,
+        original: 'đánh lạc',
+        rawInput: 'đánh打 lạc洛',
+        filteredInput: true
+      }
+    ]
+  );
+
+  assert.deepEqual(
+    cli.parseInputText('học học; kỳ期 nghỉ憩 | kỷ紀 luật律')
+      .map((item) => item.original),
+    ['học học', 'kỳ nghỉ', 'kỷ luật']
+  );
+
+  // A mixed line with no separator is still exactly one item.
+  const single = cli.parseInputText('đích的 thực食');
+  assert.equal(single.length, 1);
+  assert.equal(single[0].original, 'đích thực');
+  assert.equal(single[0].rawInput, 'đích的 thực食');
+});
+
+test('cleanup of a mixed annotated line leaves no residue', () => {
+  const source = 'đích的 thực食, đánh打 lạc洛\n';
+  const items = cli.parseInputText(source);
+
+  assert.equal(
+    cli.cleanupInputContent(source, items, new Set(['L1:I1', 'L1:I2'])),
+    '\n',
+    'applying every item drops the line, leaving only the file\'s trailing newline'
+  );
+  assert.equal(
+    cli.cleanupInputContent(source, items, new Set(['L1:I1'])),
+    ' đánh打 lạc洛\n',
+    'applying one item leaves exactly the other item'
+  );
+  assert.equal(
+    cli.cleanupInputContent(source, items, new Set(['L1:I2'])),
+    'đích的 thực食\n'
+  );
 });
 
 test('Vietnamese accent folding and typo distance are deterministic', () => {
@@ -704,10 +773,18 @@ test('JSONC upsert changes only values, preserves comments, and appends new entr
   assert.match(updated, /Keep this field comment/);
   assert.match(updated, /Keep this entry comment/);
   const parsed = userEntries.parseUserNomEntries(updated, 'updated.jsonc');
-  assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').nom, ['管理']);
-  assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').explain, ['manage']);
+  // Updating merges into the stored values rather than replacing them.
+  assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').nom, ['舊', '管理']);
+  assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').explain, ['old', 'manage']);
   assert.deepEqual(parsed.find((entry) => entry.key === 'giữ lại').nom, ['保持']);
   assert.deepEqual(parsed.find((entry) => entry.key === 'sao vàng').nom, ['𣋀黃']);
+
+  const replaced = cli.upsertUserEntriesJsonc(source, [
+    {vi: 'quản lý', key: 'quản lý', nom: ['管理'], explain: ['manage'], replace: true}
+  ]);
+  const replacedParsed = userEntries.parseUserNomEntries(replaced, 'replaced.jsonc');
+  assert.deepEqual(replacedParsed.find((entry) => entry.key === 'quản lý').nom, ['管理']);
+  assert.match(replaced, /Keep this field comment/);
 });
 
 test('JSONC upsert inserts a missing property before trailing comments and preserves CRLF indentation', () => {
@@ -716,7 +793,7 @@ test('JSONC upsert inserts a missing property before trailing comments and prese
     {vi: 'quản lý', nom: ['管理'], explain: ['manage']}
   ]);
 
-  assert.match(updated, /\["管理"\], \/\/ keep trailing comment/);
+  assert.match(updated, /\["舊","管理"\], \/\/ keep trailing comment/);
   assert.match(updated, /\r\n        "explain": \["manage"\]\r\n/);
   assert.doesNotMatch(updated, /(^|[^\r])\n/);
   assert.deepEqual(
@@ -748,7 +825,112 @@ test('JSONC append preserves an established four/eight-space indentation style',
     {vi: 'mới', nom: ['新'], explain: ['new']}
   ]);
 
-  assert.match(updated, /\n    \{\n        "vi": "mới",\n        "nom": \[\n/);
+  // The file's four/eight-space indentation is preserved, and appended values use the same
+  // single-line style as the update path so one file never mixes two formats.
+  assert.match(
+    updated,
+    /\n    \{\n        "vi": "mới",\n        "nom": \["新"\],\n        "explain": \["new"\]\n    \}\n/
+  );
+  assert.equal(userEntries.parseUserNomEntries(updated, 'style.jsonc').length, 2);
+});
+
+test('JSONC upsert merges into an existing entry instead of replacing it', () => {
+  const source = `[
+  {
+    // Keep this comment.
+    "vi": "tiếng Anh",
+    "nom": ["㗂英", "㗂鶯"],
+    "explain": ["English"]
+  }
+]
+`;
+
+  const merged = cli.upsertUserEntriesJsonc(source, [
+    {vi: 'tiếng Anh', nom: ['㗂英'], explain: ['English language']}
+  ]);
+  const [entry] = userEntries.parseUserNomEntries(merged, 'fixture.jsonc');
+
+  assert.deepEqual(entry.nom, ['㗂英', '㗂鶯'], 'existing Nom variants survive');
+  assert.deepEqual(entry.explain, ['English', 'English language']);
+  assert.match(merged, /\/\/ Keep this comment\./);
+
+  const replaced = cli.upsertUserEntriesJsonc(source, [
+    {vi: 'tiếng Anh', nom: ['㗂英'], explain: ['English language'], replace: true}
+  ]);
+  const [replacedEntry] = userEntries.parseUserNomEntries(replaced, 'fixture.jsonc');
+  assert.deepEqual(replacedEntry.nom, ['㗂英'], 'replace: true opts into shrinking');
+  assert.deepEqual(replacedEntry.explain, ['English language']);
+});
+
+test('manifest validation gates the replace opt-in behind review', (t) => {
+  const fixture = makeFixture(t);
+
+  const proposed = approveActionable(cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'quan ly'
+  }));
+  const target = proposed.entries.find((entry) => entry.decision === 'apply');
+  assert.equal(target.status, 'proposed');
+  target.replace = true;
+  assert.throws(
+    () => cli.validateManifest(proposed, {repoRoot: fixture.root, approved: true}),
+    /may only replace stored values from a reviewed entry/
+  );
+
+  const reviewed = cli.createPlan({repoRoot: fixture.root, words: 'đích的 thực食'});
+  reviewed.entries[0].nom = ['的實'];
+  reviewed.entries[0].decision = 'apply';
+  reviewed.entries[0].replace = true;
+  assert.equal(reviewed.entries[0].status, 'needs-review');
+  assert.doesNotThrow(
+    () => cli.validateManifest(reviewed, {repoRoot: fixture.root, approved: true})
+  );
+
+  const badFlag = approveActionable(cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'quan ly'
+  }));
+  badFlag.entries.find((entry) => entry.decision === 'apply').replace = 'yes';
+  assert.throws(
+    () => cli.validateManifest(badFlag, {repoRoot: fixture.root, approved: true}),
+    /invalid replace flag/
+  );
+});
+
+test('JSONC append after a trailing comment stays valid and preserves the comment', () => {
+  const source = `[
+  {
+    "vi": "tiếng Anh",
+    "nom": ["㗂英"],
+    "explain": []
+  }
+  // Trailing note kept for maintainers.
+]
+`;
+
+  const appended = cli.upsertUserEntriesJsonc(source, [
+    {vi: 'quản lý', nom: ['管理'], explain: ['manage']}
+  ]);
+
+  assert.match(appended, /\/\/ Trailing note kept for maintainers\./);
+  assert.deepEqual(
+    userEntries.parseUserNomEntries(appended, 'fixture.jsonc').map((entry) => entry.key),
+    ['tiếng Anh'.toLocaleLowerCase('vi-VN'), 'quản lý']
+  );
+
+  // A block comment in the same position works too.
+  const blockSource = source.replace(
+    '// Trailing note kept for maintainers.',
+    '/* Trailing block note. */'
+  );
+  const blockAppended = cli.upsertUserEntriesJsonc(blockSource, [
+    {vi: 'quản lý', nom: ['管理'], explain: []}
+  ]);
+  assert.match(blockAppended, /\/\* Trailing block note\. \*\//);
+  assert.equal(
+    userEntries.parseUserNomEntries(blockAppended, 'fixture.jsonc').length,
+    2
+  );
 });
 
 test('file cleanup removes only applied items and preserves unresolved content', () => {
@@ -764,6 +946,63 @@ test('file cleanup removes only applied items and preserves unresolved content',
     cli.cleanupInputContent(spaced, spacedItems, new Set(['L1:I2'])),
     '  a  , c\n'
   );
+});
+
+test('a term repeated in one batch stays applyable', (t) => {
+  const fixture = makeFixture(t);
+  const manifest = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'kiểm tra\nkiểm tra'
+  });
+
+  const duplicates = manifest.entries.filter((entry) => entry.status === 'skipped');
+  assert.equal(duplicates.length, 1);
+  assert.equal(duplicates[0].primary, false,
+    'a suppressed duplicate is not its source item\'s full-phrase entry');
+  assert.equal(duplicates[0].sourceItemId, 'L2:I1');
+  assert.match(duplicates[0].notes.join(' '), /Duplicate candidate/);
+
+  approveActionable(manifest);
+  const runner = (command, args, options) => {
+    fixture.calls.push({command, args: [...args], cwd: options.cwd});
+    if (args[0] === 'scripts/build-nom-userscript.js') {
+      fs.writeFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'),
+        'var NOM_MAP = {"kiểm tra":"檢查"};\n');
+    }
+    if (args[0] === 'scripts/build-popupdict-userscript.js') {
+      fs.writeFileSync(path.join(fixture.root, 'zoopdog-popupdict.user.js'),
+        'var ZOO_DICTIONARY = {"kiểm tra":[["kiểm tra",[]]]};\n');
+    }
+    return {status: 0, stdout: '', stderr: ''};
+  };
+
+  const result = cli.applyManifest(manifest, {
+    repoRoot: fixture.root,
+    approved: true,
+    commandRunner: runner
+  });
+
+  assert.deepEqual(result.updated, ['kiểm tra']);
+  assert.deepEqual(result.removedItems, ['L1:I1']);
+});
+
+test('a repeated already-existing entry plans and applies as a no-op', (t) => {
+  const fixture = makeFixture(t);
+  const manifest = cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'tiếng Anh\ntiếng Anh'
+  });
+
+  assert.deepEqual(manifest.entries.map((entry) => entry.status), ['skipped', 'skipped']);
+
+  const result = cli.applyManifest(manifest, {
+    repoRoot: fixture.root,
+    approved: true,
+    commandRunner: fixture.commandRunner
+  });
+
+  assert.deepEqual(result.updated, []);
+  assert.equal(fixture.calls.length, 0);
 });
 
 test('transactional apply updates, builds, verifies, and reports structured results', (t) => {
@@ -827,6 +1066,7 @@ test('apply with no approved entries performs no writes, builds, or checks', (t)
     action: 'apply',
     updated: [],
     removedItems: [],
+    notEmbedded: [],
     rebuilt: [],
     checks: []
   });
@@ -834,6 +1074,46 @@ test('apply with no approved entries performs no writes, builds, or checks', (t)
   owned.forEach((relative) => {
     assert.deepEqual(fs.readFileSync(path.join(fixture.root, relative)), before[relative]);
   });
+});
+
+test('a key the Nom builder excludes is reported, not rolled back', (t) => {
+  const fixture = makeFixture(t);
+  const nomBuilder = require('../scripts/build-nom-userscript');
+  assert.equal(nomBuilder.isEmbeddableTerm('y'), false,
+    'a single ASCII character is deliberately not embeddable');
+
+  const manifest = cli.createPlan({repoRoot: fixture.root, words: 'y'});
+  manifest.entries[0].nom = ['醫'];
+  manifest.entries[0].decision = 'apply';
+
+  const runner = (command, args, options) => {
+    fixture.calls.push({command, args: [...args], cwd: options.cwd});
+    if (args[0] === 'scripts/build-nom-userscript.js') {
+      // The real builder omits the key, exactly as isEmbeddableTerm dictates.
+      fs.writeFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'),
+        'var NOM_MAP = {};\n');
+    }
+    if (args[0] === 'scripts/build-popupdict-userscript.js') {
+      fs.writeFileSync(path.join(fixture.root, 'zoopdog-popupdict.user.js'),
+        'var ZOO_DICTIONARY = {"y":[["y",[]]]};\n');
+    }
+    return {status: 0, stdout: '', stderr: ''};
+  };
+
+  const result = cli.applyManifest(manifest, {
+    repoRoot: fixture.root,
+    approved: true,
+    commandRunner: runner
+  });
+
+  assert.deepEqual(result.updated, ['y']);
+  assert.deepEqual(result.notEmbedded, ['y']);
+  assert.deepEqual(
+    userEntries.readUserNomEntries(
+      path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc')
+    ).find((entry) => entry.key === 'y').nom,
+    ['醫']
+  );
 });
 
 test('transactional apply restores exact bytes when a build fails', (t) => {
@@ -958,12 +1238,99 @@ test('Makefile delegates plan, approved apply, rebuilds, and verification to Nod
   assert.match(makefile, /scripts\/build-popupdict-userscript\.js/);
   assert.match(makefile, /^rebuild-userscripts:/m);
   assert.match(makefile, /^verify-add-chu-nom:/m);
-  assert.match(makefile, /\$\(NODE\) --test test\/add-chu-nom\.test\.js/);
+  assert.match(makefile, /\$\(NODE\) --test test\/\*\.test\.js/);
+  assert.match(makefile, /--check/);
 
   const dryRun = execFileSync('make', [
     '-n', 'add-chu-nom-apply', 'MANIFEST=/tmp/reviewed.json'
   ], {cwd: repoRoot, encoding: 'utf8'});
   assert.match(dryRun, /apply --manifest "\/tmp\/reviewed\.json" --approve/);
+});
+
+test('Make targets require an explicit manifest path', () => {
+  const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
+  assert.doesNotMatch(makefile, /MANIFEST\s*\?=\s*\/tmp\//,
+    'no predictable default in a world-writable shared directory');
+
+  for (const target of ['add-chu-nom-apply', 'import-chu-nom', 'add-chu-nom-plan']) {
+    assert.throws(
+      () => execFileSync('make', ['-n', target], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        stdio: 'pipe'
+      }),
+      (error) => {
+        assert.notEqual(error.status, 0, `${target} must fail without MANIFEST`);
+        assert.match(String(error.stderr), /MANIFEST is required/);
+        return true;
+      },
+      `${target} without MANIFEST`
+    );
+  }
+
+  // Targets that do not touch a manifest keep working with no arguments.
+  for (const target of ['help', 'rebuild-userscripts', 'verify-add-chu-nom']) {
+    assert.doesNotThrow(() => execFileSync('make', ['-n', target], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: 'pipe'
+    }), `${target} needs no MANIFEST`);
+  }
+});
+
+test('AGENTS.md describes the workflow that actually exists', () => {
+  const agents = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+
+  const rulesReference = agents.match(/`(\.claude\/[\w-]+)\/\*\.md`/);
+  assert.ok(rulesReference, 'AGENTS.md names a local rules directory');
+  assert.ok(
+    fs.existsSync(path.join(repoRoot, rulesReference[1])),
+    `AGENTS.md points at ${rulesReference[1]}, which does not exist`
+  );
+
+  assert.doesNotMatch(
+    agents,
+    /no `package\.json`, task runner, or test framework/,
+    'the repository now has a Makefile and a node:test suite'
+  );
+  // The documented verification entry points must exist as real Make targets and a real
+  // test command, without pinning their exact spelling.
+  const documentedTargets = [...agents.matchAll(/make ([a-z][\w-]*)/g)].map((match) => match[1]);
+  const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
+  assert.ok(
+    documentedTargets.some((target) =>
+      /^verify/.test(target) && new RegExp(`^${target}:`, 'm').test(makefile)),
+    'AGENTS.md documents a verification target that the Makefile defines'
+  );
+  assert.match(agents, /node --test test\//);
+  for (const importantPath of [
+    'scripts/add-chu-nom.js',
+    'scripts/add-chu-nom/',
+    'Makefile'
+  ]) {
+    assert.ok(agents.includes(importantPath), `AGENTS.md should mention ${importantPath}`);
+  }
+});
+
+test('the canonical command document has no divergent copy', () => {
+  const allowed = new Set([
+    '.codex/commands/add-chu-nom.md',
+    '.claude/commands/add-chu-nom.md'
+  ]);
+  const tracked = execFileSync('git', ['ls-files'], {cwd: repoRoot, encoding: 'utf8'})
+    .split('\n')
+    .filter((entry) => entry.endsWith('.md') && !allowed.has(entry));
+
+  const duplicates = tracked.filter((relative) => {
+    const full = path.join(repoRoot, relative);
+    if (!fs.existsSync(full)) {
+      return false;
+    }
+    return /^---\r?\n[\s\S]*?description:.*Chu Nom/m.test(fs.readFileSync(full, 'utf8'));
+  });
+
+  assert.deepEqual(duplicates, [],
+    'the /add-chu-nom command lives only in .codex/commands, with .claude as a pointer');
 });
 
 test('Claude command is only a reference link to the canonical Codex document', () => {
