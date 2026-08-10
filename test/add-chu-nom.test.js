@@ -725,6 +725,23 @@ test('JSONC upsert inserts a missing property before trailing comments and prese
   );
 });
 
+test('JSONC upsert de-duplicates approved keys and is byte-idempotent', () => {
+  const source = '[\n  // keep\n]\n';
+  const approved = [
+    {vi: 'Đồng nghiệp', nom: ['同業'], explain: ['colleague']},
+    {vi: 'đồng   nghiệp', nom: [' 同業', '同業'], explain: ['coworker', 'colleague ']}
+  ];
+
+  const once = cli.upsertUserEntriesJsonc(source, approved);
+  const twice = cli.upsertUserEntriesJsonc(once, approved);
+  const parsed = userEntries.parseUserNomEntries(once, 'fixture.jsonc');
+
+  assert.equal(parsed.filter((entry) => entry.key === 'đồng nghiệp').length, 1);
+  assert.deepEqual(parsed[0].nom, ['同業']);
+  assert.deepEqual(parsed[0].explain, ['colleague', 'coworker']);
+  assert.equal(twice, once);
+});
+
 test('JSONC append preserves an established four/eight-space indentation style', () => {
   const source = '[\n    {\n        "vi": "cũ",\n        "nom": ["舊"]\n    }\n]\n';
   const updated = cli.upsertUserEntriesJsonc(source, [

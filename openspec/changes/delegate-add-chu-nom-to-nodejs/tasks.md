@@ -27,6 +27,8 @@
 - [x] 3.4 Implement the constrained JSONC lexical scanner and atomic comment-preserving upsert until the JSONC tests pass.
 - [x] 3.5 Add file-cleanup tests for whole-line items, one applied item among multiple separators, selected line ranges, and preservation of skipped/rejected/unresolved/unrelated content.
 - [x] 3.6 Implement coordinate-based input cleanup and atomic writes until only successfully applied file items are removed.
+- [x] 3.7 Add a failing JSONC test for duplicate approved input keys and byte-idempotent repeated upsert.
+- [x] 3.8 Group approved input by normalized key with stable value de-duplication before JSONC upsert.
 
 ## 4. Transactional Build and Verification
 
@@ -41,7 +43,8 @@
 - [x] 5.3 Remove duplicated mechanical algorithms and direct mutation/build instructions from the canonical Codex command, retaining only input gathering, linguistic review help, approval gating, delegation, and unrelated-worktree safeguards.
 - [x] 5.4 Add a focused test that the Claude command resolves to the canonical Codex document and contains no Node.js invocation or duplicated workflow sections.
 - [x] 5.5 Verify manually that inline input, a file path, a ranged file mention, edits, rejection, and approval following the canonical instructions delegate all repository reads/writes/builds/checks to `scripts/add-chu-nom.js`.
-- [ ] 5.6 Update the canonical review instructions to require dictionary-grounded AI review and explanation completion for `input-filtered` candidates.
+- [x] 5.6 Update the canonical review instructions to require dictionary-grounded AI review and explanation completion for `input-filtered` candidates.
+- [ ] 5.7 Document default `apply` decisions for complete approved entries, explicit rejection of unresolved entries, and Node.js-only duplicate-free/idempotent JSONC mutation.
 
 ## 6. Final Verification
 

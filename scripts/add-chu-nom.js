@@ -870,15 +870,37 @@ function upsertUserEntriesJsonc(source, incomingEntries) {
     if (indexed.has(entry.key)) {
       throw new WorkflowError(`Duplicate existing user entry key: ${entry.key}`);
     }
-    indexed.set(entry.key, span);
+    indexed.set(entry.key, {...span, entry});
   }
 
   const replacements = [];
   const additions = [];
+  const groupedIncoming = new Map();
   for (const entry of incomingEntries) {
     const key = normalizeTerm(entry.vi);
+    if (!groupedIncoming.has(key)) {
+      groupedIncoming.set(key, {
+        ...entry,
+        nom: stableUnique((entry.nom || []).map(cleanText)),
+        explain: stableUnique((entry.explain || []).map(cleanText))
+      });
+      continue;
+    }
+    const existing = groupedIncoming.get(key);
+    existing.nom = stableUnique([...existing.nom, ...(entry.nom || []).map(cleanText)]);
+    existing.explain = stableUnique([
+      ...existing.explain,
+      ...(entry.explain || []).map(cleanText)
+    ]);
+  }
+  for (const [key, entry] of groupedIncoming) {
     if (indexed.has(key)) {
       const span = indexed.get(key);
+      if (cleanText(span.entry.vi) === cleanText(entry.vi) &&
+          JSON.stringify(span.entry.nom) === JSON.stringify(entry.nom) &&
+          JSON.stringify(span.entry.explain) === JSON.stringify(entry.explain)) {
+        continue;
+      }
       replacements.push({
         ...span,
         value: updateObjectValues(updated.slice(span.start, span.end), entry)

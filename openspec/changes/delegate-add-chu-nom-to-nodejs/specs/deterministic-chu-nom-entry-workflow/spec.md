@@ -84,6 +84,10 @@ The planning manifest SHALL record schema version, relevant source hashes, origi
 - **WHEN** a reviewer supplies valid `vi`, `nom`, and optional `explain` values, records an apply decision, and explicitly approves the manifest
 - **THEN** apply uses those reviewed values rather than recomputing linguistic choices
 
+#### Scenario: Complete reviewed entries default to import
+- **WHEN** the user approves a review containing complete valid entries plus explicit rejections or unresolved entries
+- **THEN** the command records `apply` for every complete reviewed entry by default, records `reject` for the others, and delegates all writes to Node.js
+
 ### Requirement: Stale and out-of-scope mutation protection
 Before writing, apply SHALL validate the manifest schema, normalized-key uniqueness, field shapes, repository-relative paths, and SHA-256 hashes of every source that influenced the plan. It SHALL reject stale or path-escaping input and SHALL only mutate approved entries and the planned file-input items.
 
@@ -109,6 +113,10 @@ Apply SHALL upsert approved entries by normalized Vietnamese key while preservin
 #### Scenario: New entry is appended
 - **WHEN** an approved normalized key does not exist in user entries
 - **THEN** a valid entry with the established shape is inserted using the file's newline and indentation style
+
+#### Scenario: Approved upsert is duplicate-free and idempotent
+- **WHEN** Node.js receives the same approved normalized key more than once or upserts the same reviewed entry again
+- **THEN** the JSONC contains one normalized-key entry with stable de-duplicated values and the second upsert produces byte-identical output
 
 #### Scenario: One item on a mixed input line is applied
 - **WHEN** a file line contains multiple separated items and only one is successfully applied
