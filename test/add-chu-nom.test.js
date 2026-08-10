@@ -945,6 +945,27 @@ test('Codex command contains the canonical Node.js review workflow', () => {
   assert.doesNotMatch(codex, /node scripts\/build-(?:nom|popupdict)-userscript/);
 });
 
+test('Makefile delegates plan, approved apply, rebuilds, and verification to Node.js', () => {
+  const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
+
+  assert.match(makefile, /^add-chu-nom-plan:/m);
+  assert.match(makefile, /scripts\/add-chu-nom\.js plan --file/);
+  assert.match(makefile, /^add-chu-nom-apply:/m);
+  assert.match(makefile, /scripts\/add-chu-nom\.js apply.*--approve/);
+  assert.match(makefile, /^rebuild-nom-userscript:/m);
+  assert.match(makefile, /scripts\/build-nom-userscript\.js/);
+  assert.match(makefile, /^rebuild-popupdict-userscript:/m);
+  assert.match(makefile, /scripts\/build-popupdict-userscript\.js/);
+  assert.match(makefile, /^rebuild-userscripts:/m);
+  assert.match(makefile, /^verify-add-chu-nom:/m);
+  assert.match(makefile, /\$\(NODE\) --test test\/add-chu-nom\.test\.js/);
+
+  const dryRun = execFileSync('make', [
+    '-n', 'add-chu-nom-apply', 'MANIFEST=/tmp/reviewed.json'
+  ], {cwd: repoRoot, encoding: 'utf8'});
+  assert.match(dryRun, /apply --manifest "\/tmp\/reviewed\.json" --approve/);
+});
+
 test('Claude command is only a reference link to the canonical Codex document', () => {
   const claude = fs.readFileSync(
     path.join(repoRoot, '.claude/commands/add-chu-nom.md'),

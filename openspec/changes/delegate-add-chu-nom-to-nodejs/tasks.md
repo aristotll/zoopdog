@@ -52,3 +52,9 @@
 - [x] 6.2 Run `plan` twice against current repository data and compare manifests while confirming `git status --short` shows no plan-induced changes.
 - [x] 6.3 Exercise a complete approved apply in an isolated temporary repository, verify both embedded maps and item cleanup, then review the final diff to ensure only shared helpers/builders, the Node.js CLI, tests, the canonical Codex command, the Claude reference document, and intended generated artifacts are affected.
 - [x] 6.4 Run a read-only plan for `đích的 thực食` and `đánh打 lạc洛`, verify one candidate per line with `的食` and `打洛` absent, and document the AI-reviewed proposals without applying them.
+
+## 7. Make Maintenance Workflow and Approved Batch Import
+
+- [x] 7.1 Add a failing test for Make targets covering file plan, approved apply, individual/combined rebuilds, and verification delegation.
+- [x] 7.2 Add the dependency-free Makefile and make the target contract test pass.
+- [x] 7.3 Plan, review, and apply the approved live-test batch through `scripts/add-chu-nom.js`, then verify all normalized keys in `user_nom_entries.jsonc` and both generated maps.

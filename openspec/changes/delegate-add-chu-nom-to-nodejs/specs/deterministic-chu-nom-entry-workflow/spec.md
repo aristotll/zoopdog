@@ -159,3 +159,14 @@ After source edits, apply SHALL invoke `scripts/build-nom-userscript.js` and `sc
 #### Scenario: AI reviews a filtered mixed input
 - **WHEN** a planned candidate has `input-filtered` provenance
 - **THEN** the agent checks phrase meaning and local dictionary evidence, supplies or corrects the Nom and concise explanation without reusing filtered characters, and presents the revision without applying it
+
+### Requirement: Make maintenance entry points
+The repository SHALL provide Make targets that delegate file planning, approved manifest apply, Nom userscript rebuild, popup userscript rebuild, combined userscript rebuild, and workflow verification to the canonical Node.js scripts without duplicating workflow logic.
+
+#### Scenario: Maintainer imports a reviewed manifest
+- **WHEN** a maintainer runs the documented Make apply target with a reviewed manifest
+- **THEN** Make invokes `scripts/add-chu-nom.js apply` with explicit approval so the Node.js transaction performs the only dictionary and generated-file writes
+
+#### Scenario: Maintainer rebuilds generated userscripts
+- **WHEN** a maintainer runs the individual or combined rebuild target
+- **THEN** Make invokes the existing Node.js builders and never edits embedded maps directly

@@ -53,5 +53,77 @@
     "vi": "Sao Vàng",
     "nom": ["𣋀黃"],
     "explain": ["Sao Vang", "yellow star"]
+  },
+  {
+    "vi": "đích thực",
+    "nom": [
+      "的實"
+    ],
+    "explain": [
+      "genuine",
+      "authentic",
+      "true",
+      "real"
+    ]
+  },
+  {
+    "vi": "đánh lạc",
+    "nom": [
+      "打落"
+    ],
+    "explain": [
+      "misdirect",
+      "lead astray"
+    ]
+  },
+  {
+    "vi": "học cách",
+    "nom": [
+      "學格"
+    ],
+    "explain": [
+      "learn how",
+      "learn the way or method"
+    ]
+  },
+  {
+    "vi": "kỳ nghỉ",
+    "nom": [
+      "期儗"
+    ],
+    "explain": [
+      "holiday",
+      "vacation"
+    ]
+  },
+  {
+    "vi": "kỷ luật",
+    "nom": [
+      "紀律"
+    ],
+    "explain": [
+      "discipline",
+      "to discipline"
+    ]
+  },
+  {
+    "vi": "bồn cầu xổm",
+    "nom": [
+      "盆求踮"
+    ],
+    "explain": [
+      "squat toilet"
+    ]
+  },
+  {
+    "vi": "đồng nghiệp",
+    "nom": [
+      "同業"
+    ],
+    "explain": [
+      "coworker",
+      "colleague",
+      "someone in the same profession"
+    ]
   }
 ]

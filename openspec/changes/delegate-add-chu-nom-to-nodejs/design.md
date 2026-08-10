@@ -81,6 +81,10 @@ Add focused tests using the built-in `node:test` and `node:assert/strict` module
 
 No new dependency or `package.json` is required, and tests run directly with `node --test test/add-chu-nom.test.js`.
 
+### 7. Expose common maintenance operations through Make
+
+Add a small dependency-free `Makefile` that delegates planning, approved apply, individual userscript rebuilds, combined rebuilds, and workflow verification to the existing Node.js scripts. It does not duplicate parser or mutation logic. File planning defaults to `.idea/newfile.md`, manifests default outside tracked source paths, and apply still requires a reviewed manifest plus the Node CLI's explicit approval gate.
+
 ## Risks / Trade-offs
 
 - **[Refactoring shared normalization exports could alter generated output]** → Reuse the existing function bodies unchanged, update both builders to import them, and assert byte-identical generated output before and after the refactor on current data.
