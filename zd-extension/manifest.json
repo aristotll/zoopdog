@@ -19,6 +19,8 @@
       "js": [
         "js/lib/handlebars.min.js",
         "js/zd-words.js",
+        "js/zd-popup-protocol.js",
+        "js/zd-browser-runtime.js",
         "js/content.js",
         "js/showframe.js",
         "js/highlighter.js"
@@ -49,11 +51,6 @@
     "default_title": "Zoopdog"
   },
   "permissions": [
-    "activeTab",
-    "tabs",
     "storage"
-  ],
-  "host_permissions": [
-    "https://ajax.googleapis.com/"
   ]
 }

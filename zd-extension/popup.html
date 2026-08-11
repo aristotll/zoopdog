@@ -12,16 +12,18 @@
       <label for="zoopdog-switch">Toggle</label>
     </div>
     <p>
-       
-      Show pronunciation <br>in which dialect?
-    </p>
+       Show pronunciation <br>in which dialect?</p>
     <select id="dialect-menu">
       <option value="hanoi">Hà Nội</option>
       <option value="quangnam">Quảng Nam</option>
       <option value="saigon">Sài Gòn      </option>
     </select>
     <p><a href="#" id="open-pron-guide">guide to symbols</a></p>
-    <p><a href="#" id="zoopdog-reload">reload dictionary</a></p>
+    <p>
+      <button id="zoopdog-reload" type="button">reload dictionary</button>
+    </p>
+    <p id="dictionary-status">Checking dictionary…</p>
+    <script src="js/zd-browser-runtime.js"></script>
     <script src="js/popup.js"></script>
   </body>
 </html>

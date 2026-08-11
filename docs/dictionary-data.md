@@ -11,8 +11,17 @@ cd zd-extension/db_src
 python3 make_dict.py
 ```
 
-The extension reads `zd-extension/js/vnedict.json`. When dictionary data changes, check whether
-the regenerated JSON also needs to be copied or transformed into that runtime file.
+The extension and website read the actively maintained `zd-extension/db_src/vnedict2.json`
+through generated runtime files. Rebuild them after any merge or hand-maintained Chu Nom apply:
+
+```sh
+make rebuild-extension-vnedict-json
+```
+
+The target writes compact `zd-extension/js/vnedict.json` and
+`zd-extension/js/vnedict.meta.json`. The sidecar records the exact JSON byte hash and entry
+count used to refresh browser IndexedDB safely. Both files are generated and must be committed
+together; never copy either one by hand.
 
 ## Userscripts
 
@@ -51,6 +60,7 @@ After regenerating, merge before rebuilding:
 
 ```sh
 node scripts/merge-mdx-nom-into-vnedict2.js
+make rebuild-extension-vnedict-json
 make rebuild-userscripts
 ```
 

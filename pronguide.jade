@@ -1,4 +1,4 @@
-//output: pronguide.html, pretty: false
+//- output: pronguide.html, pretty: false
 
 doctype html
 html
@@ -8,7 +8,7 @@ html
     link(rel='stylesheet', type='text/css', href='zd-extension/css/zd-pron.css')
     link(rel='stylesheet', type='text/css', href='zd-extension/css/fonts/fonts.css')
     title Zoopdog pronunciation guide generator for Vietnamese—guide to symbols
-    include meta
+    include meta.jade
     
   body
     nav
@@ -243,7 +243,7 @@ html
             | h
             span.highlight a
             | t
-          &nbsp;or French&nbsp;
+          | &nbsp;or French&nbsp;
           span.example-word
             | p
             span.highlight a
@@ -442,4 +442,5 @@ html
     script(type="text/javascript", src="zd-extension/js/zd-pron-data.js")
     script(type="text/javascript", src="zd-extension/js/zd-pron-functions.js")
     script(type="text/javascript", src="zd-extension/js/zd-pron-drawtones.js")
+    script(type="text/javascript", src="zd-extension/js/zd-browser-runtime.js")
     script(type="text/javascript", src="zd-extension/js/zd-pronguide.js")

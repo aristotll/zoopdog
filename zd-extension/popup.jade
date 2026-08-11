@@ -1,4 +1,4 @@
-//output: popup.html, pretty: true
+//- output: popup.html, pretty: true
 
 doctype html
 html
@@ -23,5 +23,7 @@ html
     p
       a(href="#" id="open-pron-guide") guide to symbols
     p
-      a(href="#" id="zoopdog-reload") reload dictionary
+      button#zoopdog-reload(type="button") reload dictionary
+    p#dictionary-status Checking dictionary…
+    script(src="js/zd-browser-runtime.js")
     script(src="js/popup.js")

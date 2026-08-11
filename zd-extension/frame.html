@@ -15,12 +15,12 @@
     <script id="zoopdog-popup-template" type="text/x-handlebars-template">
       {{#each results}}
         <div class="zd-definition">
-          <h1>{{vn}}</h1> 
+          <h1>{{vn}}</h1>
           <div class="zd-pronunciation">{{vn}}</div>
           <ul>
             {{#each en}}
               {{#if pos}}
-                <li><span class="zoopdog-pos">{{pos}}</span> {{def}} </li>
+                <li><span class="zoopdog-pos">{{pos}}</span> {{def}}</li>
               {{else}}
                 <li>{{def}}</li>
               {{/if}}
@@ -33,6 +33,7 @@
     <script src="js/zd-pron-data.js"></script>
     <script src="js/zd-pron-drawtones.js"></script>
     <script src="js/zd-pron-functions.js"></script>
+    <script src="js/zd-popup-protocol.js"></script>
     <script src="js/frame.js"></script>
   </body>
 </html>

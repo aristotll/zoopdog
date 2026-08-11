@@ -1,11 +1,11 @@
-//output: popupdict.html, pretty: false
+//- output: popupdict.html, pretty: false
 
 doctype html
 html
   head
     link(rel='stylesheet', type='text/css', href='css/style.css')
     link(rel='stylesheet', type='text/css', href='css/pace.css')
-    include meta
+    include meta.jade
     script(src='zd-extension/js/lib/dexie.min.js') 
     script(src='zd-extension/js/lib/handlebars.min.js') 
     script(type='text/javascript').
@@ -18,10 +18,12 @@ html
     title Zoopdog, a Vietnamese-English popup dictionary
 
   body
-    include includes
+    include includes.jade
     #container.pace
       #loading-message
         p Downloading dictionary database. Please wait...
+      p#dictionary-status Checking dictionary…
+      button#dictionary-retry(type="button", hidden) Retry dictionary
       #instructions
         div
           | Hover over the text below or paste text of your own.
@@ -46,6 +48,9 @@ html
         | by Thích Nhất Hạnh.
     
     script(src='zd-extension/js/zd-words.js')
+    script(src='zd-extension/js/zd-dictionary-runtime.js')
+    script(src='zd-extension/js/zd-popup-protocol.js')
+    script(src='zd-extension/js/zd-browser-runtime.js')
     script(src='zd-extension/js/highlighter.js')
     script(src='zd-extension/js/showframe.js')
     script(src='js/popupdict.js')

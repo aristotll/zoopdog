@@ -113,9 +113,11 @@ document.getElementById("input").addEventListener("input", function(){
   else pronounceMe()
 })
 
-window.onload = function() {
+function initializePronunciationPage() {
   document.querySelector(`.button[dialect=hanoi]`).click()
   if (isHomophonesPage) document.querySelector(`.button[dialect=saigon]`).click()
   if (isHomophonesPage) homophoneMe()
   else pronounceMe()
 }
+
+zdBrowserRuntime.runWhenReady(document, initializePronunciationPage)

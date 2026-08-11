@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {WorkflowError} = require('./errors');
+const {atomicWrite} = require('../lib/fsutil');
 
 function hashFile(target) {
   if (!fs.existsSync(target)) {
@@ -34,19 +35,6 @@ function resolveInsideRoot(repoRoot, relativePath) {
     throw new WorkflowError('path_outside_root', `Path resolves outside repository root: ${relativePath}`);
   }
   return target;
-}
-
-function atomicWrite(target, content) {
-  fs.mkdirSync(path.dirname(target), {recursive: true});
-  const temporary = `${target}.tmp-${process.pid}`;
-  try {
-    fs.writeFileSync(temporary, content);
-    fs.renameSync(temporary, target);
-  } finally {
-    if (fs.existsSync(temporary)) {
-      fs.unlinkSync(temporary);
-    }
-  }
 }
 
 function snapshotFiles(paths) {

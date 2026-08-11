@@ -1,137 +1,164 @@
+'use strict';
+
 importScripts(chrome.runtime.getURL("js/lib/dexie.min.js"));
-// ✅ Helper: Create and return Dexie DB instance
+importScripts(chrome.runtime.getURL("js/zd-dictionary-runtime.js"));
+
+const DICTIONARY_URL = chrome.runtime.getURL('js/vnedict.json');
+const METADATA_URL = chrome.runtime.getURL('js/vnedict.meta.json');
+
 function createDb() {
-  const db = new Dexie("entries");
-  db.version(2).stores({
-    entries: '++,vn,en'
-  });
+  const db = new Dexie('entries');
+  db.version(2).stores({entries: '++,vn,en'});
+  db.version(3).stores({entries: '++,vn,en', metadata: '&key'});
   return db;
 }
 
-// ✅ Helper: Load dictionary data into DB
-function populateFrom(url, db) {
-  const opts = { method: 'GET', headers: {} };
-  return fetch(url, opts)
-      .then(response => response.json())
-      .then(data => {
-        return db.transaction('rw', db.entries, () => {
-          data.forEach(item => {
-            db.entries.add(item);
-          });
-        });
-      })
-      .then(() => {
-        return db.entries.count(count => {
-          console.log(`Committed ${count} entries.`);
-        });
-      });
+async function fetchChecked(url, kind) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Unable to fetch ${kind}: HTTP ${response.status}`);
+  return response;
 }
 
-// ✅ On extension install/update: Prepopulate DB if empty
-chrome.runtime.onInstalled.addListener(() => {
-  const db = createDb();
-  db.open()
-      .then(() => {
-        return db.entries.count();
-      })
-      .then(count => {
-        if (count === 0) {
-          console.log("Database empty on install. Loading dictionary...");
-          const jsonURL = chrome.runtime.getURL('js/vnedict.json');
-          return populateFrom(jsonURL, db);
-        } else {
-          console.log(`Database already populated (${count} entries).`);
-        }
-      })
-      .catch(err => console.error("DB initialization error:", err));
+async function digestText(text) {
+  const data = new TextEncoder().encode(text);
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function fetchMetadata() {
+  const response = await fetchChecked(METADATA_URL, 'dictionary metadata');
+  try {
+    return await response.json();
+  } catch (error) {
+    throw new zdDictionaryRuntime.RuntimeError(
+      zdDictionaryRuntime.ERRORS.METADATA_INVALID,
+      'Runtime dictionary metadata is not valid JSON',
+      error
+    );
+  }
+}
+
+const db = createDb();
+const coordinator = zdDictionaryRuntime.createCoordinator({
+  adapter: zdDictionaryRuntime.createDexieAdapter(db),
+  fetchMetadata,
+  fetchDictionaryText: async () => (await fetchChecked(DICTIONARY_URL, 'dictionary')).text(),
+  digest: globalThis.crypto && globalThis.crypto.subtle ? digestText : null,
+  onState: (result) => console.log('Dictionary state:', result.state)
 });
 
-// ✅ Message listener for all runtime messages
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const db = createDb();
-  const jsonURL = chrome.runtime.getURL('js/vnedict.json');
+function storageGet(defaults) {
+  return new Promise((resolve) => chrome.storage.sync.get(defaults, resolve));
+}
 
-  // Always open DB inside listener
-  db.open().then(() => {
-    // Handle each message type
-    if (message.type === 'initial-search') {
-      db.entries
-          .where('vn')
-          .startsWithIgnoreCase(message.term + " ")
-          .uniqueKeys(keysArray => {
-            keysArray.sort((a, b) => b.length - a.length);
-            const range = keysArray.length ? keysArray[0].split(" ").length : 1;
-            sendResponse({ type: 'range', range });
-          });
+function storageSet(values) {
+  return new Promise((resolve) => chrome.storage.sync.set(values, resolve));
+}
 
-    } else if (message.type === 'second-search') {
-      db.entries
-          .where('vn')
-          .anyOfIgnoreCase(message.candidates)
-          .toArray()
-          .then(results => {
-            results.sort((a, b) => b.vn.split(" ").length - a.vn.split(" ").length);
-            sendResponse({ type: 'results', results });
-          });
+function queryTabs(query) {
+  return new Promise((resolve) => chrome.tabs.query(query, resolve));
+}
 
-    } else if (message.type === 'reload-db') {
-      console.log("Reloading DB...");
-      db.entries.clear()
-          .then(() => populateFrom(jsonURL, db))
-          .then(() => sendResponse({ type: 'reload-complete' }));
+function sendToTab(tabId, message) {
+  try {
+    chrome.tabs.sendMessage(tabId, message, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (_error) {
+    // Restricted Chrome pages and closed tabs have no content-script receiver.
+  }
+}
 
-    } else if (message.type === 'check-globally-on') {
-      chrome.storage.sync.get({ zoopdogIsGloballyOn: true }, items => {
-        sendResponse({ type: 'globally-on', status: items.zoopdogIsGloballyOn });
-      });
+async function broadcast(message) {
+  const tabs = await queryTabs({});
+  tabs.forEach((tab) => sendToTab(tab.id, message));
+}
 
-    } else if (message.type === 'toggle-zoopdog') {
-      chrome.storage.sync.get({ zoopdogIsGloballyOn: true }, items => {
-        const newStatus = !items.zoopdogIsGloballyOn;
-        chrome.storage.sync.set({ zoopdogIsGloballyOn: newStatus }, () => {
-          chrome.tabs.query({}, tabs => {
-            tabs.forEach(tab => {
-              chrome.tabs.sendMessage(tab.id, { type: "toggle-zoopdog", status: newStatus });
-            });
-          });
-          sendResponse({ type: 'globally-on', status: newStatus });
-        });
-      });
-
-    } else if (message.type === 'toggle-lock') {
-      chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-        if (tabs[0]) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: "toggle-lock" });
-        }
-        sendResponse({ type: 'lock-toggled' });
-      });
-
-    } else if (message.type === 'get-dialect') {
-      chrome.storage.sync.get({ myDialect: "hanoi" }, items => {
-        sendResponse({ type: 'dialect', dialect: items.myDialect });
-      });
-
-    } else if (message.type === 'set-dialect') {
-      const newDialect = message.dialect || "hanoi";
-      console.log("Setting dialect to:", newDialect);
-      chrome.storage.sync.set({ myDialect: newDialect }, () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-          if (tabs[0]) {
-            chrome.tabs.sendMessage(tabs[0].id, { type: 'set-dialect', dialect: newDialect });
-          }
-          sendResponse({ type: 'dialect-set', dialect: newDialect });
-        });
-      });
-
-    } else {
-      console.warn("Unknown message type:", message.type);
-      sendResponse({ type: 'error', message: 'Unknown message type' });
+function errorResponse(message, error) {
+  return {
+    type: 'error',
+    requestType: message && message.type,
+    error: {
+      code: error && error.code ? error.code : 'runtime-failure',
+      message: error && error.message ? error.message : String(error),
+      remedy: error && error.remedy ? error.remedy : 'Retry the operation.'
     }
-  }).catch(err => {
-    console.error("DB error:", err);
-    sendResponse({ type: 'error', message: err.message });
-  });
+  };
+}
 
-  // Indicate we will respond asynchronously
+async function ensureSearchReady() {
+  const readiness = await coordinator.ensureReady();
+  if (readiness.state === zdDictionaryRuntime.STATES.UNAVAILABLE) {
+    const error = new Error(readiness.error.message);
+    Object.assign(error, readiness.error);
+    throw error;
+  }
+  return readiness;
+}
+
+async function handleMessage(message) {
+  if (!message || typeof message.type !== 'string') {
+    throw new Error('Message type is required');
+  }
+
+  if (message.type === 'initial-search') {
+    await ensureSearchReady();
+    const keys = await db.entries.where('vn').startsWithIgnoreCase(`${message.term} `).uniqueKeys();
+    keys.sort((a, b) => b.length - a.length);
+    return {type: 'range', range: keys.length ? keys[0].split(' ').length : 1};
+  }
+  if (message.type === 'second-search') {
+    await ensureSearchReady();
+    const results = await db.entries.where('vn').anyOfIgnoreCase(message.candidates || []).toArray();
+    results.sort((a, b) => b.vn.split(' ').length - a.vn.split(' ').length);
+    return {type: 'results', results};
+  }
+  if (message.type === 'reload-db') {
+    return {type: 'dictionary-state', readiness: await coordinator.ensureReady({force: true})};
+  }
+  if (message.type === 'dictionary-status') {
+    return {type: 'dictionary-state', readiness: await coordinator.ensureReady()};
+  }
+  if (message.type === 'check-globally-on') {
+    const items = await storageGet({zoopdogIsGloballyOn: true});
+    return {type: 'globally-on', status: items.zoopdogIsGloballyOn};
+  }
+  if (message.type === 'toggle-zoopdog') {
+    const items = await storageGet({zoopdogIsGloballyOn: true});
+    const status = !items.zoopdogIsGloballyOn;
+    await storageSet({zoopdogIsGloballyOn: status});
+    await broadcast({type: 'toggle-zoopdog', status});
+    return {type: 'globally-on', status};
+  }
+  if (message.type === 'toggle-lock') {
+    const tabs = await queryTabs({active: true, currentWindow: true});
+    if (tabs[0]) sendToTab(tabs[0].id, {type: 'toggle-lock'});
+    return {type: 'lock-toggled'};
+  }
+  if (message.type === 'get-dialect') {
+    const items = await storageGet({myDialect: 'hanoi'});
+    return {type: 'dialect', dialect: items.myDialect};
+  }
+  if (message.type === 'set-dialect') {
+    const dialect = ['hanoi', 'quangnam', 'saigon'].includes(message.dialect)
+      ? message.dialect
+      : 'hanoi';
+    await storageSet({myDialect: dialect});
+    const tabs = await queryTabs({active: true, currentWindow: true});
+    if (tabs[0]) sendToTab(tabs[0].id, {type: 'set-dialect', dialect});
+    return {type: 'dialect-set', dialect};
+  }
+  throw new Error(`Unknown message type: ${message.type}`);
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  coordinator.ensureReady().then(
+    (result) => console.log(`Dictionary initialization: ${result.state}`),
+    (error) => console.error('Dictionary initialization failed:', error)
+  );
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  handleMessage(message).then(sendResponse, (error) => sendResponse(errorResponse(message, error)));
   return true;
 });

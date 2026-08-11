@@ -10,8 +10,9 @@ installed on the machine.
 make verify
 ```
 
-`make verify` runs every suite under `test/` and syntax-checks every file under `scripts/`,
-including the extracted userscript runtime. The test command on its own:
+`make verify` runs every suite under `test/` and syntax-checks every first-party JavaScript file
+under `scripts/`, `js/`, and `zd-extension/js/` (third-party `lib/` files are excluded). The test
+command on its own:
 
 ```sh
 node --test test/*.test.js
@@ -59,6 +60,16 @@ make rebuild-userscripts
 
 See [dictionary-data.md](dictionary-data.md) for what each userscript embeds and when a
 rebuild is required.
+
+## Rebuilding the browser runtime dictionary
+
+```sh
+make rebuild-extension-vnedict-json
+```
+
+This writes both `zd-extension/js/vnedict.json` and its deterministic revision sidecar
+`zd-extension/js/vnedict.meta.json`. Commit both generated files together. The extension and
+website compare the sidecar revision with IndexedDB before serving lookups.
 
 ## Manual verification
 

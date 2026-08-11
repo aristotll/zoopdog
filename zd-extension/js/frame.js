@@ -1,54 +1,54 @@
+'use strict';
 
-var myHeight = document.body.scrollHeight,
-    popupBody = document.getElementById("zoopdog-popup-body")
-const myTemplate = Handlebars.compile(document.getElementById('zoopdog-popup-template').innerHTML)
-const sendSize = (ofWhat, toWhere) => {
-    // https://stackoverflow.com/questions/10949370/resizing-iframe-to-dynamic-content-from-chrome-extension-content-script
-    var myHeight = ofWhat.scrollHeight
-    var myWidth = ofWhat.scrollWidth
-    var htmlStyle = window.getComputedStyle(document.getElementsByTagName("HTML")[0])
-    toWhere.postMessage({type: 'resize',
-        dimensions: {height: myHeight,
-            width: myWidth,
-            verticalPadding: parseInt(htmlStyle.marginTop, 10) * 2,
-            horizontalPadding: parseInt(htmlStyle.marginLeft, 10) * 2 }}, "*")
+const popupBody = document.getElementById('zoopdog-popup-body');
+const myTemplate = Handlebars.compile(document.getElementById('zoopdog-popup-template').innerHTML);
 
-    document.body.style.overflowY = (myHeight > 300) ? "scroll" : "hidden"
+function postToParent(message) {
+  const port = frameBinding.getPort();
+  if (port) {
+    port.postMessage({...message, version: zdPopupProtocol.PROTOCOL_VERSION});
+  }
 }
 
-window.addEventListener('message', function(event) {
-    if (event.data.type === "populate") {
-        popupBody.style.width = '0px'
-        popupBody.innerHTML = myTemplate(event.data)
-
-        try { // on webpage
-            Array.from(document.getElementsByClassName("zd-pronunciation")).forEach(div => {
-                div.innerHTML = pronunciationGuide(div.innerHTML)[window.parent.document.getElementById("dialect-menu").value].zd
-            })
-            drawTonesAndGradients()
-            sendSize(popupBody, event.source)
-        } catch (e) { // within Chrome extension
-            Array.from(document.getElementsByClassName("zd-pronunciation")).forEach(div => {
-                div.innerHTML = pronunciationGuide(div.innerHTML)[event.data.dialect].zd
-            })
-            drawTonesAndGradients()
-            sendSize(popupBody, event.source)
-        }
-
-    } else if (event.data.type === "lock") {
-        document.getElementById("zoopdog-popup-lock-icon").style.visibility = "visible"
-    } else if (event.data.type === "unlock") {
-        document.getElementById("zoopdog-popup-lock-icon").style.visibility = "hidden"
+function sendSize(ofWhat) {
+  const htmlStyle = window.getComputedStyle(document.documentElement);
+  postToParent({
+    type: 'resize',
+    dimensions: {
+      height: ofWhat.scrollHeight,
+      width: ofWhat.scrollWidth,
+      verticalPadding: parseInt(htmlStyle.marginTop, 10) * 2 || 0,
+      horizontalPadding: parseInt(htmlStyle.marginLeft, 10) * 2 || 0
     }
-})
+  });
+  document.body.style.overflowY = ofWhat.scrollHeight > 300 ? 'scroll' : 'hidden';
+}
 
-window.addEventListener('keydown', e => {
-    if (e.which === 16) {
-        try { // within Chrome extension
-            window.postMessage({type: 'toggle-lock'}, "*")
-        } catch (e) { // on webpage
-            window.parent.highlighter.toggleLock()
-            window.parent.popup.toggleLock()
-        }
-    }
-})
+function renderResults(message) {
+  popupBody.style.width = '0px';
+  popupBody.innerHTML = myTemplate({results: message.results});
+  Array.from(document.getElementsByClassName('zd-pronunciation')).forEach((element) => {
+    const source = element.textContent;
+    element.innerHTML = pronunciationGuide(source)[message.dialect].zd;
+  });
+  drawTonesAndGradients();
+  sendSize(popupBody);
+}
+
+function handleParentMessage(message) {
+  if (!zdPopupProtocol.validateParentMessage(message)) return;
+  if (message.type === 'populate') {
+    renderResults(message);
+  } else if (message.type === 'lock') {
+    document.getElementById('zoopdog-popup-lock-icon').style.visibility = 'visible';
+  } else if (message.type === 'unlock') {
+    document.getElementById('zoopdog-popup-lock-icon').style.visibility = 'hidden';
+  }
+}
+
+const frameBinding = zdPopupProtocol.bindFramePort(window, window.parent, handleParentMessage);
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Shift' || event.which === 16) {
+    postToParent({type: 'toggle-lock'});
+  }
+});

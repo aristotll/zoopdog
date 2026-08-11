@@ -1,4 +1,4 @@
-//output: pronunciation.html, pretty: false
+//- output: pronunciation.html, pretty: false
 
 doctype html
 html
@@ -8,10 +8,10 @@ html
     link(rel='stylesheet', type='text/css', href='zd-extension/css/zd-pron.css')
     link(rel='stylesheet', type='text/css', href='zd-extension/css/fonts/fonts.css')
     title Zoopdog pronunciation guide generator for Vietnamese
-    include meta
+    include meta.jade
     
   body
-    include includes
+    include includes.jade
     #main
       #input-wrapper
         textarea#input.textbox Chào bạn! Bạn có khoẻ không?
@@ -33,4 +33,5 @@ html
     script(type="text/javascript", src="zd-extension/js/zd-pron-data.js")
     script(type="text/javascript", src="zd-extension/js/zd-pron-functions.js")
     script(type="text/javascript", src="zd-extension/js/zd-pron-drawtones.js")
+    script(type="text/javascript", src="zd-extension/js/zd-browser-runtime.js")
     script(type="text/javascript", src="js/zd-pron.js")

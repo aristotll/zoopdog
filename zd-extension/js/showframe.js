@@ -1,86 +1,119 @@
-class ResultFrame { // adapted from https://github.com/FooSoft/yomichan/blob/master/ext/fg/js/popup.js
+'use strict';
 
+class ResultFrame {
   constructor(srcUrl) {
-    this.container = document.createElement('iframe')
-    this.container.id = 'zoopdog-popup'
-    this.container.addEventListener('mousedown', e => e.stopPropagation())
-    this.container.addEventListener('scroll', e => e.stopPropagation())
-    this.container.setAttribute('src', srcUrl || chrome.runtime.getURL('../frame.html'))
-    this.container.style.width = '0px'
-    this.container.style.height = '0px'
-    this.injected = null
-    this.locked = false
-    var self = this
-    window.addEventListener('message', function(event) {
-      if (event.data.type === 'resize') self.resize(event.data.dimensions)
-    })
+    this.container = document.createElement('iframe');
+    this.container.id = 'zoopdog-popup';
+    this.container.addEventListener('mousedown', (event) => event.stopPropagation());
+    this.container.addEventListener('scroll', (event) => event.stopPropagation());
+    this.container.setAttribute('sandbox', 'allow-scripts');
+    this.container.setAttribute('src', srcUrl || chrome.runtime.getURL('../frame.html'));
+    this.container.style.width = '0px';
+    this.container.style.height = '0px';
+    this.injected = null;
+    this.locked = false;
+    this.port = null;
+    this.dialect = 'hanoi';
+    this.onToggleLock = null;
+  }
+
+  initializeChannel() {
+    this.closeChannel();
+    const channel = new MessageChannel();
+    this.port = channel.port1;
+    this.port.onmessage = (event) => this.handleFrameMessage(event.data);
+    if (this.port.start) this.port.start();
+    this.container.contentWindow.postMessage(
+      {type: 'zd:init', version: zdPopupProtocol.PROTOCOL_VERSION},
+      '*',
+      [channel.port2]
+    );
+  }
+
+  handleFrameMessage(message) {
+    if (!zdPopupProtocol.validateFrameMessage(message)) return;
+    if (message.type === 'resize') {
+      this.resize(message.dimensions);
+    } else if (message.type === 'toggle-lock' && typeof this.onToggleLock === 'function') {
+      this.onToggleLock();
+    }
+  }
+
+  closeChannel() {
+    if (this.port) this.port.close();
+    this.port = null;
   }
 
   inject() {
     if (!this.injected) {
-      this.injected = new Promise((resolve, reject) => {
-        this.container.addEventListener('load', resolve)
-        document.body.appendChild(this.container)
-      })
+      this.injected = new Promise((resolve) => {
+        this.container.addEventListener('load', () => {
+          this.initializeChannel();
+          resolve();
+        });
+        document.body.appendChild(this.container);
+      });
     }
-    return this.injected
+    return this.injected;
+  }
+
+  send(message) {
+    const envelope = {...message, version: zdPopupProtocol.PROTOCOL_VERSION};
+    if (!zdPopupProtocol.validateParentMessage(envelope)) return Promise.resolve(false);
+    return this.inject().then(() => {
+      if (!this.port) return false;
+      this.port.postMessage(envelope);
+      return true;
+    });
   }
 
   populate(results) {
-    return this.inject().then(() => {
-      this.container.contentWindow.postMessage({type: 'populate', results: results, dialect: this.dialect}, '*')
-      })
+    return this.send({type: 'populate', results, dialect: this.dialect});
   }
 
   show(rect) {
     return this.inject().then(() => {
-      this.container.style.visibility = 'visible'
-      this.container.style.position = 'fixed'
-      this.container.style.zIndex = '100000'
-      this.container.style.left = `${rect.left - 20}px`
-      this.container.style.top = `${rect.bottom}px`
-      this.container.style.bottom = 'auto'
+      this.container.style.visibility = 'visible';
+      this.container.style.position = 'fixed';
+      this.container.style.zIndex = '100000';
+      this.container.style.left = `${rect.left - 20}px`;
+      this.container.style.top = `${rect.bottom}px`;
+      this.container.style.bottom = 'auto';
 
-      var popupDimensions =  this.container.getBoundingClientRect()
-
-      var rightEdge = popupDimensions.right
-      if (rightEdge > window.innerWidth) {
-        var xDif = rightEdge - window.innerWidth
-        this.container.style.left = `${parseInt(this.container.style.left, 10) - xDif - 20}px`
+      const popupDimensions = this.container.getBoundingClientRect();
+      if (popupDimensions.right > window.innerWidth) {
+        const difference = popupDimensions.right - window.innerWidth;
+        this.container.style.left = `${parseInt(this.container.style.left, 10) - difference - 20}px`;
       }
-      var bottomEdge = popupDimensions.bottom
       if (rect.top > window.innerHeight / 2) {
-        var yDif = window.innerHeight - rect.top
-        this.container.style.top = 'auto'
-        this.container.style.bottom = `${yDif + 10}px`
+        const difference = window.innerHeight - rect.top;
+        this.container.style.top = 'auto';
+        this.container.style.bottom = `${difference + 10}px`;
       }
-      var leftEdge = popupDimensions.left
-      if (leftEdge < 20) this.container.style.left = '20px'
-
-
-    })
+      if (popupDimensions.left < 20) this.container.style.left = '20px';
+    });
   }
 
   hide() {
-    if (this.locked) return true
-    this.container.style.visibility = 'hidden'
+    if (this.locked) return true;
+    this.container.style.visibility = 'hidden';
+    return false;
   }
 
   toggleLock() {
     if (this.locked) {
-      this.locked = false
-      this.container.contentWindow.postMessage({type: 'unlock'}, '*')
-      this.hide()
+      this.locked = false;
+      this.send({type: 'unlock'});
+      this.hide();
     } else if (this.container.style.visibility === 'visible') {
-      this.locked = true
-      this.container.contentWindow.postMessage({type: 'lock'}, '*')
+      this.locked = true;
+      this.send({type: 'lock'});
     }
   }
 
   resize(dimensions) {
-    var newHeight = Math.min(300, dimensions.height) + dimensions.verticalPadding + 20
-    var newWidth = Math.max(200, dimensions.width) + dimensions.horizontalPadding
-    this.container.style.height = `${newHeight}px`
-    this.container.style.width = `${newWidth}px`
+    const size = zdPopupProtocol.clampDimensions(dimensions);
+    this.container.style.height = `${size.height}px`;
+    this.container.style.width = `${size.width}px`;
   }
 }

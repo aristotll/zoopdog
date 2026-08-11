@@ -8,6 +8,8 @@ const rootDir = path.resolve(__dirname, '../..');
 // alternate root (tests, isolated fixtures) can resolve them against their own base.
 const relative = Object.freeze({
   dictionary: 'zd-extension/db_src/vnedict2.json',
+  runtimeDictionary: 'zd-extension/js/vnedict.json',
+  runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
   userNomEntries: 'zd-extension/db_src/user_nom_entries.jsonc',
   nomUserscript: 'zoopdog-nom-ruby.user.js',

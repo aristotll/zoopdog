@@ -40,7 +40,7 @@ Array.from(document.querySelectorAll("span[audio]")).forEach(phoneme => {
   })
 })
 
-window.onload = function(){
+function initializePronunciationGuide() {
   if (location.hash) document.querySelector(`a[href='${location.hash}']`).classList.add("active")
   else document.querySelector(`a[href='#consonants']`).classList.add("active")
 
@@ -53,3 +53,5 @@ window.onload = function(){
   Array.from(document.querySelectorAll("dt.zd.toneless .zoopdog-word")).forEach(word => { word.setAttribute("tone", "") })
   drawTonesAndGradients()
 }
+
+zdBrowserRuntime.runWhenReady(document, initializePronunciationGuide)

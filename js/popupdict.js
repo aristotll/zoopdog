@@ -177,57 +177,96 @@ const dunzo = () => {
   }, 2000)
 }
 
-window.onload = function() {
+function initializePopupDictionary() {
 
   const db = new Dexie("entries")
   db.version(2).stores({
     entries: '++,vn,en',
   })
-
-  const jsonURL = 'zd-extension/js/vnedict.json'
-
-  db.on('ready', function () {
-    return db.entries.count(function (count) {
-      if (count > 0) {
-        console.log("Database is already populated.")
-        dunzo()
-      } else {
-        console.log("Database is empty. Loading entries from dictionary file...")
-        return new Dexie.Promise(function(resolve, reject){
-          var xhr = new XMLHttpRequest();
-          xhr.onreadystatechange = function(){
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-              if (xhr.status === 200) {
-                resolve(JSON.parse(xhr.responseText))
-              } else {
-                reject(xhr)
-              }
-            }
-          }
-          xhr.open("GET", jsonURL, true);
-          xhr.send()
-        }).then(function (data) {
-          return db.transaction('rw', db.entries, function () {
-            data.forEach(function (item) {
-              db.entries.add(item)
-            })
-          })
-        }).then(function() {
-          db.entries.count((count) => console.log(`Committed ${count} entries.`))
-          dunzo()
-        })
-      }
-    })
+  db.version(3).stores({
+    entries: '++,vn,en',
+    metadata: '&key',
   })
 
-  db.open()
+  const jsonURL = 'zd-extension/js/vnedict.json'
+  const metadataURL = 'zd-extension/js/vnedict.meta.json'
+  const status = document.getElementById('dictionary-status')
+  const retry = document.getElementById('dictionary-retry')
+
+  const loadText = (url) => {
+    if (location.protocol === 'file:') {
+      return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest()
+        request.open('GET', url)
+        request.onload = () => {
+          if (request.status === 0 || (request.status >= 200 && request.status < 300)) {
+            resolve(request.responseText)
+          } else {
+            reject(new Error(`HTTP ${request.status} loading ${url}`))
+          }
+        }
+        request.onerror = () => reject(new Error(`Unable to load ${url}`))
+        request.send()
+      })
+    }
+    return fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status} loading ${url}`)
+      return response.text()
+    })
+  }
+  const digest = (globalThis.crypto && globalThis.crypto.subtle) ? async (text) => {
+    const bytes = new TextEncoder().encode(text)
+    const result = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+    return Array.from(new Uint8Array(result), byte => byte.toString(16).padStart(2, '0')).join('')
+  } : null
+  const renderState = (readiness) => {
+    const labels = {
+      'ready-current': `Dictionary ready (${readiness.entryCount} entries).`,
+      'ready-refreshed': `Dictionary refreshed (${readiness.entryCount} entries).`,
+      'ready-stale': `Using the previous dictionary. ${readiness.error.remedy}`,
+      unavailable: `Dictionary unavailable. ${readiness.error.remedy}`
+    }
+    status.textContent = labels[readiness.state] || `Dictionary state: ${readiness.state}`
+    retry.hidden = !['ready-stale', 'unavailable'].includes(readiness.state)
+  }
+  const coordinator = zdDictionaryRuntime.createCoordinator({
+    adapter: zdDictionaryRuntime.createDexieAdapter(db),
+    fetchMetadata: async () => {
+      const text = await loadText(metadataURL)
+      try {
+        return JSON.parse(text)
+      } catch (error) {
+        throw new zdDictionaryRuntime.RuntimeError(
+          zdDictionaryRuntime.ERRORS.METADATA_INVALID,
+          'Runtime dictionary metadata is not valid JSON',
+          error
+        )
+      }
+    },
+    fetchDictionaryText: () => loadText(jsonURL),
+    digest: digest,
+    onState: renderState
+  })
+  let dictionaryReady = coordinator.ensureReady().then((readiness) => {
+    renderState(readiness)
+    dunzo()
+    return readiness
+  })
+  retry.addEventListener('click', () => {
+    retry.disabled = true
+    dictionaryReady = coordinator.ensureReady({force: true}).then((readiness) => {
+      retry.disabled = false
+      renderState(readiness)
+      return readiness
+    })
+  })
 
   if (!/Chrome|Firefox/.test(navigator.userAgent)) {
     alert("This demo page is not compatible with Safari.\nPlease use Chrome instead.")
   }
 
   Pace.on('done', function(){
-    textfield.style.opacity = 1
+    textField.style.opacity = 1
     Array.from(document.getElementsByClassName('pace')).forEach(function(el){
       el.style.pointerEvents = 'auto'
     })
@@ -235,36 +274,52 @@ window.onload = function() {
     document.getElementById('instructions').style.display = 'block'
   })
 
-  this.highlighter = new Highlighter()
-  this.popup = new ResultFrame('zd-extension/frame.html')
-  this.zoopdogIsOn = true
-  var self = this
+  window.highlighter = new Highlighter()
+  window.popup = new ResultFrame('zd-extension/frame.html')
+  const dialectMenu = document.getElementById('dialect-menu')
+  window.popup.dialect = dialectMenu.value
+  dialectMenu.addEventListener('change', () => {
+    window.popup.dialect = dialectMenu.value
+  })
+  window.zoopdogIsOn = true
+  const lookupTasks = zdBrowserRuntime.createLatestTask()
+  const self = window
+  let oldWord = null
+
+  const toggleLock = () => {
+    self.highlighter.toggleLock()
+    self.popup.toggleLock()
+  }
+  self.popup.onToggleLock = toggleLock
+  const invalidateLookup = () => {
+    lookupTasks.invalidate()
+    oldWord = null
+  }
 
   window.addEventListener('resize', function(e){
+    invalidateLookup()
     self.highlighter.off()
     self.popup.hide()
     self.highlighter = new Highlighter()
   })
 
   textField.addEventListener('scroll', function(e){
+    invalidateLookup()
     self.highlighter.off()
     self.popup.hide()
   })
 
   textField.addEventListener('mouseout', function(e){
+    invalidateLookup()
     self.highlighter.off()
     self.popup.hide()
   })
 
   window.addEventListener('keydown', e => {
-    if (e.which === 16) {
-      self.highlighter.toggleLock()
-      self.popup.toggleLock()
-    }
+    if (e.key === 'Shift' || e.which === 16) toggleLock()
   })
 
-  var oldWord
-  textField.addEventListener('mousemove', function(e){
+  textField.addEventListener('mousemove', async function(e){
 
     if (self.popup.locked || !self.zoopdogIsOn) return true
 
@@ -274,52 +329,63 @@ window.onload = function() {
     var origin = getWordAndContext(mouse)
     var el = document.elementFromPoint(mouse.x, mouse.y)
 
-    if (!origin) return true
-    if (!origin.word) return true
+    if (!origin || !origin.word || !el) {
+      invalidateLookup()
+      self.highlighter.off()
+      self.popup.hide()
+      return true
+    }
 
     self.highlighter.off()
     self.popup.hide()
 
-    if (Array.from(el.childNodes).indexOf(origin.node) === -1) return true
+    if (Array.from(el.childNodes).indexOf(origin.node) === -1) {
+      invalidateLookup()
+      return true
+    }
     if (origin.word === oldWord) return true
     oldWord = origin.word
+    const task = lookupTasks.begin()
 
     var searchTerm = origin.word.replace(/[Đ\u00D0]/ug, "đ")
 
-    db.entries
-      .where('vn')
-      .startsWithIgnoreCase(searchTerm + " ")
-      .uniqueKeys((keysArray) => {
+    const readiness = await dictionaryReady
+    if (!lookupTasks.isCurrent(task)) return false
+    if (readiness.state === zdDictionaryRuntime.STATES.UNAVAILABLE) {
+      oldWord = null
+      return false
+    }
 
-        keysArray.sort(function(a, b){
-          return b.length - a.length
-        })
-        var range = keysArray.length ? keysArray[0].split(" ").length : 1
-        return generateCandidates(origin.context, range)
-
-      }).then((candidates) => {
-
-        return db.entries
-          .where('vn')
-          .anyOfIgnoreCase(candidates)
-          .toArray()
-
-      }).then((results) => {
-
-        if (!results.length) return false
-
-        results.sort(function(a, b){
-          return b['vn'].split(" ").length - a['vn'].split(" ").length
-        })
-        var numOfWordsToHighlight = results[0]['vn'].split(" ").length
-        self.highlighter.on(origin.node, origin.begin, numOfWordsToHighlight)
-        self.popup.populate(results)
-        if (self.highlighter.highlights) self.popup.show(self.highlighter.highlights[0])
-        setTimeout(() => {
-          oldWord = null
-        }, 500) // this is necessary to prevent flickers but allow intentionally going off and back on the same word
-      })
+    try {
+      const keysArray = await db.entries.where('vn').startsWithIgnoreCase(`${searchTerm} `).uniqueKeys()
+      if (!lookupTasks.isCurrent(task)) return false
+      keysArray.sort((a, b) => b.length - a.length)
+      const range = keysArray.length ? keysArray[0].split(' ').length : 1
+      const candidates = generateCandidates(origin.context, range)
+      const results = await db.entries.where('vn').anyOfIgnoreCase(candidates).toArray()
+      if (!lookupTasks.isCurrent(task)) return false
+      if (!results.length) {
+        oldWord = null
+        return false
+      }
+      results.sort((a, b) => b.vn.split(' ').length - a.vn.split(' ').length)
+      const numOfWordsToHighlight = results[0].vn.split(' ').length
+      await self.popup.inject()
+      if (!lookupTasks.isCurrent(task)) return false
+      self.highlighter.on(origin.node, origin.begin, numOfWordsToHighlight)
+      await self.popup.populate(results)
+      if (!lookupTasks.isCurrent(task)) return false
+      if (self.highlighter.highlights.length) await self.popup.show(self.highlighter.highlights[0])
+      setTimeout(() => {
+        if (lookupTasks.isCurrent(task)) oldWord = null
+      }, 500)
+    } catch (error) {
+      if (lookupTasks.isCurrent(task)) oldWord = null
+      console.error('Dictionary lookup failed:', error)
+    }
 
   })
 
 }
+
+zdBrowserRuntime.runWhenReady(document, initializePopupDictionary)
