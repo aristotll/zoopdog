@@ -18,6 +18,7 @@
       "exclude_matches": ["*://*/zoopdog/*"],
       "js": [
         "js/lib/handlebars.min.js",
+        "js/zd-words.js",
         "js/content.js",
         "js/showframe.js",
         "js/highlighter.js"

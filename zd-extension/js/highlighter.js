@@ -32,8 +32,8 @@ class Highlighter {
         prevChar = "";
     for (var i = begin; i < node.data.length; i++) {
       if (node.data[i] === " ") {
-        if (prevChar && prevChar.match(chars)) words++
-      } else if (!node.data[i].match(chars)) { // break on punctuation
+        if (prevChar && zdIsWordChar(prevChar)) words++
+      } else if (!zdIsWordChar(node.data[i])) { // break on punctuation
         break
       }
       if (words === howManyWords) {

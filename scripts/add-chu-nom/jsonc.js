@@ -18,7 +18,7 @@ function skipJsoncTrivia(source, start) {
     }
     if (source[index] === '/' && source[index + 1] === '*') {
       const end = source.indexOf('*/', index + 2);
-      if (end < 0) throw new WorkflowError('Unterminated JSONC block comment.');
+      if (end < 0) throw new WorkflowError('jsonc_unterminated_comment', 'Unterminated JSONC block comment.');
       index = end + 2;
       continue;
     }
@@ -39,7 +39,7 @@ function readJsonStringEnd(source, start) {
       return index + 1;
     }
   }
-  throw new WorkflowError('Unterminated JSON string.');
+  throw new WorkflowError('jsonc_unterminated_string', 'Unterminated JSON string.');
 }
 
 function readJsonValueEnd(source, start) {
@@ -81,13 +81,13 @@ function findPropertyValueSpan(objectSource, property) {
   let index = skipJsoncTrivia(objectSource, 1);
   while (index < objectSource.length && objectSource[index] !== '}') {
     if (objectSource[index] !== '"') {
-      throw new WorkflowError('Expected a JSONC object property.');
+      throw new WorkflowError('jsonc_property_expected', 'Expected a JSONC object property.');
     }
     const keyEnd = readJsonStringEnd(objectSource, index);
     const key = JSON.parse(objectSource.slice(index, keyEnd));
     index = skipJsoncTrivia(objectSource, keyEnd);
     if (objectSource[index] !== ':') {
-      throw new WorkflowError(`Expected ':' after JSONC property ${key}.`);
+      throw new WorkflowError('jsonc_colon_expected', `Expected ':' after JSONC property ${key}.`);
     }
     const valueStart = skipJsoncTrivia(objectSource, index + 1);
     const valueEnd = readJsonValueEnd(objectSource, valueStart);
@@ -163,7 +163,7 @@ function updateObjectValues(objectSource, entry) {
       .map((name) => findPropertyValueSpan(objectSource, name))
       .filter(Boolean)
       .sort((a, b) => b.end - a.end);
-    if (!existingSpans.length) throw new WorkflowError('Cannot insert into an empty user entry object.');
+    if (!existingSpans.length) throw new WorkflowError('jsonc_empty_object', 'Cannot insert into an empty user entry object.');
     const lastValueEnd = existingSpans[0].end;
     if (objectSource[skipJsoncTrivia(objectSource, lastValueEnd)] !== ',') {
       objectSource = objectSource.slice(0, lastValueEnd) + ',' + objectSource.slice(lastValueEnd);
@@ -189,7 +189,7 @@ function upsertUserEntriesJsonc(source, incomingEntries) {
     const objectSource = updated.slice(span.start, span.end);
     const [entry] = parseUserNomEntries(`[${objectSource}]`, 'user_nom_entries.jsonc');
     if (indexed.has(entry.key)) {
-      throw new WorkflowError(`Duplicate existing user entry key: ${entry.key}`);
+      throw new WorkflowError('jsonc_duplicate_key', `Duplicate existing user entry key: ${entry.key}`);
     }
     indexed.set(entry.key, {...span, entry});
   }
@@ -248,7 +248,7 @@ function upsertUserEntriesJsonc(source, incomingEntries) {
   if (additions.length) {
     const newline = updated.includes('\r\n') ? '\r\n' : '\n';
     const close = updated.lastIndexOf(']');
-    if (close < 0) throw new WorkflowError('User entry JSONC must contain a top-level array.');
+    if (close < 0) throw new WorkflowError('jsonc_array_missing', 'User entry JSONC must contain a top-level array.');
     const entryIndent = (updated.match(/\r?\n([ \t]+)\{/) || [null, '  '])[1];
     const propertyIndent = (updated.match(/\r?\n([ \t]+)"/) || [null, `${entryIndent}  `])[1];
     const indentUnit = propertyIndent.startsWith(entryIndent)

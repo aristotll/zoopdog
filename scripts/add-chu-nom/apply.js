@@ -28,9 +28,8 @@ function defaultCommandRunner(command, args, options) {
 function runChecked(commandRunner, command, args, cwd, stage) {
   const result = commandRunner(command, args, {cwd});
   if (!result || result.status !== 0) {
-    throw new WorkflowError(
+    throw new WorkflowError('build_step_failed', 
       `${stage} failed${result && result.stderr ? `: ${String(result.stderr).trim()}` : '.'}`,
-      EXIT_CODES.APPLY_FAILED,
       {stage}
     );
   }
@@ -39,7 +38,7 @@ function runChecked(commandRunner, command, args, cwd, stage) {
 function extractAssignedJson(source, variableName) {
   const marker = `var ${variableName} =`;
   const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new WorkflowError(`Missing generated ${variableName}.`, EXIT_CODES.APPLY_FAILED);
+  if (markerIndex < 0) throw new WorkflowError('generated_variable_missing', `Missing generated ${variableName}.`);
   let start = markerIndex + marker.length;
   while (start < source.length && /\s/.test(source[start])) start++;
   const end = readJsonValueEnd(source, start);
@@ -101,7 +100,7 @@ function applyManifest(manifest, options = {}) {
       }
       if ((nomEligible && !Object.hasOwn(nomMap, entry.key)) ||
           !Object.hasOwn(popupMap, entry.key)) {
-        throw new WorkflowError(`Generated dictionaries are missing approved key: ${entry.key}`, EXIT_CODES.APPLY_FAILED);
+        throw new WorkflowError('generated_key_missing', `Generated dictionaries are missing approved key: ${entry.key}`);
       }
     }
 
@@ -127,7 +126,7 @@ function applyManifest(manifest, options = {}) {
     if (error instanceof WorkflowError && error.exitCode === EXIT_CODES.APPLY_FAILED) {
       throw error;
     }
-    throw new WorkflowError(error.message, EXIT_CODES.APPLY_FAILED);
+    throw new WorkflowError('apply_rolled_back', error.message);
   }
 }
 

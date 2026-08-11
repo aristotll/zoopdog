@@ -19,6 +19,8 @@ const targetPath = repoPaths.absolute.popupUserscript;
 
 const sourceFiles = [
   'zd-extension/js/lib/chroma.min.js',
+  // Shared word primitives, inlined ahead of the runtime that calls them.
+  'zd-extension/js/zd-words.js',
   'zd-extension/js/zd-pron-data.js',
   'zd-extension/js/zd-pron-functions.js',
   'zd-extension/js/zd-pron-drawtones.js'

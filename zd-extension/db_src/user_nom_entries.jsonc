@@ -125,5 +125,25 @@
       "colleague",
       "someone in the same profession"
     ]
+  },
+  {
+    "vi": "tàu cao tốc",
+    "nom": ["艚高速"],
+    "explain": ["high-speed train","bullet train"]
+  },
+  {
+    "vi": "đơn hàng",
+    "nom": ["單行"],
+    "explain": ["order","purchase order"]
+  },
+  {
+    "vi": "cuộc họp đầu giờ",
+    "nom": ["局合頭𣇞"],
+    "explain": ["meeting at the start of the hour","early-hour meeting"]
+  },
+  {
+    "vi": "đáng quý",
+    "nom": ["當貴"],
+    "explain": ["precious","worthy of esteem","admirable"]
   }
 ]

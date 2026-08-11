@@ -5,7 +5,9 @@ MANIFEST ?=
 # The review manifest holds proposed dictionary edits awaiting approval, so its path is
 # never defaulted: a fixed name in a world-writable shared directory would let an unrelated
 # or attacker-controlled file be applied by a bare `make import-chu-nom`.
-MANIFEST_GOALS := add-chu-nom-plan add-chu-nom-apply import-chu-nom
+DECISIONS ?= -
+
+MANIFEST_GOALS := add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom
 REQUESTED_MANIFEST_GOALS := $(filter $(MANIFEST_GOALS),$(MAKECMDGOALS))
 
 ifneq ($(REQUESTED_MANIFEST_GOALS),)
@@ -16,12 +18,13 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help add-chu-nom-plan add-chu-nom-apply import-chu-nom \
+.PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts \
 	verify verify-scripts verify-add-chu-nom
 
 help:
 	@echo "make add-chu-nom-plan MANIFEST=/path/to/manifest.json [INPUT=path]"
+	@echo "make add-chu-nom-review MANIFEST=/path/to/manifest.json [DECISIONS=path|-]"
 	@echo "make import-chu-nom MANIFEST=/path/to/reviewed.json"
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
@@ -34,6 +37,11 @@ help:
 
 add-chu-nom-plan:
 	$(NODE) scripts/add-chu-nom.js plan --file "$(INPUT)" --manifest "$(MANIFEST)"
+
+# Decisions default to stdin because the common case is a small array piped straight in; a
+# file path avoids shell quoting trouble with Vietnamese and Chu Nom text.
+add-chu-nom-review:
+	$(NODE) scripts/add-chu-nom.js review --manifest "$(MANIFEST)" --decisions "$(DECISIONS)"
 
 add-chu-nom-apply:
 	$(NODE) scripts/add-chu-nom.js apply --manifest "$(MANIFEST)" --approve

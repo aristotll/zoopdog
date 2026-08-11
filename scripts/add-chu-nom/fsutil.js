@@ -16,7 +16,7 @@ function resolveInsideRoot(repoRoot, relativePath) {
   const root = path.resolve(repoRoot);
   const target = path.resolve(root, relativePath);
   if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
-    throw new WorkflowError(`Path escapes repository root: ${relativePath}`);
+    throw new WorkflowError('path_escapes_root', `Path escapes repository root: ${relativePath}`);
   }
   const realRoot = fs.realpathSync(root);
   let existingAncestor = target;
@@ -24,14 +24,14 @@ function resolveInsideRoot(repoRoot, relativePath) {
   while (!fs.existsSync(existingAncestor)) {
     const parent = path.dirname(existingAncestor);
     if (parent === existingAncestor) {
-      throw new WorkflowError(`Cannot resolve repository path: ${relativePath}`);
+      throw new WorkflowError('path_unresolvable', `Cannot resolve repository path: ${relativePath}`);
     }
     missingParts.unshift(path.basename(existingAncestor));
     existingAncestor = parent;
   }
   const realTarget = path.join(fs.realpathSync(existingAncestor), ...missingParts);
   if (realTarget !== realRoot && !realTarget.startsWith(`${realRoot}${path.sep}`)) {
-    throw new WorkflowError(`Path resolves outside repository root: ${relativePath}`);
+    throw new WorkflowError('path_outside_root', `Path resolves outside repository root: ${relativePath}`);
   }
   return target;
 }

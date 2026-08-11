@@ -7,12 +7,12 @@ const {WorkflowError} = require('./errors');
 function parseFileMention(value) {
   const match = String(value || '').match(/^(.*?)(?:#L(\d+)(?:-(?:L)?(\d+))?)?$/);
   if (!match || !match[1]) {
-    throw new WorkflowError(`Invalid file mention: ${value}`);
+    throw new WorkflowError('file_mention_invalid', `Invalid file mention: ${value}`);
   }
   const startLine = match[2] ? Number(match[2]) : null;
   const endLine = match[3] ? Number(match[3]) : startLine;
   if (startLine !== null && (startLine < 1 || endLine < startLine)) {
-    throw new WorkflowError(`Invalid file line range: ${value}`);
+    throw new WorkflowError('file_range_invalid', `Invalid file line range: ${value}`);
   }
   return {path: match[1], startLine, endLine};
 }

@@ -113,7 +113,7 @@ function resolveItems(items, sources) {
 function createPlan(options = {}) {
   const repoRoot = path.resolve(options.repoRoot || path.join(__dirname, '../..'));
   if (options.words !== undefined && options.file !== undefined) {
-    throw new WorkflowError('Use either inline words or a file, not both.');
+    throw new WorkflowError('conflicting_input_options', 'Use either inline words or a file, not both.');
   }
 
   let items;
@@ -127,7 +127,7 @@ function createPlan(options = {}) {
     const mention = parseFileMention(options.file || repoPaths.relative.defaultInput);
     inputPath = resolveInsideRoot(repoRoot, mention.path);
     if (!fs.existsSync(inputPath)) {
-      throw new WorkflowError(`Input file does not exist: ${mention.path}`);
+      throw new WorkflowError('input_file_missing', `Input file does not exist: ${mention.path}`);
     }
     items = parseInputText(fs.readFileSync(inputPath, 'utf8'), mention);
     source = {
@@ -156,8 +156,54 @@ function createPlan(options = {}) {
   };
 }
 
+// What a reviewer acts on, and nothing else. The manifest's integrity fields — source hashes,
+// source items, and the internal identity a candidate carries — exist to prove the plan still
+// matches the bytes it was planned from, so exposing them here would only invite edits that
+// break that proof. Empty collections are dropped because a batch is mostly empty fields.
+const REVIEW_ARRAY_FIELDS = ['nom', 'explain', 'provenance', 'choices', 'notes'];
+
+function buildReviewProjection(manifest) {
+  if (!manifest || !Array.isArray(manifest.entries)) {
+    return [];
+  }
+  return manifest.entries.map((entry) => {
+    const record = {
+      id: entry.id,
+      original: entry.original,
+      vi: entry.vi,
+      status: entry.status
+    };
+    if (entry.decision) {
+      record.decision = entry.decision;
+    }
+    if (entry.replace !== undefined) {
+      record.replace = entry.replace;
+    }
+    for (const field of REVIEW_ARRAY_FIELDS) {
+      const value = entry[field];
+      if (Array.isArray(value) && value.length) {
+        record[field] = value;
+      }
+    }
+    return record;
+  });
+}
+
+function summarizePlan(manifest) {
+  const entries = manifest && Array.isArray(manifest.entries) ? manifest.entries : [];
+  return {
+    proposed: entries.filter((entry) => entry.status === 'proposed').length,
+    needsReview: entries.filter((entry) => entry.status === 'needs-review').length,
+    skipped: entries.filter((entry) => entry.status === 'skipped').length,
+    undecided: entries.filter((entry) => entry.status !== 'skipped' &&
+      !['apply', 'reject'].includes(entry.decision)).length
+  };
+}
+
 module.exports = {
   makeCandidate,
   resolveItems,
-  createPlan
+  createPlan,
+  buildReviewProjection,
+  summarizePlan
 };

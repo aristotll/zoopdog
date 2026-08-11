@@ -96,6 +96,7 @@ function installRealBuilders(fixtureRoot) {
   }
   for (const relative of [
     'zd-extension/js/lib/chroma.min.js',
+    'zd-extension/js/zd-words.js',
     'zd-extension/js/zd-pron-data.js',
     'zd-extension/js/zd-pron-functions.js',
     'zd-extension/js/zd-pron-drawtones.js'
@@ -530,7 +531,7 @@ test('plan CLI rejects mutually exclusive input arguments with structured valida
 
   assert.equal(exitCode, cli.EXIT_CODES.VALIDATION);
   assert.equal(fs.existsSync(manifestPath), false);
-  assert.equal(JSON.parse(output.stderr()).error.code, 'validation');
+  assert.equal(JSON.parse(output.stderr()).error.category, 'validation');
 });
 
 test('CLI rejects unknown flags instead of silently ignoring typos', (t) => {
@@ -566,7 +567,7 @@ test('missing nested input paths are reported as validation errors', (t) => {
   ], output.io);
 
   assert.equal(exitCode, cli.EXIT_CODES.VALIDATION);
-  assert.equal(JSON.parse(output.stderr()).error.code, 'validation');
+  assert.equal(JSON.parse(output.stderr()).error.category, 'validation');
 });
 
 test('planner rejects an in-repository symlink that resolves outside the repository', (t) => {
@@ -606,7 +607,7 @@ test('apply validation requires approval and rejects stale source hashes before 
     'apply', '--manifest', manifestPath, '--repo-root', fixture.root, '--approve'
   ], stale.io);
   assert.equal(staleExit, cli.EXIT_CODES.STALE);
-  assert.equal(JSON.parse(stale.stderr()).error.code, 'stale');
+  assert.equal(JSON.parse(stale.stderr()).error.category, 'stale');
   assert.deepEqual(fs.readFileSync(userPath), before);
 });
 
@@ -747,7 +748,7 @@ test('apply CLI classifies unreadable JSON as manifest validation failure', (t) 
   ], output.io);
 
   assert.equal(exitCode, cli.EXIT_CODES.VALIDATION);
-  assert.equal(JSON.parse(output.stderr()).error.code, 'validation');
+  assert.equal(JSON.parse(output.stderr()).error.category, 'validation');
 });
 
 test('JSONC upsert changes only values, preserves comments, and appends new entries', () => {
@@ -1220,9 +1221,18 @@ test('Codex command contains the canonical Node.js review workflow', () => {
   );
 
   assert.match(codex, /node scripts\/add-chu-nom\.js plan/);
+  assert.match(codex, /node scripts\/add-chu-nom\.js review/);
   assert.match(codex, /node scripts\/add-chu-nom\.js apply/);
   assert.match(codex, /--approve/);
+  assert.match(codex, /--decisions/);
   assert.doesNotMatch(codex, /node scripts\/build-(?:nom|popupdict)-userscript/);
+
+  // The instruction that removes the hand-editing failure class, and the one linguistic rule
+  // that moved here from the retired session-start rules file.
+  assert.match(codex, /[Nn]ever edit the manifest by hand/);
+  assert.match(codex, /Vietnamese word order/);
+  assert.match(codex, /𣋀黃/, 'the word-order rule keeps its worked example');
+  assert.doesNotMatch(codex, /黄星[^,.]*correct/i, 'the wrong form is shown only as the counter-example');
 });
 
 test('Makefile delegates plan, approved apply, rebuilds, and verification to Node.js', () => {
@@ -1278,23 +1288,23 @@ test('Make targets require an explicit manifest path', () => {
   }
 });
 
-test('AGENTS.md describes the workflow that actually exists', () => {
+test('AGENTS.md routes to the workflow instead of restating it', () => {
   const agents = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
 
-  const rulesReference = agents.match(/`(\.claude\/[\w-]+)\/\*\.md`/);
-  assert.ok(rulesReference, 'AGENTS.md names a local rules directory');
-  assert.ok(
-    fs.existsSync(path.join(repoRoot, rulesReference[1])),
-    `AGENTS.md points at ${rulesReference[1]}, which does not exist`
-  );
+  // The session-start local-rules read was removed: it charged every unrelated task for
+  // context that belongs in the command document. Nothing may reintroduce it.
+  assert.doesNotMatch(agents, /no-autoload-rules/,
+    'AGENTS.md no longer mandates a session-start local rules read');
+  assert.equal(agents.match(/`(\.claude\/[\w-]+)\/\*\.md`/), null,
+    'AGENTS.md names no local rules directory to read every session');
 
   assert.doesNotMatch(
     agents,
     /no `package\.json`, task runner, or test framework/,
     'the repository now has a Makefile and a node:test suite'
   );
-  // The documented verification entry points must exist as real Make targets and a real
-  // test command, without pinning their exact spelling.
+  // The documented verification entry point must exist as a real Make target, without
+  // pinning its exact spelling.
   const documentedTargets = [...agents.matchAll(/make ([a-z][\w-]*)/g)].map((match) => match[1]);
   const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
   assert.ok(
@@ -1302,7 +1312,26 @@ test('AGENTS.md describes the workflow that actually exists', () => {
       /^verify/.test(target) && new RegExp(`^${target}:`, 'm').test(makefile)),
     'AGENTS.md documents a verification target that the Makefile defines'
   );
-  assert.match(agents, /node --test test\//);
+
+  // It points at the canonical documents rather than paraphrasing them, and every pointer
+  // resolves to a file that exists.
+  for (const pointer of [
+    '.codex/commands/add-chu-nom.md',
+    'docs/build.md',
+    'docs/dictionary-data.md',
+    'docs/history/chu-nom-lessons.md'
+  ]) {
+    assert.ok(agents.includes(pointer), `AGENTS.md points at ${pointer}`);
+    assert.ok(fs.existsSync(path.join(repoRoot, pointer)), `${pointer} exists`);
+  }
+
+  // The workflow procedure lives in exactly one place. AGENTS.md may name the scripts but
+  // must not carry the commands that drive them.
+  for (const procedure of [/node scripts\/add-chu-nom\.js/, /--approve/, /--decisions/]) {
+    assert.doesNotMatch(agents, procedure,
+      'AGENTS.md links to the command document instead of repeating its procedure');
+  }
+
   for (const importantPath of [
     'scripts/add-chu-nom.js',
     'scripts/add-chu-nom/',
@@ -1346,4 +1375,430 @@ test('Claude command is only a reference link to the canonical Codex document', 
     ''
   ].join('\n'));
   assert.doesNotMatch(claude, /node |--approve|## Workflow/);
+});
+
+test('every workflow failure names an enumerated code and a remedy', () => {
+  const {ERROR_CODES, EXIT_CODES} = require('../scripts/add-chu-nom/errors');
+  const scriptDir = path.join(repoRoot, 'scripts');
+  const files = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const target = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(target);
+      else if (entry.name.endsWith('.js')) files.push(target);
+    }
+  })(scriptDir);
+
+  const used = new Set();
+  const mentioned = new Set();
+  const unnamed = [];
+  const forwarders = [];
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    const relative = path.relative(repoRoot, file);
+    for (const match of source.matchAll(/new WorkflowError\(([^)]*)/g)) {
+      const first = match[1].trim();
+      const named = /^'([a-z0-9_]+)'\s*,/.exec(first);
+      if (named) {
+        used.add(named[1]);
+        mentioned.add(named[1]);
+        continue;
+      }
+      // A helper that forwards an already-chosen code is allowed, but only when it forwards a
+      // parameter literally named `code` — anything else is a raise site that skipped the enum.
+      if (/^code\s*,/.test(first)) {
+        forwarders.push(relative);
+        continue;
+      }
+      unnamed.push(`${relative}: ${first.slice(0, 60)}`);
+    }
+    // Codes also travel as plain issue records and as the first argument of the collector's
+    // raise helpers. For the dead-code check any snake_case literal that matches an enum key
+    // counts as a use — over-matching here can only hide a dead code, never invent one, and
+    // the strict scan above still owns "no raise site skipped the enum".
+    for (const match of source.matchAll(/['(,\s]'([a-z][a-z0-9_]{4,})'\s*[,)]/g)) {
+      mentioned.add(match[1]);
+    }
+    for (const match of source.matchAll(/\bcode: '([a-z0-9_]+)'/g)) {
+      mentioned.add(match[1]);
+    }
+  }
+
+  assert.deepEqual(unnamed, [], 'every raise site passes an error code as its first argument');
+  assert.ok(forwarders.length <= 1,
+    `at most one helper forwards a code; found ${forwarders.join(', ')}`);
+
+  const unknown = [...used].filter((code) => !Object.hasOwn(ERROR_CODES, code));
+  assert.deepEqual(unknown, [], 'every raised code belongs to the frozen enumeration');
+
+  const unused = Object.keys(ERROR_CODES).filter((code) => !mentioned.has(code));
+  assert.deepEqual(unused, [], 'the enumeration carries no code that nothing can raise');
+
+  const validExits = new Set(Object.values(EXIT_CODES));
+  for (const [code, entry] of Object.entries(ERROR_CODES)) {
+    assert.ok(entry.hint && entry.hint.length > 10, `${code} states a corrective action`);
+    assert.ok(validExits.has(entry.exit), `${code} maps to a known exit code`);
+    assert.notEqual(entry.exit, EXIT_CODES.SUCCESS, `${code} does not map to success`);
+  }
+
+  assert.equal(ERROR_CODES.stale_source.exit, EXIT_CODES.STALE);
+  assert.equal(ERROR_CODES.approval_required.exit, EXIT_CODES.VALIDATION);
+  assert.equal(ERROR_CODES.build_step_failed.exit, EXIT_CODES.APPLY_FAILED);
+  assert.equal(Object.isFrozen(ERROR_CODES), true);
+});
+
+test('an unknown error code is rejected at construction', () => {
+  const {WorkflowError} = require('../scripts/add-chu-nom/errors');
+  assert.throws(() => new WorkflowError('not_a_real_code', 'boom'), /Unknown workflow error code/);
+});
+
+test('collection reports every independent defect in one pass', (t) => {
+  const fixture = makeFixture(t);
+  const {collectManifestIssues} = require('../scripts/add-chu-nom/manifest');
+  const manifest = approveActionable(cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'quản lý, đích thực, kiểm tra'
+  }));
+
+  const actionable = manifest.entries.filter((entry) => entry.status !== 'skipped');
+  assert.ok(actionable.length >= 3, 'fixture plans enough actionable entries to defect three of them');
+
+  actionable[0].decision = null;
+  actionable[1].decision = 'apply';
+  actionable[1].nom = ['not CJK'];
+  actionable[2].decision = 'apply';
+  actionable[2].vi = '';
+
+  const {errors, applicable} = collectManifestIssues(manifest, {repoRoot: fixture.root});
+  const codes = errors.map((error) => error.code);
+
+  assert.ok(codes.includes('decision_missing'), `reports the missing decision, got ${codes}`);
+  assert.ok(codes.includes('entry_nom_invalid'), `reports the invalid nom, got ${codes}`);
+  assert.ok(codes.includes('entry_vi_missing'), `reports the empty vi, got ${codes}`);
+  assert.ok(errors.length >= 3, 'all three are reported together rather than one per run');
+  assert.deepEqual(applicable.filter((entry) => actionable.slice(0, 3).includes(entry)), [],
+    'a defective entry is never treated as applicable');
+
+  for (const error of errors) {
+    assert.ok(error.hint && error.hint.length > 10, `${error.code} carries a remedy`);
+  }
+});
+
+test('collection never writes to the manifest it inspects', (t) => {
+  const fixture = makeFixture(t);
+  const {collectManifestIssues} = require('../scripts/add-chu-nom/manifest');
+  const manifest = approveActionable(cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'quản lý'
+  }));
+
+  // Values the apply path would rewrite: padded and internally spaced `vi`, and a repeated
+  // `nom`. If collection normalized anything, these would come back changed.
+  const target = manifest.entries.find((entry) => entry.decision === 'apply');
+  assert.ok(target, 'fixture has an entry marked for apply');
+  target.vi = '  Quản   Lý  ';
+  target.nom = ['管理', '管理'];
+
+  const before = JSON.stringify(manifest);
+  const {errors} = collectManifestIssues(manifest, {repoRoot: fixture.root});
+
+  assert.deepEqual(errors.map((error) => error.code), [], 'the fixture manifest is valid');
+  assert.equal(JSON.stringify(manifest), before,
+    'no key assignment or text normalization leaks out of collection');
+  assert.equal(target.vi, '  Quản   Lý  ', 'vi is left exactly as supplied');
+  assert.deepEqual(target.nom, ['管理', '管理'], 'nom is left exactly as supplied');
+
+  // The same manifest through the apply path does normalize, proving the split is real.
+  const approved = cli.validateManifest(manifest, {repoRoot: fixture.root, approved: true});
+  const normalized = approved.find((entry) => entry.id === target.id);
+  assert.equal(normalized.vi, 'Quản   Lý');
+  assert.equal(normalized.key, 'quản lý');
+  assert.deepEqual(normalized.nom, ['管理']);
+});
+
+test('the apply path still normalizes entries after collection succeeds', (t) => {
+  const fixture = makeFixture(t);
+  const manifest = approveActionable(cli.createPlan({
+    repoRoot: fixture.root,
+    words: 'quản lý'
+  }));
+
+  const approved = cli.validateManifest(manifest, {repoRoot: fixture.root, approved: true});
+
+  assert.ok(approved.length > 0);
+  for (const entry of approved) {
+    assert.equal(typeof entry.key, 'string');
+    assert.ok(entry.key.length > 0, 'apply receives the normalized lookup key');
+    assert.equal(entry.vi, entry.vi.trim());
+  }
+});
+
+test('planning emits a review projection that excludes every integrity field', (t) => {
+  const fixture = makeFixture(t);
+  const output = captureIo();
+
+  const exitCode = cli.main([
+    'plan', '--words', 'kiểm tra xem', '--manifest', path.join(fixture.root, 'plan.json'),
+    '--repo-root', fixture.root
+  ], output.io);
+
+  assert.equal(exitCode, cli.EXIT_CODES.SUCCESS);
+  const result = JSON.parse(output.stdout());
+  assert.ok(Array.isArray(result.review) && result.review.length > 0);
+  assert.equal(result.review.length, JSON.parse(
+    fs.readFileSync(path.join(fixture.root, 'plan.json'), 'utf8')
+  ).entries.length, 'every candidate is presentable from stdout alone');
+
+  for (const record of result.review) {
+    for (const forbidden of ['sourceItemId', 'primary', 'key', 'sourceHashes', 'source']) {
+      assert.equal(Object.hasOwn(record, forbidden), false,
+        `${forbidden} stays out of the projection`);
+    }
+    assert.equal(typeof record.id, 'string');
+    assert.equal(typeof record.status, 'string');
+    for (const field of ['nom', 'explain', 'provenance', 'choices', 'notes']) {
+      if (Object.hasOwn(record, field)) {
+        assert.ok(record[field].length > 0, `${field} is omitted when empty`);
+      }
+    }
+  }
+
+  const skipped = result.review.filter((record) => record.status === 'skipped');
+  assert.ok(skipped.every((record) => record.notes && record.notes.length),
+    'a skipped candidate carries the reason it was skipped');
+});
+
+test('review records decisions without the manifest being edited by hand', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  cli.main([
+    'plan', '--words', 'kiểm tra xem', '--manifest', manifestPath, '--repo-root', fixture.root
+  ], planOut.io);
+
+  const actionable = JSON.parse(planOut.stdout()).review
+    .filter((record) => record.status !== 'skipped');
+  assert.ok(actionable.length > 0, 'fixture plans at least one actionable candidate');
+
+  const decisionsPath = path.join(fixture.root, 'decisions.json');
+  fs.writeFileSync(decisionsPath, JSON.stringify(actionable.map((record) => ({
+    id: record.id,
+    decision: 'apply',
+    nom: ['檢查'],
+    explain: ['check']
+  }))));
+
+  const reviewOut = captureIo();
+  const exitCode = cli.main([
+    'review', '--manifest', manifestPath, '--decisions', decisionsPath,
+    '--repo-root', fixture.root
+  ], reviewOut.io);
+
+  const result = JSON.parse(reviewOut.stdout());
+  assert.equal(exitCode, cli.EXIT_CODES.SUCCESS, `review reported: ${JSON.stringify(result.issues)}`);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.summary.undecided, 0);
+
+  const stored = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  for (const record of actionable) {
+    const entry = stored.entries.find((candidate) => candidate.id === record.id);
+    assert.equal(entry.decision, 'apply');
+    assert.deepEqual(entry.nom, ['檢查']);
+  }
+
+  const applied = cli.validateManifest(stored, {repoRoot: fixture.root, approved: true});
+  assert.ok(applied.length > 0, 'a reviewed manifest passes the apply-time check');
+});
+
+test('review rejects an unrecognized field and leaves the manifest byte-identical', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  cli.main([
+    'plan', '--words', 'kiểm tra xem', '--manifest', manifestPath, '--repo-root', fixture.root
+  ], planOut.io);
+  const target = JSON.parse(planOut.stdout()).review
+    .find((record) => record.status !== 'skipped');
+  const before = fs.readFileSync(manifestPath);
+
+  for (const forbidden of ['sourceItemId', 'primary', 'key', 'status', 'provenance']) {
+    const decisionsPath = path.join(fixture.root, `bad-${forbidden}.json`);
+    fs.writeFileSync(decisionsPath, JSON.stringify([
+      {id: target.id, decision: 'apply', nom: ['檢查'], [forbidden]: 'tampered'}
+    ]));
+
+    const output = captureIo();
+    const exitCode = cli.main([
+      'review', '--manifest', manifestPath, '--decisions', decisionsPath,
+      '--repo-root', fixture.root
+    ], output.io);
+
+    assert.equal(exitCode, cli.EXIT_CODES.VALIDATION);
+    const error = JSON.parse(output.stderr()).error;
+    assert.equal(error.code, 'decision_field_unknown');
+    assert.match(error.message, new RegExp(forbidden));
+    assert.ok(error.hint.length > 10);
+    assert.deepEqual(fs.readFileSync(manifestPath), before,
+      `a rejected batch containing ${forbidden} writes nothing`);
+  }
+});
+
+test('review refuses ids that are unknown or not actionable', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  // `tiếng Anh` is the term the fixture already stores in user entries, so planning skips it.
+  cli.main([
+    'plan', '--words', 'tiếng Anh', '--manifest', manifestPath, '--repo-root', fixture.root
+  ], planOut.io);
+  const skipped = JSON.parse(planOut.stdout()).review
+    .find((record) => record.status === 'skipped');
+  assert.ok(skipped, 'fixture plans a skipped candidate');
+
+  const cases = [
+    {id: 'L9:I9:full', code: 'decision_entry_unknown'},
+    {id: skipped.id, code: 'decision_entry_not_actionable'}
+  ];
+  for (const {id, code} of cases) {
+    const decisionsPath = path.join(fixture.root, `case-${code}.json`);
+    fs.writeFileSync(decisionsPath, JSON.stringify([{id, decision: 'apply', nom: ['管理']}]));
+    const output = captureIo();
+    const exitCode = cli.main([
+      'review', '--manifest', manifestPath, '--decisions', decisionsPath,
+      '--repo-root', fixture.root
+    ], output.io);
+
+    assert.equal(exitCode, cli.EXIT_CODES.VALIDATION);
+    assert.equal(JSON.parse(output.stderr()).error.code, code);
+  }
+});
+
+test('review is idempotent and touches only the entries it names', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  cli.main([
+    'plan', '--words', 'kiểm tra xem, Sao Vàng', '--manifest', manifestPath,
+    '--repo-root', fixture.root
+  ], planOut.io);
+  const actionable = JSON.parse(planOut.stdout()).review
+    .filter((record) => record.status !== 'skipped');
+  assert.ok(actionable.length >= 2, 'fixture plans at least two actionable candidates');
+
+  const first = actionable[0];
+  const others = actionable.slice(1);
+  const decide = (records, nom) => {
+    const target = path.join(fixture.root, `decide-${records.length}-${nom}.json`);
+    fs.writeFileSync(target, JSON.stringify(records.map((record) => ({
+      id: record.id, decision: 'apply', nom: [nom]
+    }))));
+    const output = captureIo();
+    cli.main([
+      'review', '--manifest', manifestPath, '--decisions', target, '--repo-root', fixture.root
+    ], output.io);
+    return JSON.parse(output.stdout());
+  };
+
+  decide(actionable, '檢查');
+  const revised = decide([first], '管理');
+
+  assert.deepEqual(revised.recorded, [first.id], 'only the named entry is reported as recorded');
+  const byId = new Map(revised.review.map((record) => [record.id, record]));
+  assert.deepEqual(byId.get(first.id).nom, ['管理'], 'the correction replaced the earlier value');
+  for (const other of others) {
+    assert.deepEqual(byId.get(other.id).nom, ['檢查'], 'entries not named are untouched');
+  }
+});
+
+test('review reports every outstanding issue instead of stopping at the first', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  cli.main([
+    'plan', '--words', 'kiểm tra xem, Sao Vàng', '--manifest', manifestPath,
+    '--repo-root', fixture.root
+  ], planOut.io);
+  const actionable = JSON.parse(planOut.stdout()).review
+    .filter((record) => record.status !== 'skipped');
+
+  const decisionsPath = path.join(fixture.root, 'partial.json');
+  fs.writeFileSync(decisionsPath, JSON.stringify([
+    {id: actionable[0].id, decision: 'apply', nom: ['not CJK']}
+  ]));
+
+  const output = captureIo();
+  const exitCode = cli.main([
+    'review', '--manifest', manifestPath, '--decisions', decisionsPath, '--repo-root', fixture.root
+  ], output.io);
+
+  assert.equal(exitCode, cli.EXIT_CODES.VALIDATION, 'an incomplete review is not ready to apply');
+  const result = JSON.parse(output.stdout());
+  assert.equal(result.ok, false);
+  const codes = result.issues.map((issue) => issue.code);
+  assert.ok(codes.includes('entry_nom_invalid'), `reports the bad nom, got ${codes}`);
+  assert.ok(result.summary.undecided > 0, 'undecided entries are counted, not hidden');
+  for (const issue of result.issues) {
+    assert.ok(issue.hint && issue.hint.length > 10, `${issue.code} states a remedy`);
+  }
+  assert.ok(result.review.length > 0, 'the projection is still returned so the reviewer can continue');
+});
+
+test('review accepts decisions on stdin with Vietnamese and Chu Nom text intact', (t) => {
+  const fixture = makeFixture(t);
+  installRealBuilders(fixture.root);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  const planOut = captureIo();
+  cli.main([
+    'plan', '--words', 'kiểm tra xem', '--manifest', manifestPath, '--repo-root', fixture.root
+  ], planOut.io);
+  const actionable = JSON.parse(planOut.stdout()).review
+    .filter((record) => record.status !== 'skipped');
+  const target = actionable[0];
+
+  const nom = ['𣋀黃'];
+  const explain = ['kiểm tra — thử nghiệm'];
+  const stdout = execFileSync(process.execPath, [
+    path.join(repoRoot, 'scripts/add-chu-nom.js'),
+    'review', '--manifest', manifestPath, '--decisions', '-', '--repo-root', fixture.root
+  ], {
+    input: JSON.stringify(actionable.map((record) => ({
+      id: record.id,
+      decision: 'apply',
+      nom,
+      explain
+    }))),
+    encoding: 'utf8'
+  });
+
+  const record = JSON.parse(stdout).review.find((candidate) => candidate.id === target.id);
+  assert.deepEqual(record.nom, nom, 'Chu Nom text survives stdin transport');
+  assert.deepEqual(record.explain, explain, 'Vietnamese diacritics survive stdin transport');
+
+  const stored = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const entry = stored.entries.find((candidate) => candidate.id === target.id);
+  assert.deepEqual(entry.nom, nom);
+  assert.deepEqual(entry.explain, explain);
+});
+
+test('review rejects flags that belong to other commands', (t) => {
+  const fixture = makeFixture(t);
+  const manifestPath = path.join(fixture.root, 'plan.json');
+  cli.main([
+    'plan', '--words', 'quản lý', '--manifest', manifestPath, '--repo-root', fixture.root
+  ], captureIo().io);
+
+  const cases = [
+    {argv: ['review', '--manifest', manifestPath, '--approve', '--decisions', '-'], code: 'approve_requires_apply'},
+    {argv: ['review', '--manifest', manifestPath, '--words', 'x', '--decisions', '-'], code: 'input_option_requires_plan'},
+    {argv: ['review', '--manifest', manifestPath], code: 'decisions_option_required'},
+    {argv: ['review', '--decisions', '-'], code: 'manifest_option_required'},
+    {argv: ['apply', '--manifest', manifestPath, '--decisions', '-'], code: 'unknown_option'}
+  ];
+  for (const {argv, code} of cases) {
+    const output = captureIo();
+    const exitCode = cli.main([...argv, '--repo-root', fixture.root], output.io);
+    assert.equal(exitCode, cli.EXIT_CODES.VALIDATION, `${argv.join(' ')} is refused`);
+    assert.equal(JSON.parse(output.stderr()).error.code, code);
+  }
 });

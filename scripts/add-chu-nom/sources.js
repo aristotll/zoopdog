@@ -55,7 +55,7 @@ function loadLocalSources(repoRoot) {
   const dictionaryPath = repoPaths.resolveIn(repoRoot, 'dictionary');
   const mdxPath = repoPaths.resolveIn(repoRoot, 'mdxNom');
   if (!fs.existsSync(dictionaryPath)) {
-    throw new WorkflowError(`Missing dictionary source: ${dictionaryPath}`);
+    throw new WorkflowError('dictionary_source_missing', `Missing dictionary source: ${dictionaryPath}`);
   }
 
   const userEntries = readUserNomEntries(userPath);

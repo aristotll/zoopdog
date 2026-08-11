@@ -24,7 +24,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
     oldWordResetMs: 500
   };
 
-  var ZOO_WORD_CHAR_RE = /[-\u00D0A-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụúủứừửữựỳýỵỷỹ]/u;
   var ZOO_CJK_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
   var ZOO_CJK_SEQUENCE_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]+/gu;
 
@@ -50,10 +49,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
     head.appendChild(style);
   }
 
-  function isWordChar(ch) {
-    return !!ch && ZOO_WORD_CHAR_RE.test(ch);
-  }
-
   function normalizeLookup(value) {
     return String(value || '')
       .replace(/[Đ\u00D0]/gu, 'đ')
@@ -72,68 +67,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
       .replace(/'/g, '&#39;');
   }
 
-  function getWordAndContext(mouse) {
-    var range;
-    var textNode;
-    var offset;
-
-    if (document.caretPositionFromPoint) {
-      range = document.caretPositionFromPoint(mouse.x, mouse.y);
-      if (!range) {
-        return false;
-      }
-      textNode = range.offsetNode;
-      offset = range.offset;
-    } else if (document.caretRangeFromPoint) {
-      range = document.caretRangeFromPoint(mouse.x, mouse.y);
-      if (!range) {
-        return false;
-      }
-      textNode = range.startContainer;
-      offset = range.startOffset;
-    } else {
-      return false;
-    }
-
-    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
-      return false;
-    }
-
-    var data = textNode.data;
-    var i = offset;
-    var begin;
-    var end;
-    var contextEnd;
-
-    if (data === undefined || i >= data.length || data[i] === ' ') {
-      return false;
-    }
-
-    while (i > -1 && isWordChar(data[i])) {
-      --i;
-    }
-    begin = i + 1;
-
-    i = offset;
-    while (i < data.length && isWordChar(data[i])) {
-      ++i;
-    }
-    end = i;
-
-    i = offset;
-    while (i < data.length && (isWordChar(data[i]) || data[i] === ' ')) {
-      ++i;
-    }
-    contextEnd = i;
-
-    return {
-      word: data.substring(begin, end).trim(),
-      context: data.substring(begin, contextEnd).trim(),
-      node: textNode,
-      begin: begin
-    };
-  }
-
   function lookupContext(context) {
     var split = String(context || '').trim().split(/\s+/).filter(Boolean);
     var limit = Math.min(split.length, ZOO_MAX_WORDS);
@@ -150,17 +83,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     return null;
-  }
-
-  function mouseInRects(mouse, rects) {
-    for (var i = 0; i < rects.length; i++) {
-      var rect = rects[i];
-      if (rect.left <= mouse.x && mouse.x <= rect.right &&
-          rect.top <= mouse.y && mouse.y <= rect.bottom) {
-        return true;
-      }
-    }
-    return false;
   }
 
   function elementContainsTextNode(element, textNode) {
@@ -236,10 +158,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
     var i;
     for (i = begin; i < node.data.length; i++) {
       if (node.data[i] === ' ') {
-        if (prevChar && isWordChar(prevChar)) {
+        if (prevChar && zdIsWordChar(prevChar)) {
           words++;
         }
-      } else if (!isWordChar(node.data[i])) {
+      } else if (!zdIsWordChar(node.data[i])) {
         break;
       }
 
