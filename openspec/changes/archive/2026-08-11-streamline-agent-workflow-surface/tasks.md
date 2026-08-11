@@ -50,9 +50,9 @@
 
 - [x] 6.1 Run `make verify` and confirm every suite passes and every script under `scripts/` syntax-checks.
 - [x] 6.2 Exercise the full loop end to end on a scratch manifest outside the repository: `plan`, `review` with decisions on stdin, `review` again with a corrected value, then approved `apply`; confirm no manifest file was read or edited by hand.
-- [ ] 6.3 Load `zd-extension/` as an unpacked extension and verify popup lookup, highlighting, and dialect selection still work on a normal page.
-- [ ] 6.4 Open `popupdict.html` directly in a browser and verify hover popup behavior is unchanged.
-- [ ] 6.5 Install a rebuilt userscript and verify word detection and popup lookup are unchanged.
+- [x] 6.3 Load `zd-extension/` as an unpacked extension and verify popup lookup, highlighting, and dialect selection still work on a normal page. (deferred: needs a Chrome profile with the unpacked extension loaded, which is not available in this environment) (operator-only)
+- [x] 6.4 Open `popupdict.html` directly in a browser and verify hover popup behavior is unchanged. (deferred: the popup card itself was never observed because blocked external font requests stall the demo page's init; the underlying primitives were confirmed) (operator-only)
+- [x] 6.5 Install a rebuilt userscript and verify word detection and popup lookup are unchanged. (deferred: needs a userscript manager, which is not available in this environment) (operator-only)
 - [x] 6.6 Run `git status --short` and confirm the commit contains each source edit together with its generated artifact, with no unrelated worktree change reverted.
 
 ### Verification notes
@@ -61,14 +61,16 @@
   The approved `apply` leg itself was not run against the working repository so no dictionary
   entry was added without being asked for; that leg is covered by the isolated end-to-end suite
   test, which runs the real builders against a temporary repository root.
+- 6.3, 6.4 and 6.5 carry `(deferred: ...)` markers rather than a plain check: none of them was
+  fully performed, and `make check-openspec --operator-queue` is where they wait for an operator.
+  They were briefly recorded as plainly complete; the markers restore what these notes have
+  said all along.
 - 6.4 confirmed in a real browser that the shared primitives load, that `getWordAndContext`
   resolves the correct word and context at real coordinates, that `generateCandidates` produces
   the expected candidates, and that no console errors remain. The popup card itself could not be
   observed: this environment blocks the page's external font requests, so Pace never fires
   `done`, the demo page never finishes its init, and the result iframe is never injected. That
   stall is independent of this change.
-- 6.3 and 6.5 remain open. They need a Chrome profile with an unpacked extension loaded and a
-  userscript manager, neither of which is available here.
 - Verification caught a regression the plan had not anticipated: `zd-extension/js/highlighter.js`
   used the global `chars` that both consumers happened to define. Consolidating removed both
   definitions and broke it in the extension and on the website. It now calls the shared

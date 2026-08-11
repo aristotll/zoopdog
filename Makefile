@@ -1,6 +1,8 @@
 NODE ?= node
 INPUT ?= .idea/newfile.md
 MANIFEST ?=
+ARCHIVE ?=
+DRY_RUN ?=
 
 # The review manifest holds proposed dictionary edits awaiting approval, so its path is
 # never defaulted: a fixed name in a world-writable shared directory would let an unrelated
@@ -20,7 +22,7 @@ endif
 
 .PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts \
-	verify verify-scripts verify-add-chu-nom
+	check-openspec verify verify-scripts verify-add-chu-nom
 
 help:
 	@echo "make add-chu-nom-plan MANIFEST=/path/to/manifest.json [INPUT=path]"
@@ -29,6 +31,8 @@ help:
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
 	@echo "make rebuild-userscripts"
+	@echo "make check-openspec    # report OpenSpec lifecycle state; writes nothing"
+	@echo "make check-openspec ARCHIVE=1 [DRY_RUN=1]  # archive eligible changes, promote deltas"
 	@echo "make verify            # tests + syntax-check every script"
 	@echo "make verify-add-chu-nom # alias for verify"
 	@echo ""
@@ -55,6 +59,12 @@ rebuild-popupdict-userscript:
 	$(NODE) scripts/build-popupdict-userscript.js
 
 rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript
+
+# Reporting is the default because a bare run of a check must never leave a dirty worktree.
+# Archiving moves change directories and writes canonical specs, so it is opt-in, and
+# DRY_RUN=1 rehearses it.
+check-openspec:
+	$(NODE) scripts/check-openspec-lifecycle.js $(if $(ARCHIVE),--archive) $(if $(DRY_RUN),--dry-run)
 
 # Enumerated rather than listed file-by-file so a new script joins verification without a
 # Makefile edit. The extracted userscript runtime is checked as code too, which a template

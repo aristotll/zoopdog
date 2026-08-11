@@ -37,6 +37,9 @@ make verify
 | `scripts/lib/` | Shared primitives for scripts; defined once, imported never redefined |
 | `scripts/userscript/` | The browser runtime and CSS embedded in the generated userscripts |
 | `scripts/add-chu-nom.js`, `scripts/add-chu-nom/` | The deterministic Chu Nom entry workflow |
+| `scripts/check-openspec-lifecycle.js` | OpenSpec lifecycle check; `make check-openspec` |
+| `openspec/changes/` | Active change proposals; `openspec/changes/archive/` holds finished ones |
+| `openspec/specs/` | Canonical capability specs, written by promoting a change's spec deltas |
 | `test/` | `node:test` suites, including structural contracts |
 | `Makefile` | Every maintenance entry point |
 | `docs/` | Build, dictionary-data, and historical notes |

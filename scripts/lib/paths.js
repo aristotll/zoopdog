@@ -12,7 +12,10 @@ const relative = Object.freeze({
   userNomEntries: 'zd-extension/db_src/user_nom_entries.jsonc',
   nomUserscript: 'zoopdog-nom-ruby.user.js',
   popupUserscript: 'zoopdog-popupdict.user.js',
-  defaultInput: '.idea/newfile.md'
+  defaultInput: '.idea/newfile.md',
+  openspecChanges: 'openspec/changes',
+  openspecArchive: 'openspec/changes/archive',
+  openspecSpecs: 'openspec/specs'
 });
 
 function resolveIn(base, key) {
