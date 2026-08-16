@@ -82,6 +82,17 @@ When a change is archived, the command SHALL promote each `specs/<capability>/sp
 - **AND** neither the canonical spec nor the change directory is modified or moved
 - **AND** the command exits non-zero
 
+#### Scenario: Two archive candidates target one new capability
+
+- **WHEN** one archive batch contains two changes whose deltas target the same absent canonical capability
+- **THEN** whole-batch preflight reports both conflicting deltas before any canonical file or change directory is modified
+
+#### Scenario: Promotion or move fails after preflight
+
+- **WHEN** any canonical write or archive-directory move in a validated batch fails
+- **THEN** the operation restores every canonical file and active change directory to their exact pre-run state
+- **AND** it exits non-zero with the failed phase and path
+
 ### Requirement: Canonical specs are validated by anchored headings at any depth
 
 The command SHALL locate canonical specs recursively under `openspec/specs/`, and SHALL match `## Purpose`, `## Requirements`, and delta headers as whole heading lines rather than as substrings.

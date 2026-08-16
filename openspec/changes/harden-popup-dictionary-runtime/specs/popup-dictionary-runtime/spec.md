@@ -11,6 +11,10 @@ The build that produces `zd-extension/js/vnedict.json` SHALL also produce a comm
 - **WHEN** any entry in the generated runtime dictionary changes
 - **THEN** the generated revision changes and the sidecar entry count matches the generated array length
 
+#### Scenario: Sidecar publication fails
+- **WHEN** the builder cannot publish either the runtime dictionary or its metadata sidecar
+- **THEN** it leaves the previously committed matching pair intact and never exposes a new payload with old or missing metadata
+
 ### Requirement: Browser clients refresh by revision, not row presence
 The extension and website SHALL compare the shipped dictionary identity with the metadata of their IndexedDB entries before declaring the dictionary current. A non-empty database with missing, different, or internally inconsistent revision metadata SHALL be treated as stale and refreshed before current data is reported.
 
@@ -47,6 +51,10 @@ Install, update, manual reload, website startup, and search SHALL use one refres
 #### Scenario: Searches arrive during first refresh
 - **WHEN** multiple searches and a startup hook request readiness while one refresh is in flight
 - **THEN** they await the same refresh operation and no duplicate clear/populate transaction starts
+
+#### Scenario: Forced reload arrives during ordinary readiness
+- **WHEN** a forced reload is requested while a non-forced readiness check is in flight
+- **THEN** the forced caller does not resolve as `ready-current` without a replacement and exactly one forced refresh runs after or supersedes the ordinary check
 
 #### Scenario: Refresh fails with validated prior data
 - **WHEN** a new revision cannot be installed but the previous revision and row count remain internally valid

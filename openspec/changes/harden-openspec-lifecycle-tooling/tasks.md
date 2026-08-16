@@ -33,6 +33,7 @@
 - [x] 4.5 Refuse the whole archive operation when any destination already exists: report the delta and the canonical file, move nothing, and exit non-zero.
 - [x] 4.6 Promote the conflict-free archived deltas into `openspec/specs/`: `shared-browser-word-primitives` and `dictionary-script-toolchain`, both single-source and ADDED-only. Both promoted specs pass `checkCanonicalSpecs`.
 - [ ] 4.7 Build the canonical `deterministic-chu-nom-entry-workflow` spec. Blocked, and deliberately not guessed at: three changes contribute to it, two of them archived with `MODIFIED`/`REMOVED` deltas, and the change that owns the base requirements (`delegate-add-chu-nom-to-nodejs`) is still active with an open task. The base must ship before the layered deltas can be merged, and the merge is editorial.
+- [ ] 4.8 Preflight canonical destinations across the entire eligible batch and make promotion plus directory moves failure-atomic, including rollback of partial canonical writes/copies.
 
 ## 5. Tests
 
@@ -45,6 +46,8 @@
 - [x] 5.7 Test the anchored heading checks against a spec whose only `Purpose` is an `###` heading and one where `### Requirements overview` precedes the real `## Requirements`.
 - [x] 5.8 Test that an untagged unchecked task is not a deferral candidate and that an `(operator-only)` tagged one is, and that neither is treated as complete.
 - [x] 5.9 Test archive destination collision handling produces a suffixed directory and leaves the existing one intact.
+- [ ] 5.10 Test that two eligible changes targeting the same absent capability fail whole-batch preflight and leave both active changes plus canonical specs untouched.
+- [ ] 5.11 Inject canonical-write, rename, EXDEV-copy, and cleanup failures and prove archive rollback restores the exact pre-run tree without partial destinations.
 
 ## 6. Correct the archived verification record
 

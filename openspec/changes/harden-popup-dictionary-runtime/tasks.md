@@ -10,6 +10,7 @@
 - [x] 2.2 Update the single runtime-dictionary builder to generate `zd-extension/js/vnedict.meta.json` from the exact `vnedict.json` bytes in the same build operation, using the shared atomic-write primitive from the data-pipeline change
 - [x] 2.3 Regenerate and include `zd-extension/js/vnedict.json` plus `vnedict.meta.json`; independently verify the sidecar hash and count against the generated runtime array
 - [x] 2.4 Update `Makefile`, `docs/build.md`, and `docs/dictionary-data.md` so every runtime dictionary rebuild also produces/verifies the sidecar and no manual metadata step exists
+- [ ] 2.5 Make runtime JSON and metadata publication failure-atomic as a pair, with an injected second-publication failure test proving the previous matching pair remains intact
 
 ## 3. Shared transactional refresh coordinator
 
@@ -17,6 +18,7 @@
 - [x] 3.2 Add failing transaction-adapter tests proving fetch/parse/shape/count/digest failures perform no write and a controlled failure after clear aborts entries and metadata together
 - [x] 3.3 Implement a plain JavaScript `zd-dictionary-runtime` module with browser global plus guarded CommonJS export, injected fetch/crypto/database/status adapters, and the exact coordinator state machine until 3.1–3.2 pass
 - [x] 3.4 Add reduced-validation coverage for contexts without `crypto.subtle`, requiring sidecar count and entry-shape agreement and marking the result explicitly rather than silently claiming digest verification
+- [ ] 3.5 Preserve force semantics when `ensureReady({force:true})` arrives during an ordinary in-flight readiness call, with a regression test proving a replacement occurs exactly once
 
 ## 4. Extension and website database integration
 

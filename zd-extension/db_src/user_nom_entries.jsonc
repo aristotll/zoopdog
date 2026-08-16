@@ -1,58 +1,96 @@
 [
   {
-    // Vietnamese lookup text.
     "vi": "tiếng Anh",
-
-    // One or more Chu Nom/CJK renderings.
-    "nom": ["㗂英"],
-
-    // Optional extra popup dictionary explanations.
-    "explain": ["English language"]
+    "nom": [
+      "㗂英"
+    ],
+    "explain": [
+      "English language"
+    ]
   },
   {
     "vi": "quản lý",
-    "nom": ["管理"],
-    "explain": ["manager, manage, administer"]
+    "nom": [
+      "管理"
+    ],
+    "explain": [
+      "manager, manage, administer"
+    ]
   },
   {
     "vi": "ăn xong",
-    "nom": ["咹歱"],
-    "explain": ["finish eating", "after eating"]
+    "nom": [
+      "咹歱"
+    ],
+    "explain": [
+      "finish eating",
+      "after eating"
+    ]
   },
   {
     "vi": "kiểm tra xem",
-    "nom": ["檢查䀡"],
-    "explain": ["check and see"]
+    "nom": [
+      "檢查䀡"
+    ],
+    "explain": [
+      "check and see"
+    ]
   },
   {
     "vi": "mưa dông",
-    "nom": ["𩄎𩄱"],
-    "explain": ["rainstorm", "thunderstorm"]
+    "nom": [
+      "𩄎𩄱"
+    ],
+    "explain": [
+      "rainstorm",
+      "thunderstorm"
+    ]
   },
   {
     "vi": "đêm nay",
-    "nom": ["𣈘𠉞"],
-    "explain": ["tonight"]
+    "nom": [
+      "𣈘𠉞"
+    ],
+    "explain": [
+      "tonight"
+    ]
   },
   {
     "vi": "Thanh Hóa",
-    "nom": ["清化"],
-    "explain": ["Thanh Hoa province"]
+    "nom": [
+      "清化"
+    ],
+    "explain": [
+      "Thanh Hoa province"
+    ]
   },
   {
     "vi": "lượng mưa",
-    "nom": ["量𩄎"],
-    "explain": ["rainfall"]
+    "nom": [
+      "量𩄎"
+    ],
+    "explain": [
+      "rainfall"
+    ]
   },
   {
     "vi": "mưa to",
-    "nom": ["𩄎𡚢"],
-    "explain": ["heavy rain"]
+    "nom": [
+      "𩄎𡚢"
+    ],
+    "explain": [
+      "heavy rain"
+    ]
   },
   {
     "vi": "Sao Vàng",
-    "nom": ["𣋀黃"],
-    "explain": ["Sao Vang", "yellow star"]
+    "nom": [
+      "𣋀黃"
+    ],
+    "explain": [
+      "Sao Vang",
+      "yellow star"
+    ]
   },
   {
     "vi": "đích thực",
@@ -128,22 +166,1402 @@
   },
   {
     "vi": "tàu cao tốc",
-    "nom": ["艚高速"],
-    "explain": ["high-speed train","bullet train"]
+    "nom": [
+      "艚高速"
+    ],
+    "explain": [
+      "high-speed train",
+      "bullet train"
+    ]
   },
   {
     "vi": "đơn hàng",
-    "nom": ["單行"],
-    "explain": ["order","purchase order"]
+    "nom": [
+      "單行"
+    ],
+    "explain": [
+      "order",
+      "purchase order"
+    ]
   },
   {
     "vi": "cuộc họp đầu giờ",
-    "nom": ["局合頭𣇞"],
-    "explain": ["meeting at the start of the hour","early-hour meeting"]
+    "nom": [
+      "局合頭𣇞"
+    ],
+    "explain": [
+      "meeting at the start of the hour",
+      "early-hour meeting"
+    ]
   },
   {
     "vi": "đáng quý",
-    "nom": ["當貴"],
-    "explain": ["precious","worthy of esteem","admirable"]
+    "nom": [
+      "當貴"
+    ],
+    "explain": [
+      "precious",
+      "worthy of esteem",
+      "admirable"
+    ]
+  },
+  {
+    "vi": "hy vọng",
+    "nom": [
+      "希望"
+    ],
+    "explain": [
+      "hope"
+    ]
+  },
+  {
+    "vi": "tu tiên",
+    "nom": [
+      "修仙"
+    ],
+    "explain": [
+      "xiuxian"
+    ]
+  },
+  {
+    "vi": "lúc trẻ",
+    "nom": [
+      "𣅶𥘷"
+    ],
+    "explain": [
+      "young time"
+    ]
+  },
+  {
+    "vi": "rèn luyện",
+    "nom": [
+      "𠺅練"
+    ],
+    "explain": [
+      "training"
+    ]
+  },
+  {
+    "vi": "cao nhất",
+    "nom": [
+      "高一"
+    ],
+    "explain": [
+      "best"
+    ]
+  },
+  {
+    "vi": "nơi đó",
+    "nom": [
+      "坭妬"
+    ],
+    "explain": [
+      "that place"
+    ]
+  },
+  {
+    "vi": "kỹ thuật",
+    "nom": [
+      "技術"
+    ],
+    "explain": [
+      "techniques"
+    ]
+  },
+  {
+    "vi": "kỹ năng",
+    "nom": [
+      "技能"
+    ],
+    "explain": [
+      "techniques"
+    ]
+  },
+  {
+    "vi": "nếu có",
+    "nom": [
+      "裊固"
+    ],
+    "explain": [
+      "if have"
+    ]
+  },
+  {
+    "vi": "rất thấp",
+    "nom": [
+      "窒隰"
+    ],
+    "explain": [
+      "very short"
+    ]
+  },
+  {
+    "vi": "bình tĩnh lại",
+    "nom": [
+      "平靜吏"
+    ],
+    "explain": [
+      "calm again"
+    ]
+  },
+  {
+    "vi": "tời",
+    "nom": [
+      "塎"
+    ]
+  },
+  {
+    "vi": "có chút",
+    "nom": [
+      "固𡭧"
+    ],
+    "explain": [
+      "have a little"
+    ]
+  },
+  {
+    "vi": "tò mò",
+    "nom": [
+      "訴摹"
+    ],
+    "explain": [
+      "curios"
+    ]
+  },
+  {
+    "vi": "núi tuyết",
+    "nom": [
+      "𡶀雪"
+    ],
+    "explain": [
+      "snow mountains"
+    ]
+  },
+  {
+    "vi": "không cần",
+    "nom": [
+      "空懃"
+    ],
+    "explain": [
+      "do not need"
+    ]
+  },
+  {
+    "vi": "bí mật",
+    "nom": [
+      "秘密"
+    ],
+    "explain": [
+      "secrets"
+    ]
+  },
+  {
+    "vi": "thích chọn",
+    "nom": [
+      "刺撰"
+    ],
+    "explain": [
+      "like choosing"
+    ]
+  },
+  {
+    "vi": "không thể",
+    "nom": [
+      "空體"
+    ],
+    "explain": [
+      "cannot"
+    ]
+  },
+  {
+    "vi": "đây là",
+    "nom": [
+      "低𱺵"
+    ],
+    "explain": [
+      "this is"
+    ]
+  },
+  {
+    "vi": "chỉ cần",
+    "nom": [
+      "只懃"
+    ],
+    "explain": [
+      "only need"
+    ]
+  },
+  {
+    "vi": "không còn",
+    "nom": [
+      "空𡀳"
+    ],
+    "explain": [
+      "no longer"
+    ]
+  },
+  {
+    "vi": "chào tạm biệt",
+    "nom": [
+      "嘲暫別"
+    ],
+    "explain": [
+      "goodbye"
+    ]
+  },
+  {
+    "vi": "hiện ra",
+    "nom": [
+      "現𠚢"
+    ],
+    "explain": [
+      "appear"
+    ]
+  },
+  {
+    "vi": "là đủ",
+    "nom": [
+      "羅𨁥"
+    ],
+    "explain": [
+      "enough"
+    ]
+  },
+  {
+    "vi": "cũng là",
+    "nom": [
+      "共羅"
+    ],
+    "explain": [
+      "also is"
+    ]
+  },
+  {
+    "vi": "tốt hơn",
+    "nom": [
+      "卒欣"
+    ],
+    "explain": [
+      "better"
+    ]
+  },
+  {
+    "vi": "cấp hai",
+    "nom": [
+      "級𠄩"
+    ],
+    "explain": [
+      "second degree"
+    ]
+  },
+  {
+    "vi": "lúc đó",
+    "nom": [
+      "𣅶妬"
+    ],
+    "explain": [
+      "that time"
+    ]
+  },
+  {
+    "vi": "ngón tay",
+    "nom": [
+      "𢭫𢬣"
+    ],
+    "explain": [
+      "finger"
+    ]
+  },
+  {
+    "vi": "cường hóa",
+    "nom": [
+      "強化"
+    ],
+    "explain": [
+      "strengthen"
+    ]
+  },
+  {
+    "vi": "Sau khi",
+    "nom": [
+      "𢖖欺"
+    ],
+    "explain": [
+      "after"
+    ]
+  },
+  {
+    "vi": "rất nhanh",
+    "nom": [
+      "窒𨗜"
+    ],
+    "explain": [
+      "very fast"
+    ]
+  },
+  {
+    "vi": "luyện khí",
+    "nom": [
+      "練氣"
+    ],
+    "explain": [
+      "練氣"
+    ]
+  },
+  {
+    "vi": "ngồi trên",
+    "nom": [
+      "𡎦𨑗"
+    ],
+    "explain": [
+      "sit on"
+    ]
+  },
+  {
+    "vi": "tựa hồ",
+    "nom": [
+      "似乎"
+    ],
+    "explain": [
+      "seem"
+    ]
+  },
+  {
+    "vi": "Không thành",
+    "nom": [
+      "空成"
+    ],
+    "explain": [
+      "not become"
+    ]
+  },
+  {
+    "vi": "thương vong",
+    "nom": [
+      "傷亡"
+    ],
+    "explain": [
+      "harmed"
+    ]
+  },
+  {
+    "vi": "thỉnh thoảng",
+    "nom": [
+      "請倘"
+    ],
+    "explain": [
+      "sometimes"
+    ]
+  },
+  {
+    "vi": "tích lũy",
+    "nom": [
+      "積累"
+    ],
+    "explain": [
+      "accumulate"
+    ]
+  },
+  {
+    "vi": "rất nhiều tiền",
+    "nom": [
+      "窒𡗉銭"
+    ],
+    "explain": [
+      "a lot of many"
+    ]
+  },
+  {
+    "vi": "nhận được",
+    "nom": [
+      "涊得"
+    ],
+    "explain": [
+      "receive"
+    ]
+  },
+  {
+    "vi": "nuôi cá",
+    "nom": [
+      "𩝺亇"
+    ],
+    "explain": [
+      "fish farming"
+    ]
+  },
+  {
+    "vi": "không tính",
+    "nom": [
+      "空併"
+    ],
+    "explain": [
+      "don't count"
+    ]
+  },
+  {
+    "vi": "kỹ nghệ",
+    "nom": [
+      "技藝"
+    ],
+    "explain": [
+      "techniques"
+    ]
+  },
+  {
+    "vi": "tìm được",
+    "nom": [
+      "尋得"
+    ],
+    "explain": [
+      "found"
+    ]
+  },
+  {
+    "vi": "sáng lên",
+    "nom": [
+      "𤏬𨑗"
+    ],
+    "explain": [
+      "light up"
+    ]
+  },
+  {
+    "vi": "lần nào",
+    "nom": [
+      "吝𱜢"
+    ],
+    "explain": [
+      "every time"
+    ]
+  },
+  {
+    "vi": "chỉ muốn",
+    "nom": [
+      "止㦖"
+    ],
+    "explain": [
+      "just want"
+    ]
+  },
+  {
+    "vi": "vẫn chưa",
+    "nom": [
+      "刎𣗓"
+    ],
+    "explain": [
+      "not yet"
+    ]
+  },
+  {
+    "vi": "chỉ là",
+    "nom": [
+      "只羅"
+    ],
+    "explain": [
+      "just"
+    ]
+  },
+  {
+    "vi": "còn có",
+    "nom": [
+      "𡀳固"
+    ],
+    "explain": [
+      "there is also"
+    ]
+  },
+  {
+    "vi": "không nhỏ",
+    "nom": [
+      "空𡮈"
+    ],
+    "explain": [
+      "not small"
+    ]
+  },
+  {
+    "vi": "ai cũng",
+    "nom": [
+      "埃共"
+    ],
+    "explain": [
+      "Everyone"
+    ]
+  },
+  {
+    "vi": "làm xong",
+    "nom": [
+      "𫜵歱"
+    ],
+    "explain": [
+      "done"
+    ]
+  },
+  {
+    "vi": "tự xây dựng",
+    "nom": [
+      "自𡏦𥩯"
+    ],
+    "explain": [
+      "self-built"
+    ]
+  },
+  {
+    "vi": "không dễ",
+    "nom": [
+      "空易"
+    ],
+    "explain": [
+      "not easy"
+    ]
+  },
+  {
+    "vi": "cực kỳ",
+    "nom": [
+      "極其"
+    ],
+    "explain": [
+      "extremely"
+    ]
+  },
+  {
+    "vi": "Ánh trăng",
+    "nom": [
+      "映𤽸"
+    ],
+    "explain": [
+      "Moonlight"
+    ]
+  },
+  {
+    "vi": "động phủ",
+    "nom": [
+      "洞府"
+    ],
+    "explain": [
+      "cave palace"
+    ]
+  },
+  {
+    "vi": "chân truyền",
+    "nom": [
+      "真傳"
+    ],
+    "explain": [
+      "true tradition"
+    ]
+  },
+  {
+    "vi": "tốt lắm",
+    "nom": [
+      "𩫛𡗋"
+    ],
+    "explain": [
+      "very good"
+    ]
+  },
+  {
+    "vi": "lý thuyết",
+    "nom": [
+      "理说"
+    ],
+    "explain": [
+      "theory"
+    ]
+  },
+  {
+    "vi": "Test",
+    "nom": [
+      "test"
+    ]
+  },
+  {
+    "vi": "mỉm cười",
+    "nom": [
+      "𠽊唭"
+    ],
+    "explain": [
+      "smile"
+    ]
+  },
+  {
+    "vi": "lão tổ",
+    "nom": [
+      "老祖"
+    ],
+    "explain": [
+      "old ancestor"
+    ]
+  },
+  {
+    "vi": "cũng không",
+    "nom": [
+      "拱空"
+    ],
+    "explain": [
+      "neither"
+    ]
+  },
+  {
+    "vi": "tự học",
+    "nom": [
+      "自學"
+    ],
+    "explain": [
+      "self-study"
+    ]
+  },
+  {
+    "vi": "đưa ra",
+    "nom": [
+      "迻𠚢"
+    ],
+    "explain": [
+      "show"
+    ]
+  },
+  {
+    "vi": "cổ phương",
+    "nom": [
+      "古方"
+    ],
+    "explain": [
+      "ancient pill"
+    ]
+  },
+  {
+    "vi": "bán yêu",
+    "nom": [
+      "半妖"
+    ],
+    "explain": [
+      "semi-demon"
+    ]
+  },
+  {
+    "vi": "trừ khi",
+    "nom": [
+      "除欺"
+    ],
+    "explain": [
+      "unless"
+    ]
+  },
+  {
+    "vi": "bức tường",
+    "nom": [
+      "幅墻"
+    ],
+    "explain": [
+      "wall"
+    ]
+  },
+  {
+    "vi": "kho báu",
+    "nom": [
+      "𤇌寶"
+    ],
+    "explain": [
+      "treasure"
+    ]
+  },
+  {
+    "vi": "không ngờ",
+    "nom": [
+      "空㘈"
+    ],
+    "explain": [
+      "unexpected"
+    ]
+  },
+  {
+    "vi": "không nên",
+    "nom": [
+      "空𢧚"
+    ],
+    "explain": [
+      "should not"
+    ]
+  },
+  {
+    "vi": "Ngoài ra",
+    "nom": [
+      "外𤄷"
+    ],
+    "explain": [
+      "Besides"
+    ]
+  },
+  {
+    "vi": "trông như",
+    "nom": [
+      "矓如"
+    ],
+    "explain": [
+      "looks like"
+    ]
+  },
+  {
+    "vi": "tấn công",
+    "nom": [
+      "進功"
+    ],
+    "explain": [
+      "attack"
+    ]
+  },
+  {
+    "vi": "tinh chế",
+    "nom": [
+      "精制"
+    ],
+    "explain": [
+      "refined"
+    ]
+  },
+  {
+    "vi": "dừng lại",
+    "nom": [
+      "仃𠻇"
+    ],
+    "explain": [
+      "stop"
+    ]
+  },
+  {
+    "vi": "tốt hơn",
+    "nom": [
+      "𡄰欣"
+    ]
+  },
+  {
+    "vi": "không phải là",
+    "nom": [
+      "空沛羅"
+    ],
+    "explain": [
+      "is not"
+    ]
+  },
+  {
+    "vi": "chống lại",
+    "nom": [
+      "𢶢徠"
+    ],
+    "explain": [
+      "against"
+    ]
+  },
+  {
+    "vi": "kỳ vọng",
+    "nom": [
+      "期望"
+    ],
+    "explain": [
+      "expected"
+    ]
+  },
+  {
+    "vi": "thanh tĩnh",
+    "nom": [
+      "清浄"
+    ],
+    "explain": [
+      "quiet"
+    ]
+  },
+  {
+    "vi": "bất kỳ",
+    "nom": [
+      "不期"
+    ],
+    "explain": [
+      "any"
+    ]
+  },
+  {
+    "vi": "mua được",
+    "nom": [
+      "𧷸得"
+    ],
+    "explain": [
+      "can buy"
+    ]
+  },
+  {
+    "vi": "hàng hóa",
+    "nom": [
+      "行貨"
+    ],
+    "explain": [
+      "goods"
+    ]
+  },
+  {
+    "vi": "bị xúc phạm",
+    "nom": [
+      "被觸犯"
+    ],
+    "explain": [
+      "offended"
+    ]
+  },
+  {
+    "vi": "con đường",
+    "nom": [
+      "𡥵塘"
+    ],
+    "explain": [
+      "road"
+    ]
+  },
+  {
+    "vi": "Phiến quân",
+    "nom": [
+      "煽軍"
+    ],
+    "explain": [
+      "Rebels"
+    ]
+  },
+  {
+    "vi": "vài ngày",
+    "nom": [
+      "𠄧𣈜"
+    ],
+    "explain": [
+      "few days"
+    ]
+  },
+  {
+    "vi": "nổi lên",
+    "nom": [
+      "浽𨑗"
+    ],
+    "explain": [
+      "rise"
+    ]
+  },
+  {
+    "vi": "thử lại",
+    "nom": [
+      "㧗徠"
+    ],
+    "explain": [
+      "retry"
+    ]
+  },
+  {
+    "vi": "lấy ra",
+    "nom": [
+      "𥙩囉"
+    ],
+    "explain": [
+      "take out"
+    ]
+  },
+  {
+    "vi": "cấp một",
+    "nom": [
+      "級𠬠"
+    ],
+    "explain": [
+      "level one"
+    ]
+  },
+  {
+    "vi": "rất tốt",
+    "nom": [
+      "慄𩫛"
+    ],
+    "explain": [
+      "Very good"
+    ]
+  },
+  {
+    "vi": "số dư",
+    "nom": [
+      "數餘"
+    ],
+    "explain": [
+      "balance"
+    ]
+  },
+  {
+    "vi": "ma khí",
+    "nom": [
+      "魔氣"
+    ],
+    "explain": [
+      "demonic energy"
+    ]
+  },
+  {
+    "vi": "cách nào",
+    "nom": [
+      "格芾"
+    ],
+    "explain": [
+      "any way"
+    ]
+  },
+  {
+    "vi": "lặp lại",
+    "nom": [
+      "㕸徠"
+    ],
+    "explain": [
+      "repeat"
+    ]
+  },
+  {
+    "vi": "bằng cách",
+    "nom": [
+      "憑格"
+    ],
+    "explain": [
+      "by"
+    ]
+  },
+  {
+    "vi": "không biết",
+    "nom": [
+      "空別"
+    ],
+    "explain": [
+      "don't know"
+    ]
+  },
+  {
+    "vi": "không đi",
+    "nom": [
+      "空呧"
+    ],
+    "explain": [
+      "don't go"
+    ]
+  },
+  {
+    "vi": "phàm trần",
+    "nom": [
+      "汎塵"
+    ],
+    "explain": [
+      "mortal"
+    ]
+  },
+  {
+    "vi": "phía trên",
+    "nom": [
+      "𠌨𨑗"
+    ],
+    "explain": [
+      "above"
+    ]
+  },
+  {
+    "vi": "cấp ba",
+    "nom": [
+      "級𠀧"
+    ],
+    "explain": [
+      "high school"
+    ]
+  },
+  {
+    "vi": "mấy lần",
+    "nom": [
+      "𠇍吝"
+    ],
+    "explain": [
+      "several times"
+    ]
+  },
+  {
+    "vi": "riêng mình",
+    "nom": [
+      "𥢆𨉟"
+    ],
+    "explain": [
+      "alone"
+    ]
+  },
+  {
+    "vi": "quá cao",
+    "nom": [
+      "過高"
+    ],
+    "explain": [
+      "too high"
+    ]
+  },
+  {
+    "vi": "Đại ca",
+    "nom": [
+      "大哥"
+    ],
+    "explain": [
+      "Big brother"
+    ]
+  },
+  {
+    "vi": "tìm cơ hội",
+    "nom": [
+      "尋機會"
+    ],
+    "explain": [
+      "find opportunities"
+    ]
+  },
+  {
+    "vi": "hiểu rồi",
+    "nom": [
+      "曉耒"
+    ],
+    "explain": [
+      "got it"
+    ]
+  },
+  {
+    "vi": "không gặp",
+    "nom": [
+      "空﨤"
+    ],
+    "explain": [
+      "did not meet"
+    ]
+  },
+  {
+    "vi": "lá xanh",
+    "nom": [
+      "蘿青"
+    ],
+    "explain": [
+      "green leaves"
+    ]
+  },
+  {
+    "vi": "đáp lại",
+    "nom": [
+      "答徠"
+    ],
+    "explain": [
+      "replied"
+    ]
+  },
+  {
+    "vi": "ánh mắt",
+    "nom": [
+      "映眜"
+    ],
+    "explain": [
+      "eyes"
+    ]
+  },
+  {
+    "vi": "Nghe xong",
+    "nom": [
+      "𦖑歱"
+    ],
+    "explain": [
+      "Finished listening"
+    ]
+  },
+  {
+    "vi": "được cứu",
+    "nom": [
+      "得救"
+    ],
+    "explain": [
+      "be saved"
+    ]
+  },
+  {
+    "vi": "tinh tấn",
+    "nom": [
+      "精进"
+    ],
+    "explain": [
+      "diligence"
+    ]
+  },
+  {
+    "vi": "bên dưới",
+    "nom": [
+      "邊𨑜"
+    ],
+    "explain": [
+      "under"
+    ]
+  },
+  {
+    "vi": "hàng triệu",
+    "nom": [
+      "行兆"
+    ],
+    "explain": [
+      "millions"
+    ]
+  },
+  {
+    "vi": "giá trị",
+    "nom": [
+      "价值"
+    ],
+    "explain": [
+      "value"
+    ]
+  },
+  {
+    "vi": "mỗi người",
+    "nom": [
+      "每𠊛"
+    ],
+    "explain": [
+      "each person"
+    ]
+  },
+  {
+    "vi": "xem xem",
+    "nom": [
+      "䀡䀡"
+    ],
+    "explain": [
+      "View"
+    ]
+  },
+  {
+    "vi": "vẫn cần",
+    "nom": [
+      "吻懃"
+    ],
+    "explain": [
+      "still needed"
+    ]
+  },
+  {
+    "vi": "Đường đi",
+    "nom": [
+      "堂𠫾"
+    ],
+    "explain": [
+      "Way"
+    ]
+  },
+  {
+    "vi": "nằm trong",
+    "nom": [
+      "㑲沖"
+    ],
+    "explain": [
+      "lies within"
+    ]
+  },
+  {
+    "vi": "sau lưng",
+    "nom": [
+      "𢖖𦡟"
+    ],
+    "explain": [
+      "behind"
+    ]
+  },
+  {
+    "vi": "tối nay",
+    "nom": [
+      "𣋁尼"
+    ],
+    "explain": [
+      "tonight"
+    ]
+  },
+  {
+    "vi": "Vốn là",
+    "nom": [
+      "本蘿"
+    ],
+    "explain": [
+      "Originally"
+    ]
+  },
+  {
+    "vi": "nhiều hơn",
+    "nom": [
+      "𡗉欣"
+    ],
+    "explain": [
+      "more"
+    ]
+  },
+  {
+    "vi": "tốn nhiều",
+    "nom": [
+      "損饒"
+    ],
+    "explain": [
+      "costs a lot"
+    ]
+  },
+  {
+    "vi": "tu vi",
+    "nom": [
+      "修爲"
+    ],
+    "explain": [
+      "cultivation"
+    ]
+  },
+  {
+    "vi": "trong lòng",
+    "nom": [
+      "沖挵"
+    ],
+    "explain": [
+      "in the heart"
+    ]
+  },
+  {
+    "vi": "vượt xa",
+    "nom": [
+      "越賒"
+    ],
+    "explain": [
+      "far beyond"
+    ]
+  },
+  {
+    "vi": "tốt nhất",
+    "nom": [
+      "𩫛一"
+    ],
+    "explain": [
+      "best"
+    ]
+  },
+  {
+    "vi": "Xấu nhất",
+    "nom": [
+      "醜一"
+    ],
+    "explain": [
+      "Worst"
+    ]
+  },
+  {
+    "vi": "tầng sáu",
+    "nom": [
+      "層𦒹"
+    ],
+    "explain": [
+      "sixth floor"
+    ]
+  },
+  {
+    "vi": "tinh luyện",
+    "nom": [
+      "精練"
+    ],
+    "explain": [
+      "refined"
+    ]
+  },
+  {
+    "vi": "từ từ",
+    "nom": [
+      "徐徐"
+    ],
+    "explain": [
+      "Slowly"
+    ]
+  },
+  {
+    "vi": "qua thời gian",
+    "nom": [
+      "过𥱯間"
+    ],
+    "explain": [
+      "over time"
+    ]
+  },
+  {
+    "vi": "tốn thời gian",
+    "nom": [
+      "损時間"
+    ],
+    "explain": [
+      "time consuming"
+    ]
+  },
+  {
+    "vi": "điều đó",
+    "nom": [
+      "條妬"
+    ],
+    "explain": [
+      "that"
+    ]
+  },
+  {
+    "vi": "cấp bốn",
+    "nom": [
+      "級𦊚"
+    ],
+    "explain": [
+      "level four"
+    ]
+  },
+  {
+    "vi": "luôn là",
+    "nom": [
+      "㫻𨓐"
+    ],
+    "explain": [
+      "always is"
+    ]
+  },
+  {
+    "vi": "con sói",
+    "nom": [
+      "崑𤢿"
+    ],
+    "explain": [
+      "wolf"
+    ]
+  },
+  {
+    "vi": "ngay cả",
+    "nom": [
+      "𠵨哿"
+    ],
+    "explain": [
+      "even"
+    ]
+  },
+  {
+    "vi": "gia trì",
+    "nom": [
+      "加持"
+    ],
+    "explain": [
+      "bless"
+    ]
+  },
+  {
+    "vi": "hai ba",
+    "nom": [
+      "𠄩𠀧"
+    ],
+    "explain": [
+      "two three"
+    ]
+  },
+  {
+    "vi": "ở trong",
+    "nom": [
+      "於沖"
+    ],
+    "explain": [
+      "in"
+    ]
   }
 ]
