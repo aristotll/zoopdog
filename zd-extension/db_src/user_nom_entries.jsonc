@@ -1563,5 +1563,2372 @@
     "explain": [
       "in"
     ]
+  },
+  {
+    "vi": "tốt hay xấu",
+    "nom": [
+      "卒咍醜"
+    ],
+    "explain": [
+      "good or bad"
+    ]
+  },
+  {
+    "vi": "nghĩ rằng",
+    "nom": [
+      "擬哴"
+    ],
+    "explain": [
+      "think"
+    ]
+  },
+  {
+    "vi": "thường lệ",
+    "nom": [
+      "常例"
+    ],
+    "explain": [
+      "usual"
+    ]
+  },
+  {
+    "vi": "chữa thương",
+    "nom": [
+      "𧸓傷"
+    ],
+    "explain": [
+      "healing"
+    ]
+  },
+  {
+    "vi": "hàng ngày",
+    "nom": [
+      "行𣈜"
+    ],
+    "explain": [
+      "every day"
+    ]
+  },
+  {
+    "vi": "với nhau",
+    "nom": [
+      "貝僥"
+    ],
+    "explain": [
+      "together"
+    ]
+  },
+  {
+    "vi": "đều là",
+    "nom": [
+      "調𨓐"
+    ],
+    "explain": [
+      "are all"
+    ]
+  },
+  {
+    "vi": "bọn họ",
+    "nom": [
+      "呠𣱆"
+    ],
+    "explain": [
+      "them"
+    ]
+  },
+  {
+    "vi": "tự hỏi",
+    "nom": [
+      "自𠳨"
+    ],
+    "explain": [
+      "wonder"
+    ]
+  },
+  {
+    "vi": "thức hải",
+    "nom": [
+      "識海"
+    ],
+    "explain": [
+      "shihai"
+    ]
+  },
+  {
+    "vi": "cau mày",
+    "nom": [
+      "皐𠋥"
+    ],
+    "explain": [
+      "frown"
+    ]
+  },
+  {
+    "vi": "nhận ra",
+    "nom": [
+      "涊𠚢"
+    ],
+    "explain": [
+      "realize"
+    ]
+  },
+  {
+    "vi": "niệm chú",
+    "nom": [
+      "念咒"
+    ],
+    "explain": [
+      "recite mantra"
+    ]
+  },
+  {
+    "vi": "khá nhiều",
+    "nom": [
+      "可𡗉"
+    ],
+    "explain": [
+      "quite a lot"
+    ]
+  },
+  {
+    "vi": "tha cho",
+    "nom": [
+      "赦朱"
+    ],
+    "explain": [
+      "dispense"
+    ]
+  },
+  {
+    "vi": "khinh thường",
+    "nom": [
+      "輕常"
+    ],
+    "explain": [
+      "contempt"
+    ]
+  },
+  {
+    "vi": "yêu tộc",
+    "nom": [
+      "妖族"
+    ],
+    "explain": [
+      "Elves"
+    ]
+  },
+  {
+    "vi": "nghĩ đến",
+    "nom": [
+      "擬𦤾"
+    ],
+    "explain": [
+      "think about"
+    ]
+  },
+  {
+    "vi": "nói ra",
+    "nom": [
+      "吶𠚢"
+    ],
+    "explain": [
+      "speak out"
+    ]
+  },
+  {
+    "vi": "sao dám",
+    "nom": [
+      "哰噉"
+    ],
+    "explain": [
+      "How dare"
+    ]
+  },
+  {
+    "vi": "cấp sáu",
+    "nom": [
+      "級𦒹"
+    ],
+    "explain": [
+      "level six"
+    ]
+  },
+  {
+    "vi": "gặp được",
+    "nom": [
+      "﨤得"
+    ],
+    "explain": [
+      "meet"
+    ]
+  },
+  {
+    "vi": "không hề",
+    "nom": [
+      "空嗘"
+    ],
+    "explain": [
+      "not at all"
+    ]
+  },
+  {
+    "vi": "vô ích",
+    "nom": [
+      "無益"
+    ],
+    "explain": [
+      "futile"
+    ]
+  },
+  {
+    "vi": "ghen tị",
+    "nom": [
+      "慳巳"
+    ],
+    "explain": [
+      "jealous"
+    ]
+  },
+  {
+    "vi": "truyền thừa",
+    "nom": [
+      "傳承"
+    ],
+    "explain": [
+      "inheritance"
+    ]
+  },
+  {
+    "vi": "không bị",
+    "nom": [
+      "空被"
+    ],
+    "explain": [
+      "not be"
+    ]
+  },
+  {
+    "vi": "phản quân",
+    "nom": [
+      "反軍"
+    ],
+    "explain": [
+      "rebel"
+    ]
+  },
+  {
+    "vi": "nguyên soái",
+    "nom": [
+      "元帥"
+    ],
+    "explain": [
+      "marshal"
+    ]
+  },
+  {
+    "vi": "kiệt sức",
+    "nom": [
+      "竭飭"
+    ],
+    "explain": [
+      "exhausted"
+    ]
+  },
+  {
+    "vi": "mấy câu",
+    "nom": [
+      "𠇍句"
+    ],
+    "explain": [
+      "a few sentences"
+    ]
+  },
+  {
+    "vi": "phong thái",
+    "nom": [
+      "風采"
+    ],
+    "explain": [
+      "style"
+    ]
+  },
+  {
+    "vi": "đã xong",
+    "nom": [
+      "㐌歱"
+    ],
+    "explain": [
+      "done"
+    ]
+  },
+  {
+    "vi": "thoát khỏi",
+    "nom": [
+      "脫𠺌"
+    ],
+    "explain": [
+      "escape"
+    ]
+  },
+  {
+    "vi": "làm kinh doanh",
+    "nom": [
+      "𫜵经营"
+    ],
+    "explain": [
+      "do business"
+    ]
+  },
+  {
+    "vi": "có được",
+    "nom": [
+      "固得"
+    ],
+    "explain": [
+      "get"
+    ]
+  },
+  {
+    "vi": "đi du lịch",
+    "nom": [
+      "呧游历"
+    ],
+    "explain": [
+      "traveling"
+    ]
+  },
+  {
+    "vi": "trước đó",
+    "nom": [
+      "𠓀妬"
+    ],
+    "explain": [
+      "before"
+    ]
+  },
+  {
+    "vi": "luyện đan",
+    "nom": [
+      "練丹"
+    ],
+    "explain": [
+      "alchemy"
+    ]
+  },
+  {
+    "vi": "không ổn",
+    "nom": [
+      "空穩"
+    ],
+    "explain": [
+      "not okay"
+    ]
+  },
+  {
+    "vi": "không khỏi",
+    "nom": [
+      "空𠺌"
+    ],
+    "explain": [
+      "I can't help but"
+    ]
+  },
+  {
+    "vi": "hiếm khi",
+    "nom": [
+      "險崎"
+    ],
+    "explain": [
+      "seldom"
+    ]
+  },
+  {
+    "vi": "con cáo",
+    "nom": [
+      "𡥵𤞺"
+    ],
+    "explain": [
+      "fox"
+    ]
+  },
+  {
+    "vi": "kiến thức",
+    "nom": [
+      "見識"
+    ],
+    "explain": [
+      "knowledge"
+    ]
+  },
+  {
+    "vi": "cốc cà phê",
+    "nom": [
+      "谷 coffee"
+    ],
+    "explain": [
+      "coffee cup"
+    ]
+  },
+  {
+    "vi": "ngọc châu",
+    "nom": [
+      "玉州"
+    ],
+    "explain": [
+      "jade"
+    ]
+  },
+  {
+    "vi": "biến thành",
+    "nom": [
+      "變成"
+    ],
+    "explain": [
+      "Transformed into"
+    ]
+  },
+  {
+    "vi": "Chàng trai",
+    "nom": [
+      "払𤳆"
+    ],
+    "explain": [
+      "Guy"
+    ]
+  },
+  {
+    "vi": "Nếu là",
+    "nom": [
+      "裊羅"
+    ],
+    "explain": [
+      "If it is"
+    ]
+  },
+  {
+    "vi": "cấp bảy",
+    "nom": [
+      "級𦉱"
+    ],
+    "explain": [
+      "level seven"
+    ]
+  },
+  {
+    "vi": "nói xong",
+    "nom": [
+      "吶歱"
+    ],
+    "explain": [
+      "Finished speaking"
+    ]
+  },
+  {
+    "vi": "thông qua",
+    "nom": [
+      "通過"
+    ],
+    "explain": [
+      "Through"
+    ]
+  },
+  {
+    "vi": "hồ ly",
+    "nom": [
+      "狐狸"
+    ],
+    "explain": [
+      "Huli jing"
+    ]
+  },
+  {
+    "vi": "đưa cho",
+    "nom": [
+      "迻朱"
+    ],
+    "explain": [
+      "give"
+    ]
+  },
+  {
+    "vi": "Đủ rồi",
+    "nom": [
+      "𨁥耒"
+    ],
+    "explain": [
+      "Enough"
+    ]
+  },
+  {
+    "vi": "say rượu",
+    "nom": [
+      "醝𨢇"
+    ],
+    "explain": [
+      "drunk"
+    ]
+  },
+  {
+    "vi": "không nói",
+    "nom": [
+      "空吶"
+    ],
+    "explain": [
+      "not speaking"
+    ]
+  },
+  {
+    "vi": "ai biết",
+    "nom": [
+      "埃別"
+    ],
+    "explain": [
+      "Who knows"
+    ]
+  },
+  {
+    "vi": "phong ấn",
+    "nom": [
+      "封印"
+    ],
+    "explain": [
+      "seal"
+    ]
+  },
+  {
+    "vi": "trữ vật",
+    "nom": [
+      "貯物"
+    ],
+    "explain": [
+      "Storage"
+    ]
+  },
+  {
+    "vi": "Mật Tạng",
+    "nom": [
+      "密藏"
+    ],
+    "explain": [
+      "Tantra"
+    ]
+  },
+  {
+    "vi": "không phải",
+    "nom": [
+      "空沛"
+    ],
+    "explain": [
+      "not"
+    ]
+  },
+  {
+    "vi": "thượng tu",
+    "nom": [
+      "上修"
+    ],
+    "explain": [
+      "Upper Cultivation"
+    ]
+  },
+  {
+    "vi": "năm tháng",
+    "nom": [
+      "𠄼𣎃"
+    ],
+    "explain": [
+      "Five months"
+    ]
+  },
+  {
+    "vi": "trôi qua",
+    "nom": [
+      "㵢戈"
+    ],
+    "explain": [
+      "Passing"
+    ]
+  },
+  {
+    "vi": "nghe được",
+    "nom": [
+      "𦖑得"
+    ],
+    "explain": [
+      "Audible"
+    ]
+  },
+  {
+    "vi": "danh ngạch",
+    "nom": [
+      "名額"
+    ],
+    "explain": [
+      "title"
+    ]
+  },
+  {
+    "vi": "Lệnh Hồ",
+    "nom": [
+      "令狐"
+    ],
+    "explain": [
+      "Command Ho"
+    ]
+  },
+  {
+    "vi": "Không sai",
+    "nom": [
+      "空差"
+    ],
+    "explain": [
+      "Right."
+    ]
+  },
+  {
+    "vi": "môn chủ",
+    "nom": [
+      "門主"
+    ],
+    "explain": [
+      "subject"
+    ]
+  },
+  {
+    "vi": "chiến lực",
+    "nom": [
+      "戰力"
+    ],
+    "explain": [
+      "Combat power"
+    ]
+  },
+  {
+    "vi": "truyền âm phù",
+    "nom": [
+      "傳音符"
+    ],
+    "explain": [
+      "phonemic infusion"
+    ]
+  },
+  {
+    "vi": "đều biết",
+    "nom": [
+      "調別"
+    ],
+    "explain": [
+      "all know"
+    ]
+  },
+  {
+    "vi": "trẻ con",
+    "nom": [
+      "稚崑"
+    ],
+    "explain": [
+      "infant"
+    ]
+  },
+  {
+    "vi": "thiện ý",
+    "nom": [
+      "善意"
+    ],
+    "explain": [
+      "Good Faith"
+    ]
+  },
+  {
+    "vi": "luyện chế",
+    "nom": [
+      "鍊制"
+    ],
+    "explain": [
+      "refining"
+    ]
+  },
+  {
+    "vi": "giọng nói",
+    "nom": [
+      "喠吶"
+    ],
+    "explain": [
+      "voice"
+    ]
+  },
+  {
+    "vi": "thật lòng",
+    "nom": [
+      "實挵"
+    ],
+    "explain": [
+      "Sincerely"
+    ]
+  },
+  {
+    "vi": "ngoại tông",
+    "nom": [
+      "外宗"
+    ],
+    "explain": [
+      "Pagan"
+    ]
+  },
+  {
+    "vi": "hạ tu",
+    "nom": [
+      "下修"
+    ],
+    "explain": [
+      "Xiatu"
+    ]
+  },
+  {
+    "vi": "mới là",
+    "nom": [
+      "買羅"
+    ],
+    "explain": [
+      "that's"
+    ]
+  },
+  {
+    "vi": "Kết Đan",
+    "nom": [
+      "結丹"
+    ],
+    "explain": [
+      "Knitting"
+    ]
+  },
+  {
+    "vi": "Trúc Cơ",
+    "nom": [
+      "築基"
+    ],
+    "explain": [
+      "zhuji"
+    ]
+  },
+  {
+    "vi": "trở thành",
+    "nom": [
+      "阻成"
+    ],
+    "explain": [
+      "becomes"
+    ]
+  },
+  {
+    "vi": "Sư tỷ",
+    "nom": [
+      "師姊"
+    ],
+    "explain": [
+      "Senior Sister"
+    ]
+  },
+  {
+    "vi": "nói với",
+    "nom": [
+      "吶貝"
+    ],
+    "explain": [
+      "tell"
+    ]
+  },
+  {
+    "vi": "chỉ vì",
+    "nom": [
+      "只爲"
+    ],
+    "explain": [
+      "just because"
+    ]
+  },
+  {
+    "vi": "thực tế",
+    "nom": [
+      "實際"
+    ],
+    "explain": [
+      "realistically"
+    ]
+  },
+  {
+    "vi": "đi tới",
+    "nom": [
+      "呧𬧐"
+    ],
+    "explain": [
+      "Go to"
+    ]
+  },
+  {
+    "vi": "lý lịch",
+    "nom": [
+      "履歷"
+    ],
+    "explain": [
+      "background"
+    ]
+  },
+  {
+    "vi": "thâm tàng bất lộ",
+    "nom": [
+      "深藏不露"
+    ],
+    "explain": [
+      "hidden and undisclosed"
+    ]
+  },
+  {
+    "vi": "tiếng chuông",
+    "nom": [
+      "㗂鐘"
+    ],
+    "explain": [
+      "bell"
+    ]
+  },
+  {
+    "vi": "đến lượt",
+    "nom": [
+      "𨀏畧"
+    ],
+    "explain": [
+      "turn"
+    ]
+  },
+  {
+    "vi": "mỗi năm",
+    "nom": [
+      "每㑲"
+    ],
+    "explain": [
+      "annually"
+    ]
+  },
+  {
+    "vi": "trong tay",
+    "nom": [
+      "沖拪"
+    ],
+    "explain": [
+      "in hand"
+    ]
+  },
+  {
+    "vi": "cần dùng",
+    "nom": [
+      "慬用"
+    ],
+    "explain": [
+      "Required"
+    ]
+  },
+  {
+    "vi": "màu lam",
+    "nom": [
+      "牟藍"
+    ],
+    "explain": [
+      "blue"
+    ]
+  },
+  {
+    "vi": "cực cao",
+    "nom": [
+      "極高"
+    ],
+    "explain": [
+      "Very High"
+    ]
+  },
+  {
+    "vi": "nhiều lần",
+    "nom": [
+      "饒吝"
+    ],
+    "explain": [
+      "multiple times"
+    ]
+  },
+  {
+    "vi": "mọi chuyện",
+    "nom": [
+      "𤗆傳"
+    ],
+    "explain": [
+      "Everything"
+    ]
+  },
+  {
+    "vi": "ngọc giản",
+    "nom": [
+      "玉簡"
+    ],
+    "explain": [
+      "yujian"
+    ]
+  },
+  {
+    "vi": "thần thức",
+    "nom": [
+      "神識"
+    ],
+    "explain": [
+      "Divine Consciousness"
+    ]
+  },
+  {
+    "vi": "thành phẩm",
+    "nom": [
+      "成品"
+    ],
+    "explain": [
+      "Finished Products"
+    ]
+  },
+  {
+    "vi": "bao nhiêu lần",
+    "nom": [
+      "包饒吝"
+    ],
+    "explain": [
+      "how many times"
+    ]
+  },
+  {
+    "vi": "ở đây",
+    "nom": [
+      "於低"
+    ],
+    "explain": [
+      "here"
+    ]
+  },
+  {
+    "vi": "không khách sáo",
+    "nom": [
+      "空客套"
+    ],
+    "explain": [
+      "No Guest"
+    ]
+  },
+  {
+    "vi": "tiểu hữu",
+    "nom": [
+      "小友"
+    ],
+    "explain": [
+      "xiaoyiu"
+    ]
+  },
+  {
+    "vi": "không ít",
+    "nom": [
+      "空𠃝"
+    ],
+    "explain": [
+      "not less"
+    ]
+  },
+  {
+    "vi": "mệnh số",
+    "nom": [
+      "命數"
+    ],
+    "explain": [
+      "destiny"
+    ]
+  },
+  {
+    "vi": "khí vận",
+    "nom": [
+      "氣運"
+    ],
+    "explain": [
+      "Aerodynamics"
+    ]
+  },
+  {
+    "vi": "Tán tu",
+    "nom": [
+      "散修"
+    ],
+    "explain": [
+      "Cultivation"
+    ]
+  },
+  {
+    "vi": "đạo hóa",
+    "nom": [
+      "道化"
+    ]
+  },
+  {
+    "vi": "không hiểu",
+    "nom": [
+      "空曉"
+    ],
+    "explain": [
+      "I don't understand"
+    ]
+  },
+  {
+    "vi": "hành lễ",
+    "nom": [
+      "行禮"
+    ],
+    "explain": [
+      "Ceremony"
+    ]
+  },
+  {
+    "vi": "nhắc đến",
+    "nom": [
+      "掿典"
+    ],
+    "explain": [
+      "Mention"
+    ]
+  },
+  {
+    "vi": "quá lớn",
+    "nom": [
+      "過𢀲"
+    ],
+    "explain": [
+      "too big"
+    ]
+  },
+  {
+    "vi": "quá nhiều",
+    "nom": [
+      "過饒"
+    ],
+    "explain": [
+      "too much"
+    ]
+  },
+  {
+    "vi": "mật tàng",
+    "nom": [
+      "密藏"
+    ],
+    "explain": [
+      "Secret Treasure"
+    ]
+  },
+  {
+    "vi": "cũng được",
+    "nom": [
+      "拱得"
+    ],
+    "explain": [
+      "is also okay"
+    ]
+  },
+  {
+    "vi": "đúng không",
+    "nom": [
+      "中空"
+    ],
+    "explain": [
+      "Right?"
+    ]
+  },
+  {
+    "vi": "không dám",
+    "nom": [
+      "空噉"
+    ],
+    "explain": [
+      "Don't dare"
+    ]
+  },
+  {
+    "vi": "một lát",
+    "nom": [
+      "殳𣋛"
+    ],
+    "explain": [
+      "a slice"
+    ]
+  },
+  {
+    "vi": "luyện thể",
+    "nom": [
+      "練体"
+    ],
+    "explain": [
+      "bodybuilding"
+    ]
+  },
+  {
+    "vi": "có duyên",
+    "nom": [
+      "固緣"
+    ],
+    "explain": [
+      "predestined"
+    ]
+  },
+  {
+    "vi": "thất vọng",
+    "nom": [
+      "失望"
+    ],
+    "explain": [
+      "disappointment"
+    ]
+  },
+  {
+    "vi": "thỉnh kinh",
+    "nom": [
+      "請經"
+    ],
+    "explain": [
+      "Prayer"
+    ]
+  },
+  {
+    "vi": "không ai",
+    "nom": [
+      "空埃"
+    ],
+    "explain": [
+      "None"
+    ]
+  },
+  {
+    "vi": "đại năng",
+    "nom": [
+      "大能"
+    ],
+    "explain": [
+      "Great Power"
+    ]
+  },
+  {
+    "vi": "kinh hô",
+    "nom": [
+      "驚呼"
+    ],
+    "explain": [
+      "Shout"
+    ]
+  },
+  {
+    "vi": "cổ tu",
+    "nom": [
+      "古修"
+    ],
+    "explain": [
+      "ancient monks"
+    ]
+  },
+  {
+    "vi": "mai hoa",
+    "nom": [
+      "梅花"
+    ],
+    "explain": [
+      "Mai Hoa"
+    ]
+  },
+  {
+    "vi": "kiếm quyết",
+    "nom": [
+      "劍訣"
+    ],
+    "explain": [
+      "Sword Determination"
+    ]
+  },
+  {
+    "vi": "chưa đến",
+    "nom": [
+      "渚𦥃"
+    ],
+    "explain": [
+      "not yet"
+    ]
+  },
+  {
+    "vi": "người tốt",
+    "nom": [
+      "𠊛捽"
+    ],
+    "explain": [
+      "Good people"
+    ]
+  },
+  {
+    "vi": "một trong những",
+    "nom": [
+      "殳冲仍"
+    ],
+    "explain": [
+      "one of the"
+    ]
+  },
+  {
+    "vi": "quán đỉnh",
+    "nom": [
+      "灌頂"
+    ],
+    "explain": [
+      "emblem"
+    ]
+  },
+  {
+    "vi": "đại từ đại bi",
+    "nom": [
+      "大慈大悲"
+    ],
+    "explain": [
+      "Great Compassion Pronouns"
+    ]
+  },
+  {
+    "vi": "Thanh trọc",
+    "nom": [
+      "清濁"
+    ],
+    "explain": [
+      "Bald bars"
+    ]
+  },
+  {
+    "vi": "so với",
+    "nom": [
+      "摅唄"
+    ],
+    "explain": [
+      "vs"
+    ]
+  },
+  {
+    "vi": "một viên",
+    "nom": [
+      "沒圓"
+    ],
+    "explain": [
+      "One Tablet"
+    ]
+  },
+  {
+    "vi": "một viên",
+    "nom": [
+      "殳圓"
+    ]
+  },
+  {
+    "vi": "Chưởng môn",
+    "nom": [
+      "掌門"
+    ],
+    "explain": [
+      "Headmaster"
+    ]
+  },
+  {
+    "vi": "lời mời",
+    "nom": [
+      "唎邁"
+    ],
+    "explain": [
+      "the invites"
+    ]
+  },
+  {
+    "vi": "gì đây",
+    "nom": [
+      "之低"
+    ],
+    "explain": [
+      "What is this"
+    ]
+  },
+  {
+    "vi": "chuyện gì vậy",
+    "nom": [
+      "傳之丕"
+    ],
+    "explain": [
+      "What's going on?"
+    ]
+  },
+  {
+    "vi": "đạt tới",
+    "nom": [
+      "達细"
+    ],
+    "explain": [
+      "Reach"
+    ]
+  },
+  {
+    "vi": "đạt được",
+    "nom": [
+      "達得"
+    ],
+    "explain": [
+      "achieve"
+    ]
+  },
+  {
+    "vi": "đôi mắt",
+    "nom": [
+      "對眜"
+    ],
+    "explain": [
+      "Eyes"
+    ]
+  },
+  {
+    "vi": "ở lại",
+    "nom": [
+      "於吏"
+    ],
+    "explain": [
+      "stay"
+    ]
+  },
+  {
+    "vi": "sư thúc",
+    "nom": [
+      "師叔"
+    ],
+    "explain": [
+      "Master"
+    ]
+  },
+  {
+    "vi": "vài năm",
+    "nom": [
+      "吧𠄼"
+    ],
+    "explain": [
+      "several years"
+    ]
+  },
+  {
+    "vi": "bị đánh",
+    "nom": [
+      "被打"
+    ],
+    "explain": [
+      "Beaten"
+    ]
+  },
+  {
+    "vi": "liên thủ",
+    "nom": [
+      "連手"
+    ],
+    "explain": [
+      "Alliance"
+    ]
+  },
+  {
+    "vi": "đánh nhau",
+    "nom": [
+      "打僥"
+    ],
+    "explain": [
+      "Fight"
+    ]
+  },
+  {
+    "vi": "Nửa tháng",
+    "nom": [
+      "姅倘"
+    ],
+    "explain": [
+      "Half a month"
+    ]
+  },
+  {
+    "vi": "đến đây",
+    "nom": [
+      "𦤾底"
+    ],
+    "explain": [
+      "get here"
+    ]
+  },
+  {
+    "vi": "nguyên khí",
+    "nom": [
+      "元氣"
+    ],
+    "explain": [
+      "Principle"
+    ]
+  },
+  {
+    "vi": "bị tổn thương",
+    "nom": [
+      "被損傷"
+    ],
+    "explain": [
+      "Hurt"
+    ]
+  },
+  {
+    "vi": "thương thế",
+    "nom": [
+      "傷勢"
+    ],
+    "explain": [
+      "injury"
+    ]
+  },
+  {
+    "vi": "trả phí",
+    "nom": [
+      "鮓費"
+    ],
+    "explain": [
+      "Paid"
+    ]
+  },
+  {
+    "vi": "chịu trách nhiệm",
+    "nom": [
+      "𠹾責任"
+    ],
+    "explain": [
+      "Responsibility"
+    ]
+  },
+  {
+    "vi": "dự tính",
+    "nom": [
+      "予併"
+    ],
+    "explain": [
+      "Expected"
+    ]
+  },
+  {
+    "vi": "thủy mạch",
+    "nom": [
+      "水脈"
+    ],
+    "explain": [
+      "Hydroves"
+    ]
+  },
+  {
+    "vi": "Nghĩa bất dung từ",
+    "nom": [
+      "義不容辭"
+    ],
+    "explain": [
+      "The meaning of the word intolerance"
+    ]
+  },
+  {
+    "vi": "tan biến",
+    "nom": [
+      "散遍"
+    ],
+    "explain": [
+      "Dissolve"
+    ]
+  },
+  {
+    "vi": "không quên",
+    "nom": [
+      "空悁"
+    ],
+    "explain": [
+      "Don't forget"
+    ]
+  },
+  {
+    "vi": "cửu tầng",
+    "nom": [
+      "九層"
+    ],
+    "explain": [
+      "Nine Floors"
+    ]
+  },
+  {
+    "vi": "hậu nhân",
+    "nom": [
+      "后人"
+    ],
+    "explain": [
+      "Posterity"
+    ]
+  },
+  {
+    "vi": "sách mới",
+    "nom": [
+      "冊買"
+    ],
+    "explain": [
+      "New Books"
+    ]
+  },
+  {
+    "vi": "cả đời",
+    "nom": [
+      "哿代"
+    ],
+    "explain": [
+      "lifetime"
+    ]
+  },
+  {
+    "vi": "dựa vào",
+    "nom": [
+      "澦𠓨"
+    ],
+    "explain": [
+      "Relying on"
+    ]
+  },
+  {
+    "vi": "ra ngoài",
+    "nom": [
+      "囉外"
+    ],
+    "explain": [
+      "Going out"
+    ]
+  },
+  {
+    "vi": "hoàn toàn không",
+    "nom": [
+      "完全空"
+    ],
+    "explain": [
+      "Absolutely not"
+    ]
+  },
+  {
+    "vi": "làm được",
+    "nom": [
+      "爫得"
+    ],
+    "explain": [
+      "possible"
+    ]
+  },
+  {
+    "vi": "tu luyện",
+    "nom": [
+      "修練"
+    ],
+    "explain": [
+      "cultivation"
+    ]
+  },
+  {
+    "vi": "dược lực",
+    "nom": [
+      "藥力"
+    ],
+    "explain": [
+      "Medicinal Strength"
+    ]
+  },
+  {
+    "vi": "tam hoa",
+    "nom": [
+      "三花"
+    ],
+    "explain": [
+      "Flower Shower"
+    ]
+  },
+  {
+    "vi": "Buổi tiệc",
+    "nom": [
+      "貝席"
+    ],
+    "explain": [
+      "party"
+    ]
+  },
+  {
+    "vi": "nhuyễn giáp",
+    "nom": [
+      "軟甲"
+    ],
+    "explain": [
+      "Armor puree"
+    ]
+  },
+  {
+    "vi": "lưu chuyển",
+    "nom": [
+      "流轉"
+    ],
+    "explain": [
+      "flowthrough"
+    ]
+  },
+  {
+    "vi": "lừa được",
+    "nom": [
+      "驢得"
+    ],
+    "explain": [
+      "fooled"
+    ]
+  },
+  {
+    "vi": "hai bên",
+    "nom": [
+      "𠄩邊"
+    ],
+    "explain": [
+      "Both sides"
+    ]
+  },
+  {
+    "vi": "đan dược",
+    "nom": [
+      "丹藥"
+    ],
+    "explain": [
+      "Knitting"
+    ]
+  },
+  {
+    "vi": "nước nóng",
+    "nom": [
+      "著燶"
+    ],
+    "explain": [
+      "Hot water"
+    ]
+  },
+  {
+    "vi": "mức này",
+    "nom": [
+      "𣞪尼"
+    ],
+    "explain": [
+      "this level"
+    ]
+  },
+  {
+    "vi": "hai lần",
+    "nom": [
+      "𠄩吝"
+    ],
+    "explain": [
+      "twice"
+    ]
+  },
+  {
+    "vi": "mới có",
+    "nom": [
+      "買固"
+    ],
+    "explain": [
+      "NEW"
+    ]
+  },
+  {
+    "vi": "chỉ có",
+    "nom": [
+      "止固"
+    ],
+    "explain": [
+      "only have just"
+    ]
+  },
+  {
+    "vi": "đấu pháp",
+    "nom": [
+      "斗法"
+    ],
+    "explain": [
+      "Fighting"
+    ]
+  },
+  {
+    "vi": "uy năng",
+    "nom": [
+      "威能"
+    ],
+    "explain": [
+      "Powerful"
+    ]
+  },
+  {
+    "vi": "trung kỳ",
+    "nom": [
+      "中期"
+    ],
+    "explain": [
+      "Mid-term"
+    ]
+  },
+  {
+    "vi": "hậu kỳ",
+    "nom": [
+      "后期"
+    ],
+    "explain": [
+      "Post-production"
+    ]
+  },
+  {
+    "vi": "bảo mệnh",
+    "nom": [
+      "保命"
+    ],
+    "explain": [
+      "Protection"
+    ]
+  },
+  {
+    "vi": "chưa đủ",
+    "nom": [
+      "渚覩"
+    ],
+    "explain": [
+      "Not enough"
+    ]
+  },
+  {
+    "vi": "một hai",
+    "nom": [
+      "殳咍"
+    ],
+    "explain": [
+      "one two"
+    ]
+  },
+  {
+    "vi": "trung phẩm",
+    "nom": [
+      "中品"
+    ],
+    "explain": [
+      "Intermediate Products"
+    ]
+  },
+  {
+    "vi": "chính ma",
+    "nom": [
+      "正魔"
+    ],
+    "explain": [
+      "Main Ghost"
+    ]
+  },
+  {
+    "vi": "chưa từng",
+    "nom": [
+      "渚曾"
+    ],
+    "explain": [
+      "Never"
+    ]
+  },
+  {
+    "vi": "không tìm được",
+    "nom": [
+      "空尋得"
+    ],
+    "explain": [
+      "couldn't find"
+    ]
+  },
+  {
+    "vi": "Vài tháng",
+    "nom": [
+      "吧倘"
+    ],
+    "explain": [
+      "Several months"
+    ]
+  },
+  {
+    "vi": "thủy lôi",
+    "nom": [
+      "水雷"
+    ],
+    "explain": [
+      "mines"
+    ]
+  },
+  {
+    "vi": "cái bụng",
+    "nom": [
+      "丐俸"
+    ],
+    "explain": [
+      "stomach"
+    ]
+  },
+  {
+    "vi": "tháng qua",
+    "nom": [
+      "躺過"
+    ],
+    "explain": [
+      "last month"
+    ]
+  },
+  {
+    "vi": "bị bắt",
+    "nom": [
+      "被扒"
+    ],
+    "explain": [
+      "Arrested"
+    ]
+  },
+  {
+    "vi": "chạy trốn",
+    "nom": [
+      "沚遁"
+    ],
+    "explain": [
+      "escape"
+    ]
+  },
+  {
+    "vi": "máu đỏ",
+    "nom": [
+      "泖覩"
+    ],
+    "explain": [
+      "blood red"
+    ]
+  },
+  {
+    "vi": "danh bất hư truyền",
+    "nom": [
+      "名不虛傳"
+    ],
+    "explain": [
+      "Immortal Name"
+    ]
+  },
+  {
+    "vi": "e",
+    "nom": [
+      "㥋"
+    ],
+    "explain": [
+      "to fear",
+      "be afraid",
+      "be shy (vnedict2.json's own recorded rendering)"
+    ]
+  },
+  {
+    "vi": "a",
+    "nom": [
+      "丫",
+      "阿"
+    ],
+    "explain": [
+      "vnedict2.json's own recorded rendering(s) for the single-letter Vietnamese word \"a\""
+    ]
+  },
+  {
+    "vi": "o",
+    "nom": [
+      "𡡅",
+      "𡀴"
+    ],
+    "explain": [
+      "vnedict2.json's own recorded rendering(s) for the single-letter Vietnamese word \"o\""
+    ]
+  },
+  {
+    "vi": "u",
+    "nom": [
+      "幽",
+      "𡠄",
+      "䫜"
+    ],
+    "explain": [
+      "vnedict2.json's own recorded rendering(s) for the single-letter Vietnamese word \"u\""
+    ]
+  },
+  {
+    "vi": "y",
+    "nom": [
+      "伊",
+      "衣",
+      "依",
+      "醫"
+    ],
+    "explain": [
+      "vnedict2.json's own recorded rendering(s) for the single-letter Vietnamese word \"y\" (canonicalizes to \"i\")"
+    ]
+  },
+  {
+    "vi": "mỹ nam",
+    "nom": [
+      "美男"
+    ],
+    "explain": [
+      "handsome man"
+    ]
+  },
+  {
+    "vi": "lời đồn",
+    "nom": [
+      "利屯"
+    ],
+    "explain": [
+      "Rumors"
+    ]
+  },
+  {
+    "vi": "quân cờ",
+    "nom": [
+      "軍棋"
+    ],
+    "explain": [
+      "chess pieces"
+    ]
+  },
+  {
+    "vi": "nhân vật chính",
+    "nom": [
+      "人物正"
+    ],
+    "explain": [
+      "main character"
+    ]
+  },
+  {
+    "vi": "kỳ duyên",
+    "nom": [
+      "奇緣"
+    ],
+    "explain": [
+      "Qi Duyen"
+    ]
+  },
+  {
+    "vi": "tọa hóa",
+    "nom": [
+      "坐化"
+    ],
+    "explain": [
+      "Scientific conferences"
+    ]
+  },
+  {
+    "vi": "giơ tay",
+    "nom": [
+      "捈𢬣"
+    ],
+    "explain": [
+      "Raise Hand"
+    ]
+  },
+  {
+    "vi": "bức vách",
+    "nom": [
+      "踾壁"
+    ],
+    "explain": [
+      "wall"
+    ]
+  },
+  {
+    "vi": "hồ rượu",
+    "nom": [
+      "壺酒"
+    ],
+    "explain": [
+      "Rượu /Alcohol"
+    ]
+  },
+  {
+    "vi": "xuất đạo",
+    "nom": [
+      "出道"
+    ],
+    "explain": [
+      "Departure"
+    ]
+  },
+  {
+    "vi": "Giang Nam",
+    "nom": [
+      "江南"
+    ],
+    "explain": [
+      "江南"
+    ]
+  },
+  {
+    "vi": "quát bảo",
+    "nom": [
+      "括保"
+    ],
+    "explain": [
+      "Overview"
+    ]
+  },
+  {
+    "vi": "gãy đôi",
+    "nom": [
+      "折對"
+    ],
+    "explain": [
+      "Fracture"
+    ]
+  },
+  {
+    "vi": "Đỉnh phong",
+    "nom": [
+      "頂峰"
+    ],
+    "explain": [
+      "Top"
+    ]
+  },
+  {
+    "vi": "giao nhau",
+    "nom": [
+      "交僥"
+    ],
+    "explain": [
+      "Intersection"
+    ]
+  },
+  {
+    "vi": "yếu ớt",
+    "nom": [
+      "覅遏"
+    ],
+    "explain": [
+      "weak."
+    ]
+  },
+  {
+    "vi": "mười năm",
+    "nom": [
+      "𱑕年"
+    ],
+    "explain": [
+      "ten years"
+    ]
+  },
+  {
+    "vi": "Không nhất định",
+    "nom": [
+      "空一定"
+    ],
+    "explain": [
+      "Not necessarily."
+    ]
+  },
+  {
+    "vi": "cũng đúng",
+    "nom": [
+      "共中"
+    ],
+    "explain": [
+      "also correct"
+    ]
+  },
+  {
+    "vi": "vỗ kiếm",
+    "nom": [
+      "撫劍"
+    ],
+    "explain": [
+      "flap the sword"
+    ]
+  },
+  {
+    "vi": "danh bất hư truyền",
+    "nom": [
+      "名不虛傳"
+    ],
+    "explain": [
+      "you really deserve your reputation!"
+    ]
+  },
+  {
+    "vi": "Thượng Quan",
+    "nom": [
+      "上官"
+    ],
+    "explain": [
+      "Shangguan"
+    ]
+  },
+  {
+    "vi": "đúng lúc",
+    "nom": [
+      "中𣅶"
+    ],
+    "explain": [
+      "At the right time"
+    ]
+  },
+  {
+    "vi": "trang viện",
+    "nom": [
+      "莊院"
+    ],
+    "explain": [
+      "Manor"
+    ]
+  },
+  {
+    "vi": "nhấc bước",
+    "nom": [
+      "𢩮𨀈"
+    ],
+    "explain": [
+      "take a step"
+    ]
+  },
+  {
+    "vi": "cười lớn",
+    "nom": [
+      "唭吝"
+    ],
+    "explain": [
+      "LOL"
+    ]
+  },
+  {
+    "vi": "gia trang",
+    "nom": [
+      "家莊"
+    ],
+    "explain": [
+      "家莊"
+    ]
+  },
+  {
+    "vi": "Bất Túy Vô Quy",
+    "nom": [
+      "不醉毋規"
+    ],
+    "explain": [
+      "Indulgence and No Return"
+    ]
+  },
+  {
+    "vi": "trước mặt",
+    "nom": [
+      "𠓀𩈘"
+    ],
+    "explain": [
+      "in front of"
+    ]
+  },
+  {
+    "vi": "đầy mắt",
+    "nom": [
+      "菭眜"
+    ],
+    "explain": [
+      "full eyes"
+    ]
+  },
+  {
+    "vi": "vỗ vai",
+    "nom": [
+      "𢯞𦠘"
+    ],
+    "explain": [
+      "Tap"
+    ]
+  },
+  {
+    "vi": "không kém",
+    "nom": [
+      "空歉"
+    ],
+    "explain": [
+      "no less"
+    ]
+  },
+  {
+    "vi": "huyết hải thâm cừu",
+    "nom": [
+      "血海深仇"
+    ],
+    "explain": [
+      "Blood Sea Deep Sheep"
+    ]
+  },
+  {
+    "vi": "không báo",
+    "nom": [
+      "空报"
+    ],
+    "explain": [
+      "unreported"
+    ]
+  },
+  {
+    "vi": "chưa chắc",
+    "nom": [
+      "𣗓𢡠"
+    ],
+    "explain": [
+      "Not sure."
+    ]
+  },
+  {
+    "vi": "quét qua",
+    "nom": [
+      "𢭯戈"
+    ],
+    "explain": [
+      "Scan Through"
+    ]
+  },
+  {
+    "vi": "Hồng Diệp phái",
+    "nom": [
+      "紅葉派"
+    ],
+    "explain": [
+      "Hong Diep sect"
+    ]
+  },
+  {
+    "vi": "lưu tình",
+    "nom": [
+      "留情"
+    ],
+    "explain": [
+      "留情"
+    ]
+  },
+  {
+    "vi": "lệnh bài",
+    "nom": [
+      "令牌"
+    ],
+    "explain": [
+      "Command Cards"
+    ]
+  },
+  {
+    "vi": "tái xuất",
+    "nom": [
+      "再出"
+    ],
+    "explain": [
+      "Re-Export Date"
+    ]
+  },
+  {
+    "vi": "chợ đen",
+    "nom": [
+      "𢄂黰"
+    ],
+    "explain": [
+      "Black Market"
+    ]
+  },
+  {
+    "vi": "nhìn thấu",
+    "nom": [
+      "𥆾透"
+    ],
+    "explain": [
+      "Seeing Through"
+    ]
+  },
+  {
+    "vi": "cháu gái",
+    "nom": [
+      "𡥙𡛔"
+    ],
+    "explain": [
+      "nieces and nephews"
+    ]
+  },
+  {
+    "vi": "linh thạch",
+    "nom": [
+      "霊石"
+    ],
+    "explain": [
+      "Spirit Stones"
+    ]
+  },
+  {
+    "vi": "thọ nguyên",
+    "nom": [
+      "夀元"
+    ],
+    "explain": [
+      "Longevity"
+    ]
+  },
+  {
+    "vi": "phòng riêng",
+    "nom": [
+      "房𥢆"
+    ],
+    "explain": [
+      "Private Room"
+    ]
+  },
+  {
+    "vi": "quẻ tượng",
+    "nom": [
+      "卦像"
+    ],
+    "explain": [
+      "Statue"
+    ]
+  },
+  {
+    "vi": "không lừa",
+    "nom": [
+      "空驢"
+    ],
+    "explain": [
+      "Don't cheat"
+    ]
+  },
+  {
+    "vi": "quay về",
+    "nom": [
+      "𢮿𧗱"
+    ],
+    "explain": [
+      "Back"
+    ]
+  },
+  {
+    "vi": "mấy con",
+    "nom": [
+      "𠇍𡥵"
+    ]
+  },
+  {
+    "vi": "truy tung",
+    "nom": [
+      "追縱"
+    ],
+    "explain": [
+      "traced"
+    ]
   }
 ]
