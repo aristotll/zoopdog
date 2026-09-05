@@ -11,7 +11,9 @@ const repoRoot = path.resolve(__dirname, '..');
 const {
   METADATA_SCHEMA_VERSION,
   buildMetadata,
-  serializeRuntimeDictionary
+  mergeUserNomEntriesIntoEntries,
+  serializeRuntimeDictionary,
+  validateEntry
 } = require('../scripts/build-extension-vnedict-json');
 const {
   ERRORS,
@@ -71,6 +73,79 @@ test('runtime dictionary builder rejects malformed entries before writing', () =
     /definition/i
   );
   assert.throws(() => serializeRuntimeDictionary({vn: 'chó'}), /array/i);
+});
+
+// The hand-maintained entries are the authority on a term's Chu Nom, and the extension is
+// the surface that reads `zd-extension/js/vnedict.json` -- so they have to reach it the same
+// way they already reach both userscripts.
+test('the extension build merges hand-maintained Nom into an existing headword', () => {
+  const entries = [{vn: 'đúng lúc', en: [{def: 'at the right time', pos: ''}]}];
+
+  const merged = mergeUserNomEntriesIntoEntries(entries, [
+    {vi: 'đúng lúc', key: 'đúng lúc', nom: ['中𣅶'], explain: ['At the right time']}
+  ]);
+
+  assert.equal(merged, 1);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0].en.map((item) => item.def), [
+    '中𣅶',
+    'at the right time',
+    'At the right time'
+  ]);
+  validateEntry(entries[0], 0);
+});
+
+test('the extension build creates an entry for a headword the dictionary never listed', () => {
+  const entries = [{vn: 'chó', en: [{def: 'dog', pos: ''}]}];
+
+  const merged = mergeUserNomEntriesIntoEntries(entries, [
+    {vi: 'Thượng Quan', key: 'thượng quan', nom: ['上官'], explain: ['Shangguan']}
+  ]);
+
+  assert.equal(merged, 1);
+  assert.deepEqual(entries[1], {
+    vn: 'Thượng Quan',
+    en: [{def: '上官', pos: ''}, {def: 'Shangguan', pos: ''}]
+  });
+  validateEntry(entries[1], 1);
+});
+
+test('the extension build never duplicates a rendering the dictionary already carries', () => {
+  const entries = [{vn: 'ba', en: [{def: '𠀧', pos: ''}, {def: 'three', pos: ''}]}];
+
+  const merged = mergeUserNomEntriesIntoEntries(entries, [
+    {vi: 'ba', key: 'ba', nom: ['𠀧'], explain: ['three']}
+  ]);
+
+  assert.equal(merged, 0);
+  assert.deepEqual(entries[0].en.map((item) => item.def), ['𠀧', 'three']);
+});
+
+test('the repository runtime dictionary carries the hand-maintained entries', () => {
+  const repoPaths = require('../scripts/lib/paths');
+  const {readUserNomEntries} = require('../scripts/user-nom-entries');
+  const userEntries = readUserNomEntries(repoPaths.absolute.userNomEntries);
+  const runtime = JSON.parse(
+    fs.readFileSync(repoPaths.absolute.runtimeDictionary, 'utf8')
+  );
+
+  const byKey = new Map();
+  for (const entry of runtime) {
+    const key = entry.vn.normalize('NFC').toLocaleLowerCase('vi-VN').replace(/\s+/gu, ' ');
+    if (!byKey.has(key)) {
+      byKey.set(key, new Set());
+    }
+    for (const item of entry.en) {
+      byKey.get(key).add(item.def);
+    }
+  }
+
+  const missing = userEntries.filter((entry) => {
+    const definitions = byKey.get(entry.key);
+    return !definitions || !entry.nom.every((nom) => definitions.has(nom));
+  });
+
+  assert.deepEqual(missing.map((entry) => entry.vi), []);
 });
 
 function fixtureBytes(definition = 'dog') {

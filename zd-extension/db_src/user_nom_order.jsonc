@@ -6,6 +6,13 @@
 // everything else keeps its relative order behind them. A variant the dictionaries never
 // listed is inserted at the front rather than ignored, so a row can pin as well as reorder.
 //
+// Rows are moved whole. A dictionary row can hold several renderings as one grouped cell
+// ("巴|芭|𠀧|爸"); a row here matches such a group and hoists the row, but never
+// reorders the group's interior, so a reader showing only the first rendering still shows
+// 巴. That is intended: this layer orders dictionary rows, it does not rewrite their text.
+// To lead with a rendering trapped mid-group, add it as its own row in
+// `user_nom_entries.jsonc` -- a variant no row carries is pinned to the front here.
+//
 // `vi` is the key (normalized the same way every term in this repository is) and rows are
 // upserts: one row per term. Usually authored from the book-translator reader's
 // "Set Chu Nom order" action; hand edits and these comments are preserved by that writer.
@@ -15,5 +22,8 @@
 [
   // ba: 𠀧 is the ordinary Nom numeral; 巴 is a phonetic borrowing that happened to be
   // listed first.
-  { "vi": "ba", "nom": ["𠀧"] }
+  { "vi": "ba", "nom": ["𠀧"] },
+  {"vi": "Linh", "nom": ["灵"]},
+  {"vi": "cần", "nom": ["𥵚"]},
+  {"vi": "biển", "nom": ["㴜"]}
 ]

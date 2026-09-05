@@ -116,6 +116,27 @@ test('the popupdict build hoists a preferred rendering within a term CJK definit
   assert.deepEqual(dictionary.ba[0][1], [['𠀧', ''], ['巴', ''], ['three', '']]);
 });
 
+// Documents the row-granular half of the hoist rule: a grouped cell is matched and moved
+// whole, never rewritten, so the head of the group is still what a reader displays.
+test('hoisting matches a grouped cell but never reorders inside it', () => {
+  const rows = [
+    {def: 'ba', pos: ''},
+    {def: '巴|芭|𠀧|爸', pos: ''},
+    {def: 'three', pos: ''}
+  ];
+
+  const hoisted = order.hoistPreferredRows(
+    rows,
+    ['𠀧'],
+    (row) => row.def,
+    (value) => ({def: value, pos: ''})
+  );
+
+  // The group ranked on its 𠀧 member, so its row leads -- with its text untouched, and
+  // with no synthesized '𠀧' row, because the preference was already present.
+  assert.deepEqual(hoisted.map((row) => row.def), ['巴|芭|𠀧|爸', 'ba', 'three']);
+});
+
 test('the popupdict build leaves a term it has no entry for alone', () => {
   const popupdict = require('../scripts/build-popupdict-userscript');
   const dictionary = {};

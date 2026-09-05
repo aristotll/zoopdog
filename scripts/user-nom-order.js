@@ -84,6 +84,20 @@ function buildNomOrderIndex(entries) {
 
 // The one hoist rule, shared by every consumer. Stable: rows the preference list says
 // nothing about keep the order they arrived in.
+//
+// Hoisting is row-granular, and that is deliberate. A row can carry several renderings as
+// one grouped cell -- vnedict2.json writes "巴|芭|𠀧|爸" -- and `extractNomCandidates` splits
+// the group, so such a row *is* matched and ranked by its best member. What it cannot do is
+// reorder members inside the group: the whole row moves, the cell's text is left exactly as
+// the dictionary wrote it. So `{"vi": "ba", "nom": ["𠀧"]}` hoists that row to the front, and
+// a consumer taking the head of the group still shows 巴.
+//
+// This is the intended behaviour, not a gap to route around. The grouped cell is one
+// dictionary fact, and rewriting its interior would make this layer edit the dictionary's
+// own text rather than order it -- the one thing that keeps the layer safe to re-apply on
+// every build. A term that genuinely needs a different leading rendering gets that rendering
+// as its own row, which is `user_nom_entries.jsonc`'s job; the pin half of the rule then
+// puts that new row in front of the group.
 function orderPreferredFirst(rows, preferred, getText) {
   if (!preferred || !preferred.length) {
     return rows.slice();

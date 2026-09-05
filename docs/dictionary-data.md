@@ -18,6 +18,18 @@ through generated runtime files. Rebuild them after any merge or hand-maintained
 make rebuild-extension-vnedict-json
 ```
 
+The target folds in the hand-maintained `zd-extension/db_src/user_nom_entries.jsonc` the same
+way both userscript builders do -- renderings lead a term's definitions, explanations follow
+its glosses -- and then applies `user_nom_order.jsonc`. Without that fold an entry added by
+`/add-chu-nom` reaches the two userscripts and stays invisible in the extension, which reads
+only this generated file.
+
+Hoisting from `user_nom_order.jsonc` moves whole rows. A dictionary row can carry several
+renderings as one grouped cell (`巴|芭|𠀧|爸`); such a row is matched and hoisted, but the
+group's interior is never rewritten, so a surface showing only the first rendering still shows
+`巴`. To lead with a rendering trapped mid-group, give it its own row in
+`user_nom_entries.jsonc`.
+
 The target writes compact `zd-extension/js/vnedict.json` and
 `zd-extension/js/vnedict.meta.json`. The sidecar records the exact JSON byte hash and entry
 count used to refresh browser IndexedDB safely. Both files are generated and must be committed
