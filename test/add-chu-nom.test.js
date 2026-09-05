@@ -77,6 +77,7 @@ function makeFixture(t) {
 function installRealBuilders(fixtureRoot) {
   for (const script of [
     'user-nom-entries.js',
+    'user-nom-order.js',
     'build-nom-userscript.js',
     'build-popupdict-userscript.js'
   ]) {

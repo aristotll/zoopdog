@@ -5,6 +5,7 @@ const {
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap
 } = require('./user-nom-entries');
+const {readUserNomOrder, applyUserNomOrderToNomMap} = require('./user-nom-order');
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {extractNomCandidates, isEmbeddableTerm} = require('./lib/cjk');
 const {mdxEntries, readJson} = require('./lib/sources');
@@ -19,6 +20,7 @@ const {
 const sourcePath = repoPaths.absolute.dictionary;
 const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
+const userNomOrderPath = repoPaths.absolute.userNomOrder;
 const targetPath = repoPaths.absolute.nomUserscript;
 
 function buildNomMap(entries) {
@@ -103,6 +105,11 @@ function main() {
   const userNomEntries = readUserNomEntries(userNomPath);
   mergeUserNomEntriesIntoNomMap(nomMap, userNomEntries);
 
+  // Last, after every layer that can *add* a candidate: this one only reorders what they
+  // produced, and the userscript renders candidate 0 as the ruby.
+  const userNomOrder = readUserNomOrder(userNomOrderPath);
+  applyUserNomOrderToNomMap(nomMap, userNomOrder);
+
   const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap));
 
   console.log(`Wrote ${targetPath}`);
@@ -113,6 +120,9 @@ function main() {
   }
   if (userNomEntries.length) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
+  }
+  if (userNomOrder.length) {
+    console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
   }
 }
 

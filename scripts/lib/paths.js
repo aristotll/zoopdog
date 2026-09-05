@@ -12,6 +12,7 @@ const relative = Object.freeze({
   runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
   userNomEntries: 'zd-extension/db_src/user_nom_entries.jsonc',
+  userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',
   nomUserscript: 'zoopdog-nom-ruby.user.js',
   popupUserscript: 'zoopdog-popupdict.user.js',
   defaultInput: '.idea/newfile.md',

@@ -6,6 +6,7 @@ const {
   readUserNomEntries,
   toDictionaryEntries
 } = require('./user-nom-entries');
+const {readUserNomOrder, applyUserNomOrderToDefinitions} = require('./user-nom-order');
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
 const {definitionKey, readJson} = require('./lib/sources');
@@ -20,6 +21,7 @@ const {
 const rootDir = repoPaths.rootDir;
 const dictionaryPath = repoPaths.absolute.dictionary;
 const userNomPath = repoPaths.absolute.userNomEntries;
+const userNomOrderPath = repoPaths.absolute.userNomOrder;
 const targetPath = repoPaths.absolute.popupUserscript;
 
 const sourceFiles = [
@@ -87,6 +89,21 @@ function buildDictionary(entries) {
   return {dictionary, maxWords};
 }
 
+// `buildDictionary` has already floated every CJK-only definition ahead of the glosses, so
+// the popup leads with a term's Chu Nom renderings. Which of *those* comes first is still
+// whatever vnedict2.json happened to list first, and this is where that is corrected --
+// stably, so the CJK-before-gloss grouping above survives untouched.
+function applyUserNomOrderToDictionary(dictionary, orderEntries) {
+  applyUserNomOrderToDefinitions(orderEntries, {
+    rowsFor: (key) => (dictionary[key] ? dictionary[key][0][1] : undefined),
+    setRows: (key, rows) => {
+      dictionary[key][0][1] = rows;
+    },
+    getText: (definition) => definition[0],
+    makeRow: (value) => [value, '']
+  });
+}
+
 function readRuntimeSources() {
   return sourceFiles.map((relativePath) => {
     const absolutePath = path.join(rootDir, relativePath);
@@ -118,6 +135,8 @@ function main() {
     toDictionaryEntries(userNomEntries)
   );
   const {dictionary, maxWords} = buildDictionary(entries);
+  const userNomOrder = readUserNomOrder(userNomOrderPath);
+  applyUserNomOrderToDictionary(dictionary, userNomOrder);
   const runtimeSources = readRuntimeSources();
 
   const {version, changed} = writeVersionedUserscript(
@@ -131,11 +150,15 @@ function main() {
   if (userNomEntries.length) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
   }
+  if (userNomOrder.length) {
+    console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
+  }
   console.log(`Maximum term length: ${maxWords} words`);
 }
 
 module.exports = {
   buildDictionary,
+  applyUserNomOrderToDictionary,
   isCjkDefinition,
   readRuntimeSources,
   main

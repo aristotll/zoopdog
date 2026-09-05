@@ -1,0 +1,19 @@
+// Per-term Chu Nom display order.
+//
+// Every other dictionary layer only ever *extends* a term's candidate list, so whichever
+// rendering vnedict2.json happened to list first is the one shown as ruby. Rows here move
+// the listed variants to the front of that term's merged list, in the order given;
+// everything else keeps its relative order behind them. A variant the dictionaries never
+// listed is inserted at the front rather than ignored, so a row can pin as well as reorder.
+//
+// `vi` is the key (normalized the same way every term in this repository is) and rows are
+// upserts: one row per term. Usually authored from the book-translator reader's
+// "Set Chu Nom order" action; hand edits and these comments are preserved by that writer.
+//
+// Consumed by scripts/build-nom-userscript.js, scripts/build-popupdict-userscript.js,
+// scripts/build-extension-vnedict-json.js and the reader's scripts/reader/nom_order.py.
+[
+  // ba: 𠀧 is the ordinary Nom numeral; 巴 is a phonetic borrowing that happened to be
+  // listed first.
+  { "vi": "ba", "nom": ["𠀧"] }
+]
