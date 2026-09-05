@@ -59,7 +59,8 @@ make rebuild-userscripts
 ```
 
 See [dictionary-data.md](dictionary-data.md) for what each userscript embeds and when a
-rebuild is required.
+rebuild is required. The builders also stamp `@version`, so pushing a rebuilt
+userscript to `master` is what makes installed copies auto-update.
 
 ## Rebuilding the browser runtime dictionary
 

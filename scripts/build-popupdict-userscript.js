@@ -10,7 +10,12 @@ const {cleanText, normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
 const {definitionKey, readJson} = require('./lib/sources');
 const repoPaths = require('./lib/paths');
-const {readRuntime, renderRuntime} = require('./lib/userscript');
+const {
+  readRuntime,
+  renderRuntime,
+  PENDING_VERSION,
+  writeVersionedUserscript
+} = require('./lib/userscript');
 
 const rootDir = repoPaths.rootDir;
 const dictionaryPath = repoPaths.absolute.dictionary;
@@ -99,7 +104,11 @@ function buildUserscript(dictionary, maxWords, runtimeSources) {
     '__ZOOPDOG_RUNTIME_SOURCES__': runtimeSources,
     '{"__ZOOPDOG_DICTIONARY__": true}': JSON.stringify(dictionary),
     '__ZOOPDOG_MAX_WORDS__': maxWords,
-    '__ZOOPDOG_KEY_COUNT__': Object.keys(dictionary).length
+    '__ZOOPDOG_KEY_COUNT__': Object.keys(dictionary).length,
+    '__ZOOPDOG_UPDATE_URL__': repoPaths.rawUrl('popupUserscript'),
+    '__ZOOPDOG_DOWNLOAD_URL__': repoPaths.rawUrl('popupUserscript'),
+    // The real stamp is decided on write, by comparing this draft with the committed file.
+    '__ZOOPDOG_VERSION__': PENDING_VERSION
   });
 }
 
@@ -111,9 +120,13 @@ function main() {
   const {dictionary, maxWords} = buildDictionary(entries);
   const runtimeSources = readRuntimeSources();
 
-  fs.writeFileSync(targetPath, buildUserscript(dictionary, maxWords, runtimeSources), 'utf8');
+  const {version, changed} = writeVersionedUserscript(
+    targetPath,
+    buildUserscript(dictionary, maxWords, runtimeSources)
+  );
 
   console.log(`Wrote ${targetPath}`);
+  console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
   console.log(`Embedded ${Object.keys(dictionary).length} dictionary keys`);
   if (userNomEntries.length) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);

@@ -140,13 +140,35 @@ test('an edit to a runtime source reaches the generated userscript', (t) => {
   fs.writeFileSync(runtimePath, `${marker}\n${originalRuntime.toString('utf8')}`);
   execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {cwd: repoRoot, stdio: 'pipe'});
 
+  const {readUserscriptVersion, setUserscriptVersion, PENDING_VERSION, compareVersions} =
+    require('../scripts/lib/userscript');
+  const original = originalTarget.toString('utf8');
   const rebuilt = fs.readFileSync(targetPath, 'utf8');
   assert.match(rebuilt, new RegExp(marker));
   assert.equal(
-    rebuilt.replace(`${marker}\n`, ''),
-    originalTarget.toString('utf8'),
-    'the probe line is the only difference'
+    setUserscriptVersion(rebuilt.replace(`${marker}\n`, ''), PENDING_VERSION),
+    setUserscriptVersion(original, PENDING_VERSION),
+    'the probe line and the version stamp are the only differences'
   );
+  assert.ok(
+    compareVersions(readUserscriptVersion(rebuilt), readUserscriptVersion(original)) > 0,
+    'a changed runtime raises the version so installed copies update'
+  );
+});
+
+test('generated userscripts declare a stamped version and their update location', () => {
+  const repoPaths = require('../scripts/lib/paths');
+  const {readUserscriptVersion, PENDING_VERSION} = require('../scripts/lib/userscript');
+
+  for (const key of ['nomUserscript', 'popupUserscript']) {
+    const source = fs.readFileSync(path.join(repoRoot, repoPaths.relative[key]), 'utf8');
+    const url = repoPaths.rawUrl(key);
+    const version = readUserscriptVersion(source);
+
+    assert.ok(version && version !== PENDING_VERSION, `${key} carries a real @version`);
+    assert.match(source, new RegExp(`^// @updateURL\\s+${url}$`, 'm'));
+    assert.match(source, new RegExp(`^// @downloadURL\\s+${url}$`, 'm'));
+  }
 });
 
 test('both generated userscripts rebuild byte-identically', (t) => {

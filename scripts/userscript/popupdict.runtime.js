@@ -6,7 +6,9 @@
 // @match       *://*/*
 // @grant       GM_addStyle
 // @run-at      document-idle
-// @version     2026.04.19
+// @version     __ZOOPDOG_VERSION__
+// @updateURL   __ZOOPDOG_UPDATE_URL__
+// @downloadURL __ZOOPDOG_DOWNLOAD_URL__
 // ==/UserScript==
 
 (function() {

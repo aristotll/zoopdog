@@ -7,6 +7,7 @@ const text = require('../scripts/lib/text');
 const cjk = require('../scripts/lib/cjk');
 const paths = require('../scripts/lib/paths');
 const sources = require('../scripts/lib/sources');
+const userscript = require('../scripts/lib/userscript');
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -122,4 +123,71 @@ test('source helpers read both MDX payload shapes and build stable definition ke
 
   const payload = sources.readJson(paths.absolute.mdxNom);
   assert.ok(Object.keys(sources.mdxEntries(payload)).length > 0);
+});
+
+test('raw URLs are derived from the declared repository paths', () => {
+  assert.equal(
+    paths.rawUrl('nomUserscript'),
+    `${paths.rawBaseUrl}/zoopdog-nom-ruby.user.js`
+  );
+  assert.equal(
+    paths.rawUrl('popupUserscript'),
+    `${paths.rawBaseUrl}/zoopdog-popupdict.user.js`
+  );
+  assert.throws(() => paths.rawUrl('nope'), /Unknown repository path/);
+});
+
+test('userscript versions compare as dotted numbers', () => {
+  assert.equal(userscript.compareVersions('2026.09.05', '2026.04.19'), 1);
+  assert.equal(userscript.compareVersions('2026.09.05', '2026.09.05'), 0);
+  assert.equal(userscript.compareVersions('2026.09.05.1', '2026.09.05'), 1);
+  assert.equal(userscript.compareVersions('2026.09.05', '2026.09.05.0'), 0);
+  assert.throws(() => userscript.compareVersions('2026.09.05', 'dev'), /numeric/);
+});
+
+test('the version stamp only moves forward', () => {
+  const datestamp = userscript.versionDatestamp(new Date(2026, 8, 5));
+  assert.equal(datestamp, '2026.09.05');
+
+  assert.equal(userscript.nextUserscriptVersion(null, datestamp), '2026.09.05');
+  assert.equal(userscript.nextUserscriptVersion('2026.04.19', datestamp), '2026.09.05');
+  assert.equal(userscript.nextUserscriptVersion('2026.09.05', datestamp), '2026.09.05.1');
+  assert.equal(userscript.nextUserscriptVersion('2026.09.05.1', datestamp), '2026.09.05.2');
+  // A stamp from a machine whose clock ran ahead must still be overtaken, not repeated.
+  assert.equal(userscript.nextUserscriptVersion('2026.10.01', datestamp), '2026.10.01.1');
+});
+
+test('the version line is read, replaced and required exactly once', () => {
+  const header = '// ==UserScript==\n// @version     0.0.0\n// ==/UserScript==\nvar a = 1;\n';
+
+  assert.equal(userscript.readUserscriptVersion(header), '0.0.0');
+  assert.equal(userscript.readUserscriptVersion('var a = 1;'), null);
+  assert.match(userscript.setUserscriptVersion(header, '2026.09.05'), /@version {5}2026\.09\.05\n/);
+  assert.throws(() => userscript.setUserscriptVersion('var a = 1;', '1'), /exactly once, found 0/);
+  assert.throws(
+    () => userscript.setUserscriptVersion(`${header}// @version 1.0\n`, '1'),
+    /exactly once, found 2/
+  );
+});
+
+test('a userscript is restamped only when its other bytes change', (t) => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'zoopdog-version-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const target = path.join(dir, 'probe.user.js');
+  const draft = (body) => `// @version     ${userscript.PENDING_VERSION}\n${body}\n`;
+  const day = (date) => new Date(2026, 8, date);
+
+  const first = userscript.writeVersionedUserscript(target, draft('var a = 1;'), day(5));
+  assert.deepEqual(first, {version: '2026.09.05', changed: true});
+
+  const again = userscript.writeVersionedUserscript(target, draft('var a = 1;'), day(6));
+  assert.deepEqual(again, {version: '2026.09.05', changed: false});
+  assert.match(fs.readFileSync(target, 'utf8'), /@version {5}2026\.09\.05\n/);
+
+  const edited = userscript.writeVersionedUserscript(target, draft('var a = 2;'), day(6));
+  assert.deepEqual(edited, {version: '2026.09.06', changed: true});
+  assert.match(fs.readFileSync(target, 'utf8'), /var a = 2;/);
+
+  const sameDay = userscript.writeVersionedUserscript(target, draft('var a = 3;'), day(6));
+  assert.deepEqual(sameDay, {version: '2026.09.06.1', changed: true});
 });

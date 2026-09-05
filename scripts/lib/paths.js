@@ -20,11 +20,25 @@ const relative = Object.freeze({
   openspecSpecs: 'openspec/specs'
 });
 
-function resolveIn(base, key) {
+function assertKnown(key) {
   if (!Object.hasOwn(relative, key)) {
     throw new Error(`Unknown repository path: ${key}`);
   }
+}
+
+function resolveIn(base, key) {
+  assertKnown(key);
   return path.join(base, relative[key]);
+}
+
+// Where the generated files are published. A userscript installed from this branch keeps
+// updating from this branch, so the branch is part of the userscript's update contract and is
+// declared here beside the paths rather than spelled out again in each runtime header.
+const rawBaseUrl = 'https://raw.githubusercontent.com/aristotll/zoopdog/master';
+
+function rawUrl(key) {
+  assertKnown(key);
+  return `${rawBaseUrl}/${relative[key]}`;
 }
 
 const absolute = Object.freeze(Object.fromEntries(
@@ -35,5 +49,7 @@ module.exports = {
   rootDir,
   relative,
   absolute,
-  resolveIn
+  resolveIn,
+  rawBaseUrl,
+  rawUrl
 };

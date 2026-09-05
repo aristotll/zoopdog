@@ -9,7 +9,12 @@ const {cleanText, normalizeTerm} = require('./lib/text');
 const {extractNomCandidates, isEmbeddableTerm} = require('./lib/cjk');
 const {mdxEntries, readJson} = require('./lib/sources');
 const repoPaths = require('./lib/paths');
-const {readRuntime, renderRuntime} = require('./lib/userscript');
+const {
+  readRuntime,
+  renderRuntime,
+  PENDING_VERSION,
+  writeVersionedUserscript
+} = require('./lib/userscript');
 
 const sourcePath = repoPaths.absolute.dictionary;
 const extractedMdxPath = repoPaths.absolute.mdxNom;
@@ -79,7 +84,11 @@ function mergeExtractedNomMap(nomMap, extractedPayload) {
 function buildUserscript(nomMap) {
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
-    '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length
+    '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
+    '__ZOOPDOG_UPDATE_URL__': repoPaths.rawUrl('nomUserscript'),
+    '__ZOOPDOG_DOWNLOAD_URL__': repoPaths.rawUrl('nomUserscript'),
+    // The real stamp is decided on write, by comparing this draft with the committed file.
+    '__ZOOPDOG_VERSION__': PENDING_VERSION
   });
 }
 
@@ -94,9 +103,10 @@ function main() {
   const userNomEntries = readUserNomEntries(userNomPath);
   mergeUserNomEntriesIntoNomMap(nomMap, userNomEntries);
 
-  fs.writeFileSync(targetPath, buildUserscript(nomMap), 'utf8');
+  const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap));
 
   console.log(`Wrote ${targetPath}`);
+  console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
   console.log(`Embedded ${Object.keys(nomMap).length} dictionary entries`);
   if (fs.existsSync(extractedMdxPath)) {
     console.log(`Merged extracted MDX data from ${extractedMdxPath}`);

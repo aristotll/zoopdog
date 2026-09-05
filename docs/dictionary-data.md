@@ -42,6 +42,24 @@ Edit the generator or the source JSON/JSONC, never the embedded map by hand. The
 runtime lives in `scripts/userscript/` as real source files — edit it there, not inside
 `scripts/build-*.js`, then rebuild.
 
+### Version stamps and auto-update
+
+Both headers carry `@updateURL` and `@downloadURL` pointing at the file's `master` raw URL on
+GitHub, so an installed copy updates itself once the rebuilt file is pushed. Tampermonkey only
+downloads an update when the served `@version` is greater, so the builders stamp the version
+themselves:
+
+- The stamp is the build date, `YYYY.MM.DD`; a second content change on the same date appends a
+  counter (`2026.09.05.1`).
+- The stamp moves only when the rest of the file changes. A rebuild against unchanged data
+  rewrites the same bytes, so the committed userscripts stay out of `git status`.
+- Do not edit `@version` by hand in `scripts/userscript/*.runtime.js`; the header holds the
+  `__ZOOPDOG_VERSION__` placeholder and the builder fills it in.
+
+A rebuilt userscript only reaches installed copies after it is pushed to `master`. To pull it
+immediately instead of waiting for Tampermonkey's update interval, use its dashboard:
+**Utilities → Check for userscript updates**.
+
 ## Supplemental MDX data
 
 To regenerate `zd-extension/db_src/mdx_nom.json` from an external MDX dictionary, install
