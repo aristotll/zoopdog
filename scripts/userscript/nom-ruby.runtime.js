@@ -30,6 +30,11 @@
 
   var doc = document;
   var newNodes = [];
+  var changedNodes = [];
+  // A page that streams text rewrites its own text nodes in place. The nodes this script
+  // inserted next to such a node still hold the previous text, so they are remembered here
+  // and dropped before the rewritten node is annotated again.
+  var injections = new WeakMap();
   var wordCharPattern = /[-0-9A-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\u0300-\u036f]/u;
   var whitespacePattern = /\s/u;
   var nonAsciiPattern = /[^\x00-\x7F]/;
@@ -91,10 +96,37 @@
 
   function mutationHandler(mutationList) {
     mutationList.forEach(function(mutationRecord) {
+      if (mutationRecord.type === 'characterData') {
+        changedNodes.push(mutationRecord.target);
+        return;
+      }
+
       mutationRecord.addedNodes.forEach(function(node) {
         newNodes.push(node);
       });
     });
+  }
+
+  // Splitting a text node and rewriting its tail are character data changes of this
+  // script's own making, so a node still holding the text left behind by the last pass has
+  // nothing new to annotate.
+  function refreshChangedNode(node) {
+    var injection = injections.get(node);
+
+    if (injection) {
+      if (injection.text === node.nodeValue) {
+        return;
+      }
+
+      injections.delete(node);
+      injection.nodes.forEach(function(inserted) {
+        if (inserted.parentNode) {
+          inserted.parentNode.removeChild(inserted);
+        }
+      });
+    }
+
+    newNodes.push(node);
   }
 
   function scanTextNodes(node) {
@@ -133,7 +165,22 @@
       return;
 
     case Node.TEXT_NODE:
-      while ((node = addRuby(node)));
+      annotateTextNode(node);
+    }
+  }
+
+  function annotateTextNode(textNode) {
+    var inserted = [];
+    var node = textNode;
+    var tail;
+
+    while ((tail = addRuby(node))) {
+      inserted.push(tail.previousSibling, tail);
+      node = tail;
+    }
+
+    if (inserted.length) {
+      injections.set(textNode, {nodes: inserted, text: textNode.nodeValue});
     }
   }
 
@@ -281,10 +328,17 @@
     newNodes.push(doc.body);
 
     var observer = new MutationObserver(mutationHandler);
-    observer.observe(doc.body, {childList: true, subtree: true});
+    observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
 
     function rescanTextNodes() {
       mutationHandler(observer.takeRecords());
+
+      if (changedNodes.length) {
+        var changed = changedNodes.slice();
+        changedNodes.length = 0;
+        changed.forEach(refreshChangedNode);
+      }
+
       if (!newNodes.length) {
         return;
       }
