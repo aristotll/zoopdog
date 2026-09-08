@@ -215,6 +215,19 @@ test('annotates text present when the script starts', () => {
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
 });
 
+test('injects the Nom Na Tong webfont for Chu Nom ruby text', () => {
+  const dom = runRuntime(NOM_MAP);
+  const styles = dom.document.getElementsByTagName('head')[0].childNodes
+    .filter((node) => node.tagName === 'STYLE')
+    .map((node) => node.textContent)
+    .join('\n');
+
+  assert.match(styles, /@font-face/);
+  assert.match(styles, /font-family:\s*'Zoopdog Nom Na Tong'/);
+  assert.match(styles, /NomNaTong-Regular\.ttf/);
+  assert.match(styles, /ruby\.zoopdog-nom-ruby > rt\.zoopdog-nom-rt[\s\S]*font-family:\s*'Zoopdog Nom Na Tong'/);
+});
+
 test('annotates text a page streams into an existing text node', () => {
   const dom = runRuntime(NOM_MAP);
   const paragraph = dom.document.createElement('p');

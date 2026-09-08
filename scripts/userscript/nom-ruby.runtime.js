@@ -315,9 +315,15 @@
     }
 
     addStyle([
+      '@font-face {',
+      "  font-family: 'Zoopdog Nom Na Tong';",
+      "  src: url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype');",
+      '  font-display: swap;',
+      '}',
       'ruby.zoopdog-nom-ruby { ruby-position: over; }',
       'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt {',
       '  color: #B6638F;',
+      "  font-family: 'Zoopdog Nom Na Tong', sans-serif;",
       '  font-size: 0.65em;',
       '  font-weight: 600;',
       '  line-height: 1;',
