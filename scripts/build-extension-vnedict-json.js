@@ -76,16 +76,18 @@ function mergeUserNomEntriesIntoEntries(entries, userEntries) {
   const byKey = new Map();
   for (const entry of entries) {
     const key = normalizeTerm(entry.vn);
-    if (key && !byKey.has(key)) {
-      byKey.set(key, entry);
+    if (key) {
+      const matches = byKey.get(key) || [];
+      matches.push(entry);
+      byKey.set(key, matches);
     }
   }
 
   let merged = 0;
   for (const userEntry of userEntries) {
-    const existing = byKey.get(userEntry.key);
+    const matches = byKey.get(userEntry.key);
 
-    if (!existing) {
+    if (!matches) {
       const created = {
         vn: userEntry.vi,
         en: [
@@ -94,32 +96,38 @@ function mergeUserNomEntriesIntoEntries(entries, userEntries) {
         ]
       };
       entries.push(created);
-      byKey.set(userEntry.key, created);
+      byKey.set(userEntry.key, [created]);
       merged += 1;
       continue;
     }
 
-    existing.en = existing.en || [];
-    const seen = new Set(existing.en.map((item) => definitionKey(item.def, item.pos)));
-    const unseen = (values) => values
-      .map((value) => ({def: value, pos: ''}))
-      .filter((row) => {
-        const key = definitionKey(row.def, row.pos);
-        if (seen.has(key)) {
-          return false;
-        }
-        seen.add(key);
-        return true;
-      });
+    for (const existing of matches) {
+      existing.en = existing.en || [];
+      const before = JSON.stringify(existing.en);
+      const seen = new Set(existing.en.map((item) => definitionKey(item.def, item.pos)));
+      const unseen = (values) => values
+        .map((value) => ({def: value, pos: ''}))
+        .filter((row) => {
+          const key = definitionKey(row.def, row.pos);
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
 
-    const nomRows = unseen(userEntry.nom);
-    const explainRows = unseen(userEntry.explain);
-    if (!nomRows.length && !explainRows.length) {
-      continue;
+      const nomRows = unseen(userEntry.nom);
+      const explainRows = unseen(userEntry.explain);
+      existing.en = hoistPreferredRows(
+        [...nomRows, ...existing.en, ...explainRows],
+        userEntry.nom,
+        (definition) => definition.def,
+        (value) => ({def: value, pos: ''})
+      );
+      if (JSON.stringify(existing.en) !== before) {
+        merged += 1;
+      }
     }
-
-    existing.en = [...nomRows, ...existing.en, ...explainRows];
-    merged += 1;
   }
 
   return merged;

@@ -29,8 +29,8 @@
   };
 
   var doc = document;
-  var newNodes = [];
-  var changedNodes = [];
+  var newNodes = new Set();
+  var changedNodes = new Set();
   // A page that streams text rewrites its own text nodes in place. The nodes this script
   // inserted next to such a node still hold the previous text, so they are remembered here
   // and dropped before the rewritten node is annotated again.
@@ -97,13 +97,15 @@
   function mutationHandler(mutationList) {
     mutationList.forEach(function(mutationRecord) {
       if (mutationRecord.type === 'characterData') {
-        changedNodes.push(mutationRecord.target);
+        changedNodes.add(mutationRecord.target);
         return;
       }
 
-      mutationRecord.addedNodes.forEach(function(node) {
-        newNodes.push(node);
-      });
+      // Reconcile the connected container, not only the reported additions. Mobile
+      // translation widgets can assemble their first line outside the observed subtree and
+      // attach it before streaming later lines. Scanning the child-list target lets that
+      // next mutation recover the already-present first line as well.
+      newNodes.add(mutationRecord.target);
     });
   }
 
@@ -126,11 +128,11 @@
       });
     }
 
-    newNodes.push(node);
+    newNodes.add(node);
   }
 
   function scanTextNodes(node) {
-    if (!node || !node.parentNode || !doc.body.contains(node)) {
+    if (!node || (node !== doc.body && !node.parentNode) || !doc.body.contains(node)) {
       return;
     }
 
@@ -331,7 +333,7 @@
       '}'
     ].join('\n'));
 
-    newNodes.push(doc.body);
+    newNodes.add(doc.body);
 
     var observer = new MutationObserver(mutationHandler);
     observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
@@ -339,18 +341,18 @@
     function rescanTextNodes() {
       mutationHandler(observer.takeRecords());
 
-      if (changedNodes.length) {
-        var changed = changedNodes.slice();
-        changedNodes.length = 0;
+      if (changedNodes.size) {
+        var changed = Array.from(changedNodes);
+        changedNodes.clear();
         changed.forEach(refreshChangedNode);
       }
 
-      if (!newNodes.length) {
+      if (!newNodes.size) {
         return;
       }
 
-      var nodes = newNodes.slice();
-      newNodes.length = 0;
+      var nodes = Array.from(newNodes);
+      newNodes.clear();
       nodes.forEach(scanTextNodes);
     }
 

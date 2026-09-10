@@ -1,17 +1,15 @@
 // Per-term Chu Nom display order.
 //
-// Every other dictionary layer only ever *extends* a term's candidate list, so whichever
-// rendering vnedict2.json happened to list first is the one shown as ruby. Rows here move
-// the listed variants to the front of that term's merged list, in the order given;
-// everything else keeps its relative order behind them. A variant the dictionaries never
-// listed is inserted at the front rather than ignored, so a row can pin as well as reorder.
+// The base and supplemental dictionary layers extend a term's candidate list, while local
+// entries lead those lower-priority candidates. Rows here run last and move the listed
+// variants to the very front, in the order given; everything else keeps its relative order
+// behind them. A variant the dictionaries never listed is inserted rather than ignored, so
+// a row can pin as well as reorder.
 //
-// Rows are moved whole. A dictionary row can hold several renderings as one grouped cell
-// ("巴|芭|𠀧|爸"); a row here matches such a group and hoists the row, but never
-// reorders the group's interior, so a reader showing only the first rendering still shows
-// 巴. That is intended: this layer orders dictionary rows, it does not rewrite their text.
-// To lead with a rendering trapped mid-group, add it as its own row in
-// `user_nom_entries.jsonc` -- a variant no row carries is pinned to the front here.
+// A dictionary row can hold several renderings as one grouped cell ("巴|芭|𠀧|爸"). The
+// build preserves that source row unchanged, but emits a separate exact row in front when a
+// preferred rendering is otherwise trapped inside the group. Thus every consumer displays
+// the local preference first without rewriting the grouped dictionary fact.
 //
 // `vi` is the key (normalized the same way every term in this repository is) and rows are
 // upserts: one row per term. Usually authored from the book-translator reader's
@@ -49,5 +47,14 @@
   {"vi": "vạn", "nom": ["萬"]},
   {"vi": "đài", "nom": ["臺"]},
   {"vi": "tự", "nom": ["自"]},
-  {"vi": "thương", "nom": ["傷"]}
+  {"vi": "thương", "nom": ["傷"]},
+  {"vi": "quyền", "nom": ["権"]},
+  {"vi": "câu", "nom": ["句"]},
+  {"vi": "cả", "nom": ["哿"]},
+  {"vi": "thư", "nom": ["书"]},
+  {"vi": "quỳ", "nom": ["跪"]},
+  {"vi": "Bí", "nom": ["秘"]},
+  {"vi": "Mau", "nom": ["𨖧"]},
+  {"vi": "tàu", "nom": ["艚"]},
+  {"vi": "bức", "nom": ["幅"]}
 ]

@@ -2,17 +2,11 @@
 
 // The per-term Chu Nom *display order* layer: `zd-extension/db_src/user_nom_order.jsonc`.
 //
-// Every other dictionary layer in this repository merges as a union that only ever
-// *extends* a term's candidate list (`mergeUserNomEntriesIntoNomMap`,
-// `mergeExtractedNomMap`), so whichever rendering the base dictionary happened to list
-// first stays the one displayed -- NOM_MAP's consumers all take candidate 0. That is the
-// right rule for adding knowledge and the wrong one for correcting a preference: "ba"
-// leads with 巴 (a phonetic borrowing) where 𠀧 (the ordinary Nom numeral) is wanted, and
-// no amount of adding entries can move it.
+// Base and supplemental dictionary layers merge as a union. Hand-maintained entries lead
+// those lower-priority candidates, while this separate file is the final explicit override
+// for correcting display order -- NOM_MAP's consumers all take candidate 0.
 //
-// So this is a separate, final layer with hoist semantics rather than a flag on
-// `user_nom_entries.jsonc`, whose extend-never-replace rule is deliberate and relied on:
-// the variants a row lists are moved to the front of that term's merged list, in the order
+// The variants a row lists are moved to the front of that term's merged list, in the order
 // given, and everything else keeps its relative order behind them. A listed variant the
 // dictionaries never produced is inserted at the front rather than silently ignored, so a
 // row can pin as well as reorder and is never a no-op the author has no way to notice.
@@ -85,19 +79,10 @@ function buildNomOrderIndex(entries) {
 // The one hoist rule, shared by every consumer. Stable: rows the preference list says
 // nothing about keep the order they arrived in.
 //
-// Hoisting is row-granular, and that is deliberate. A row can carry several renderings as
-// one grouped cell -- vnedict2.json writes "巴|芭|𠀧|爸" -- and `extractNomCandidates` splits
-// the group, so such a row *is* matched and ranked by its best member. What it cannot do is
-// reorder members inside the group: the whole row moves, the cell's text is left exactly as
-// the dictionary wrote it. So `{"vi": "ba", "nom": ["𠀧"]}` hoists that row to the front, and
-// a consumer taking the head of the group still shows 巴.
-//
-// This is the intended behaviour, not a gap to route around. The grouped cell is one
-// dictionary fact, and rewriting its interior would make this layer edit the dictionary's
-// own text rather than order it -- the one thing that keeps the layer safe to re-apply on
-// every build. A term that genuinely needs a different leading rendering gets that rendering
-// as its own row, which is `user_nom_entries.jsonc`'s job; the pin half of the rule then
-// puts that new row in front of the group.
+// A grouped dictionary cell can still be ranked by one of its members. `hoistPreferredRows`
+// additionally synthesizes an exact row in front of such a group, because popup/extension
+// consumers display the start of the row and therefore cannot express a local override that
+// is trapped in the middle of "巴|芭|𠀧|爸". The grouped source row itself stays untouched.
 function orderPreferredFirst(rows, preferred, getText) {
   if (!preferred || !preferred.length) {
     return rows.slice();
@@ -105,11 +90,19 @@ function orderPreferredFirst(rows, preferred, getText) {
 
   const rank = new Map(preferred.map((value, position) => [value, position]));
   const scored = rows.map((row, arrival) => {
+    const text = cleanText(getText(row));
+    const exact = rank.get(text);
     let best = Number.POSITIVE_INFINITY;
-    for (const candidate of extractNomCandidates(getText(row))) {
-      const position = rank.get(candidate);
-      if (position !== undefined && position < best) {
-        best = position;
+    if (exact !== undefined) {
+      best = exact;
+    } else {
+      for (const candidate of extractNomCandidates(text)) {
+        const position = rank.get(candidate);
+        if (position !== undefined && preferred.length + position < best) {
+          // Every exact preference outranks every grouped/contained match. This ensures an
+          // existing exact row cannot remain behind a group that happens to contain it.
+          best = preferred.length + position;
+        }
       }
     }
     return {row, arrival, best};
@@ -128,7 +121,9 @@ function hoistPreferredRows(rows, preferred, getText, makeRow) {
     return rows.slice();
   }
 
-  const present = new Set(rows.flatMap((row) => extractNomCandidates(getText(row))));
+  // Only an exact row satisfies a preference. A candidate merely contained in a grouped
+  // row needs its own leading row so every surface displays the requested value first.
+  const present = new Set(rows.map((row) => cleanText(getText(row))));
   const missing = preferred.filter((value) => !present.has(value)).map(makeRow);
   return orderPreferredFirst([...missing, ...rows], preferred, getText);
 }

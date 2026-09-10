@@ -111,7 +111,9 @@ function mergeUserNomEntriesIntoNomMap(nomMap, userEntries) {
       .map(cleanText)
       .filter(Boolean);
 
-    nomMap[entry.key] = Array.from(new Set([...existing, ...entry.nom])).join(' / ');
+    // Hand-maintained values are an override layer: retain lower-priority candidates for
+    // reference, but make the local order the order every candidate-0 consumer displays.
+    nomMap[entry.key] = Array.from(new Set([...entry.nom, ...existing])).join(' / ');
   }
 }
 

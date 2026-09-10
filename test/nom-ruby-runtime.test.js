@@ -140,6 +140,10 @@ function createDom() {
     observe: (root) => {
       observedRoot = root;
     },
+    appendSilently: (parent, node) => {
+      parent.childNodes.push(node);
+      node.parentNode = parent;
+    },
     takeRecords: () => records.splice(0, records.length)
   };
 }
@@ -242,6 +246,28 @@ test('annotates text a page streams into an existing text node', () => {
 
   assert.equal(visibleText(paragraph), 'của bạn tình cảm');
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴', '情感']);
+});
+
+test('a later async line makes the runtime recover a missed first line in its container', () => {
+  const dom = runRuntime(NOM_MAP);
+  const translation = dom.document.createElement('div');
+  dom.body.appendChild(translation);
+  dom.tick();
+
+  // Mobile translation widgets can assemble the first line outside the observed subtree,
+  // then attach it before streaming later lines normally. The next child-list mutation is
+  // the runtime's opportunity to reconcile the whole container.
+  const firstLine = dom.document.createElement('p');
+  firstLine.appendChild(dom.document.createTextNode('tình cảm của bạn'));
+  dom.appendSilently(translation, firstLine);
+
+  const secondLine = dom.document.createElement('p');
+  secondLine.appendChild(dom.document.createTextNode('của bạn'));
+  translation.appendChild(secondLine);
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(firstLine), ['情感', '𧵑', '伴']);
+  assert.deepEqual(rubyAnnotations(secondLine), ['𧵑', '伴']);
 });
 
 test('a rewritten text node leaves no annotated copy of the old text behind', () => {

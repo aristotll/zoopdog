@@ -19,16 +19,15 @@ make rebuild-extension-vnedict-json
 ```
 
 The target folds in the hand-maintained `zd-extension/db_src/user_nom_entries.jsonc` the same
-way both userscript builders do -- renderings lead a term's definitions, explanations follow
-its glosses -- and then applies `user_nom_order.jsonc`. Without that fold an entry added by
+way both userscript builders do -- its renderings lead lower-priority candidates while its
+explanations follow the existing glosses -- and then applies `user_nom_order.jsonc` as the
+final override. Without that fold an entry added by
 `/add-chu-nom` reaches the two userscripts and stays invisible in the extension, which reads
 only this generated file.
 
-Hoisting from `user_nom_order.jsonc` moves whole rows. A dictionary row can carry several
-renderings as one grouped cell (`巴|芭|𠀧|爸`); such a row is matched and hoisted, but the
-group's interior is never rewritten, so a surface showing only the first rendering still shows
-`巴`. To lead with a rendering trapped mid-group, give it its own row in
-`user_nom_entries.jsonc`.
+Hoisting from `user_nom_order.jsonc` preserves whole source rows. When a preferred rendering
+exists only inside a grouped cell (`巴|芭|𠀧|爸`), the build emits a separate exact row ahead of
+that untouched group. This guarantees that every surface shows the local preference first.
 
 The target writes compact `zd-extension/js/vnedict.json` and
 `zd-extension/js/vnedict.meta.json`. The sidecar records the exact JSON byte hash and entry

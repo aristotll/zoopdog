@@ -135,6 +135,9 @@ function main() {
     toDictionaryEntries(userNomEntries)
   );
   const {dictionary, maxWords} = buildDictionary(entries);
+  // Local entries are an implicit preference layer even when a rendering was already
+  // present in the base dictionary. The explicit order file runs last and can override it.
+  applyUserNomOrderToDictionary(dictionary, userNomEntries);
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToDictionary(dictionary, userNomOrder);
   const runtimeSources = readRuntimeSources();

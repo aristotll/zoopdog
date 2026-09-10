@@ -121,6 +121,33 @@ test('the extension build never duplicates a rendering the dictionary already ca
   assert.deepEqual(entries[0].en.map((item) => item.def), ['𠀧', 'three']);
 });
 
+test('the extension build hoists a hand-maintained rendering already present later', () => {
+  const entries = [{
+    vn: 'câu',
+    en: [{def: '勾', pos: ''}, {def: '句', pos: ''}, {def: 'sentence', pos: ''}]
+  }];
+
+  const merged = mergeUserNomEntriesIntoEntries(entries, [
+    {vi: 'câu', key: 'câu', nom: ['句'], explain: []}
+  ]);
+
+  assert.equal(merged, 1);
+  assert.deepEqual(entries[0].en.map((item) => item.def), ['句', '勾', 'sentence']);
+});
+
+test('the extension build applies a hand-maintained override to every duplicate headword row', () => {
+  const entries = [
+    {vn: 'hoa', en: [{def: '花|華', pos: ''}, {def: 'flower', pos: ''}]},
+    {vn: 'Hoa', en: [{def: '化', pos: ''}, {def: 'to transform', pos: ''}]}
+  ];
+
+  mergeUserNomEntriesIntoEntries(entries, [
+    {vi: 'hoa', key: 'hoa', nom: ['華'], explain: []}
+  ]);
+
+  assert.deepEqual(entries.map((entry) => entry.en[0].def), ['華', '華']);
+});
+
 test('the repository runtime dictionary carries the hand-maintained entries', () => {
   const repoPaths = require('../scripts/lib/paths');
   const {readUserNomEntries} = require('../scripts/user-nom-entries');

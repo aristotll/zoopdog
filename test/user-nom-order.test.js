@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const order = require('../scripts/user-nom-order');
+const {mergeUserNomEntriesIntoNomMap} = require('../scripts/user-nom-entries');
 
 function withTempFile(contents, run) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-nom-order-'));
@@ -76,6 +77,16 @@ test('a term with no dictionary entry at all is created from the order file', ()
   assert.equal(nomMap.ba, '𠀧');
 });
 
+test('a hand-maintained entry leads candidates already supplied by lower-priority sources', () => {
+  const nomMap = {ba: '巴 / 𠀧 / 芭'};
+
+  mergeUserNomEntriesIntoNomMap(nomMap, [
+    {vi: 'ba', key: 'ba', nom: ['𠀧'], explain: []}
+  ]);
+
+  assert.equal(nomMap.ba, '𠀧 / 巴 / 芭');
+});
+
 test('orderPreferredFirst is a stable hoist over definition-shaped rows', () => {
   const rows = [
     ['巴', ''],
@@ -116,9 +127,7 @@ test('the popupdict build hoists a preferred rendering within a term CJK definit
   assert.deepEqual(dictionary.ba[0][1], [['𠀧', ''], ['巴', ''], ['three', '']]);
 });
 
-// Documents the row-granular half of the hoist rule: a grouped cell is matched and moved
-// whole, never rewritten, so the head of the group is still what a reader displays.
-test('hoisting matches a grouped cell but never reorders inside it', () => {
+test('hoisting synthesizes an exact leading row when a preference is trapped in a group', () => {
   const rows = [
     {def: 'ba', pos: ''},
     {def: '巴|芭|𠀧|爸', pos: ''},
@@ -132,9 +141,24 @@ test('hoisting matches a grouped cell but never reorders inside it', () => {
     (value) => ({def: value, pos: ''})
   );
 
-  // The group ranked on its 𠀧 member, so its row leads -- with its text untouched, and
-  // with no synthesized '𠀧' row, because the preference was already present.
-  assert.deepEqual(hoisted.map((row) => row.def), ['巴|芭|𠀧|爸', 'ba', 'three']);
+  assert.deepEqual(hoisted.map((row) => row.def), ['𠀧', '巴|芭|𠀧|爸', 'ba', 'three']);
+});
+
+test('an existing exact row outranks an earlier grouped row containing the same preference', () => {
+  const rows = [
+    {def: '勾|句|拘|俱', pos: ''},
+    {def: '句', pos: ''},
+    {def: 'sentence', pos: ''}
+  ];
+
+  const hoisted = order.hoistPreferredRows(
+    rows,
+    ['句'],
+    (row) => row.def,
+    (value) => ({def: value, pos: ''})
+  );
+
+  assert.deepEqual(hoisted.map((row) => row.def), ['句', '勾|句|拘|俱', 'sentence']);
 });
 
 test('the popupdict build leaves a term it has no entry for alone', () => {
@@ -171,6 +195,20 @@ test('the extension build pins a preferred rendering the dictionary never listed
 
   assert.deepEqual(entries[0].en, [{def: '𠀧', pos: ''}, {def: '巴', pos: ''}]);
   extension.validateEntry(entries[0], 0);
+});
+
+test('the popup and extension put an exact preferred rendering ahead of a grouped cell', () => {
+  const popupdict = require('../scripts/build-popupdict-userscript');
+  const extension = require('../scripts/build-extension-vnedict-json');
+  const preference = [{vi: 'câu', key: 'câu', nom: ['句']}];
+  const popup = {câu: [['câu', [['勾|句|拘|俱', ''], ['sentence', '']]]]};
+  const entries = [{vn: 'câu', en: [{def: '勾|句|拘|俱', pos: ''}, {def: 'sentence', pos: ''}]}];
+
+  popupdict.applyUserNomOrderToDictionary(popup, preference);
+  extension.applyUserNomOrderToEntries(entries, preference);
+
+  assert.equal(popup.câu[0][1][0][0], '句');
+  assert.equal(entries[0].en[0].def, '句');
 });
 
 test('the nom userscript build applies the order file last', () => {
