@@ -453,6 +453,109 @@ __ZOOPDOG_RUNTIME_SOURCES__
     ].join('');
   }
 
+  // -- selection toolbar --
+  //
+  // The hover popup above only ever appears over text the dictionary
+  // already recognizes (`lookupContext` requires a match), so there was no
+  // way to seed "Add Chữ Nôm entry" with an arbitrary multi-word phrase --
+  // the "Vietnamese term" field was editable, but nothing let a reader pick
+  // several words off the page to start from. This listens for the
+  // browser's own text selection (drag on desktop, long-press-drag on
+  // mobile) and floats the same two actions beside it, seeded with
+  // whatever was selected -- one, several, or a whole sentence's worth of
+  // words -- independent of whether the dictionary has ever heard of it.
+
+  var ZOO_SELECTION_MAX_CHARS = 120;
+  var zooSelectionBar = null;
+
+  function zooEnsureSelectionBar() {
+    if (zooSelectionBar) return zooSelectionBar;
+    var bar = document.createElement('div');
+    bar.id = 'zoopdog-userscript-selection-bar';
+    bar.className = 'zd-selection-bar';
+    bar.hidden = true;
+    bar.addEventListener('mousedown', function(event) { event.stopPropagation(); });
+    document.body.appendChild(bar);
+    zooSelectionBar = bar;
+    return bar;
+  }
+
+  function zooHideSelectionBar() {
+    if (zooSelectionBar) zooSelectionBar.hidden = true;
+  }
+
+  function zooShowSelectionBar(rect, text) {
+    var bar = zooEnsureSelectionBar();
+    bar.innerHTML = [
+      '<button type="button" class="zd-local-btn" data-zd-action="add-nom">+ Add Chữ Nôm</button>',
+      '<button type="button" class="zd-local-btn" data-zd-action="set-order">Set order</button>'
+    ].join('');
+    Array.prototype.forEach.call(bar.querySelectorAll('[data-zd-action]'), function(button) {
+      button.addEventListener('click', function(event) {
+        event.preventDefault();
+        var action = button.getAttribute('data-zd-action');
+        zooHideSelectionBar();
+        if (action === 'add-nom') {
+          zooOpenNomModal(text);
+        } else {
+          zooOpenNomOrderModal(text);
+        }
+      });
+    });
+    bar.hidden = false;
+    bar.style.left = Math.max(8, rect.left) + 'px';
+    bar.style.top = Math.max(8, rect.top - 44) + 'px';
+    var barRect = bar.getBoundingClientRect();
+    if (barRect.right > window.innerWidth) {
+      bar.style.left = Math.max(8, window.innerWidth - barRect.width - 8) + 'px';
+    }
+    if (rect.top - 44 < 0) {
+      bar.style.top = (rect.bottom + 8) + 'px';
+    }
+  }
+
+  function zooHandleSelectionChange() {
+    if (!ZOO_LOCAL_AVAILABLE) return;
+    var selection = window.getSelection ? window.getSelection() : null;
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      zooHideSelectionBar();
+      return;
+    }
+    var anchorNode = selection.anchorNode;
+    if (anchorNode && anchorNode.nodeType !== Node.ELEMENT_NODE) anchorNode = anchorNode.parentElement;
+    if (isExcludedTarget(anchorNode)) {
+      zooHideSelectionBar();
+      return;
+    }
+    var text = zooTrimSelectionPunctuation(selection.toString());
+    if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
+      zooHideSelectionBar();
+      return;
+    }
+    var range = selection.getRangeAt(0);
+    var rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) {
+      zooHideSelectionBar();
+      return;
+    }
+    zooShowSelectionBar(rect, text);
+  }
+
+  function zooWireSelectionBar() {
+    var debounced = zooDebounce(zooHandleSelectionChange, 180);
+    document.addEventListener('selectionchange', debounced);
+    window.addEventListener('scroll', zooHideSelectionBar, true);
+    window.addEventListener('resize', zooHideSelectionBar);
+    document.addEventListener('mousedown', function(event) {
+      if (!zooSelectionBar || zooSelectionBar.hidden) return;
+      if (event.target && event.target.closest && event.target.closest('#zoopdog-userscript-selection-bar')) return;
+      zooHideSelectionBar();
+    }, true);
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') zooHideSelectionBar();
+    });
+  }
+
   function zooWireNomForm() {
     var ids = ZOO_MODAL_IDS.nom;
     var guard = zooCreateRaceGuard();
@@ -506,21 +609,24 @@ __ZOOPDOG_RUNTIME_SOURCES__
         resetPreview();
         return;
       }
+      // `nom` (a local dictionary lookup) and the entry-exists check are both
+      // cheap; `nom-notes` is a *live* machine-translation call that can run
+      // through several providers' worth of retries server-side (see
+      // routes_suggest.py's `_notes_translation`) -- seconds, not
+      // milliseconds. Bundling all three into one Promise.all used to hold
+      // the fast nom candidates hostage to that slow call, so the modal sat
+      // empty the whole time. Fetched separately here: the term/entry fields
+      // fill in immediately, and notes fills in whenever it lands.
       Promise.all([
         zooFetchSuggestions('nom', vi),
-        zooFetchSuggestions('nom-notes', vi),
         zooGetJSON('/v1/nom/entry', { vi: vi }).then(null, function() { return { exists: false }; })
       ]).then(function(results) {
         if (!isCurrent()) return;
         var candidates = results[0];
-        var notesCandidates = results[1];
-        var existing = results[2];
+        var existing = results[1];
         zooFillDatalist(ids.suggestions, candidates);
         if (!nomEdits.edited) {
           zooSetAutofillDefault(nomInput, candidates.length ? candidates[0] : '');
-        }
-        if (!explainEdits.edited && notesCandidates.length) {
-          explainInput.value = notesCandidates[0];
         }
         if (existing.exists) {
           stateFlags.isUpdate = true;
@@ -530,6 +636,12 @@ __ZOOPDOG_RUNTIME_SOURCES__
           document.getElementById(ids.existingInfo).hidden = false;
         }
         resetPreview();
+      });
+      zooFetchSuggestions('nom-notes', vi).then(function(notesCandidates) {
+        if (!isCurrent()) return;
+        if (!explainEdits.edited && notesCandidates.length) {
+          explainInput.value = notesCandidates[0];
+        }
       });
     }
 
@@ -940,7 +1052,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     return !!target.closest(
-      '#zoopdog-userscript-popup, #zoopdog-userscript-canvas, #zoopdog-userscript-modals, input, textarea, select, option, button, script, style, [contenteditable="true"]'
+      '#zoopdog-userscript-popup, #zoopdog-userscript-canvas, #zoopdog-userscript-modals, #zoopdog-userscript-selection-bar, input, textarea, select, option, button, script, style, [contenteditable="true"]'
     );
   }
 
@@ -1237,6 +1349,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
 
     addStyle("__ZOOPDOG_CSS__");
     zooProbeLocalMode();
+    zooWireSelectionBar();
 
     var highlighter = new Highlighter();
     var popup = new ResultPopup();
