@@ -610,13 +610,17 @@ __ZOOPDOG_RUNTIME_SOURCES__
         return;
       }
       // `nom` (a local dictionary lookup) and the entry-exists check are both
-      // cheap; `nom-notes` is a *live* machine-translation call that can run
-      // through several providers' worth of retries server-side (see
-      // routes_suggest.py's `_notes_translation`) -- seconds, not
-      // milliseconds. Bundling all three into one Promise.all used to hold
-      // the fast nom candidates hostage to that slow call, so the modal sat
-      // empty the whole time. Fetched separately here: the term/entry fields
-      // fill in immediately, and notes fills in whenever it lands.
+      // cheap and answered from data the server already has loaded, so they
+      // are fetched together and fill the form in immediately below.
+      // `nom-notes`, by contrast, is a *live* machine-translation call out to
+      // a third-party API (routes_suggest.py's `_notes_translation`, now
+      // edge-first -- see `NOTES_DRAFT_PROVIDERS` -- since edge answered
+      // fastest in practice), so it is kicked off in parallel rather than
+      // awaited: the term/nom fields never wait on it, and the Notes field
+      // fills in on its own whenever the translation lands. Still
+      // auto-fetched (not only on the \u21BB click) -- with the fast fields no
+      // longer held hostage to it, there is no reason to make the reader ask
+      // for a draft note by hand every time.
       Promise.all([
         zooFetchSuggestions('nom', vi),
         zooGetJSON('/v1/nom/entry', { vi: vi }).then(null, function() { return { exists: false }; })
