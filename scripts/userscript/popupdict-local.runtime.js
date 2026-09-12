@@ -26,11 +26,20 @@
 
   var ZOO_LOCAL_BASE = 'http://127.0.0.1:8770';
   var ZOO_LOCAL_AVAILABLE = false;
+  var ZOO_LOCAL_REQUEST_TIMEOUT = 8000;
 
   function zooHttpRequest(method, path, params) {
     return new Promise(function(resolve, reject) {
+      var settled = false;
+      var watchdog = null;
+      function settle(callback, value) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        callback(value);
+      }
       if (typeof GM_xmlhttpRequest !== 'function') {
-        reject(new Error('GM_xmlhttpRequest unavailable'));
+        settle(reject, new Error('GM_xmlhttpRequest unavailable'));
         return;
       }
       var pairs = [];
@@ -43,10 +52,14 @@
       }
       var query = pairs.join('&');
       var url = ZOO_LOCAL_BASE + path + (query ? (path.indexOf('?') === -1 ? '?' : '&') + query : '');
+      watchdog = setTimeout(function() {
+        settle(reject, new Error('request timed out'));
+      }, ZOO_LOCAL_REQUEST_TIMEOUT + 25);
+      try {
       GM_xmlhttpRequest({
         method: method,
         url: url,
-        timeout: 8000,
+        timeout: ZOO_LOCAL_REQUEST_TIMEOUT,
         onload: function(response) {
           var payload = {};
           try {
@@ -55,14 +68,17 @@
             payload = {};
           }
           if (response.status >= 200 && response.status < 300) {
-            resolve(payload);
+            settle(resolve, payload);
           } else {
-            reject(new Error(payload.error || ('request failed (' + response.status + ')')));
+            settle(reject, new Error(payload.error || ('request failed (' + response.status + ')')));
           }
         },
-        onerror: function() { reject(new Error('request failed')); },
-        ontimeout: function() { reject(new Error('request timed out')); }
+        onerror: function() { settle(reject, new Error('request failed')); },
+        ontimeout: function() { settle(reject, new Error('request timed out')); }
       });
+      } catch (error) {
+        settle(reject, error);
+      }
     });
   }
 
@@ -108,7 +124,7 @@
     if (!text) return Promise.resolve([]);
     return zooGetJSON('/v1/suggest', { kind: kind, text: text }).then(function(data) {
       return data.candidates || [];
-    }).catch(function() { return []; });
+    });
   }
 
   function zooFetchNotesRefresh(kind, text, engineIndex) {
@@ -117,7 +133,7 @@
     if (typeof engineIndex === 'number' && isFinite(engineIndex)) params.engine = String(engineIndex);
     return zooGetJSON('/v1/suggest', params).then(function(data) {
       return { candidates: data.candidates || [], engine: data.engine || '' };
-    }).catch(function() { return { candidates: [], engine: '' }; });
+    });
   }
 
   function zooNotesEngineMessage(engine, ok) {
@@ -157,6 +173,17 @@
   function zooSetAutofillDefault(input, value) {
     input.value = value;
     input.dataset.autofillDefault = value;
+  }
+
+  function zooClearNomGeneratedState(ids) {
+    zooFillDatalist(ids.suggestions, []);
+    var nomInput = document.getElementById(ids.nom);
+    nomInput.value = '';
+    delete nomInput.dataset.autofillDefault;
+  }
+
+  function zooLocalRequestRecoveryMessage() {
+    return 'Unable to contact the local reader server. Reload the page and try again.';
   }
 
   function zooWireDatalistAutoClear(input, isEdited) {
@@ -766,7 +793,9 @@
         } else {
           zooSetModalStatus(ids.status, zooNotesEngineMessage(result.engine, false), true);
         }
-      }).then(null, function() {}).then(function() {
+      }, function() {
+        zooSetModalStatus(ids.status, zooLocalRequestRecoveryMessage(), true);
+      }).then(function() {
         button.disabled = false;
       });
     });
@@ -812,12 +841,19 @@
           document.getElementById(ids.existingInfo).hidden = false;
         }
         resetPreview();
+      }, function() {
+        if (!isCurrent()) return;
+        zooClearNomGeneratedState(ids);
+        zooSetModalStatus(ids.status, zooLocalRequestRecoveryMessage(), true);
       });
       zooFetchSuggestions('nom-notes', vi).then(function(notesCandidates) {
         if (!isCurrent()) return;
         if (!explainEdits.edited && notesCandidates.length) {
           explainInput.value = notesCandidates[0];
         }
+      }, function() {
+        if (!isCurrent()) return;
+        zooSetModalStatus(ids.status, zooLocalRequestRecoveryMessage(), true);
       });
     }
 
@@ -828,6 +864,7 @@
       nomEdits.reset();
       explainEdits.reset();
       stateFlags.isUpdate = false;
+      zooClearNomGeneratedState(ids);
       refreshDebounced(document.getElementById(ids.vi).value.trim());
     });
 
@@ -907,8 +944,7 @@
     var term = zooTrimSelectionPunctuation(vi);
     zooNomFormState.reset();
     document.getElementById(ids.vi).value = term;
-    document.getElementById(ids.nom).value = '';
-    delete document.getElementById(ids.nom).dataset.autofillDefault;
+    zooClearNomGeneratedState(ids);
     document.getElementById(ids.explain).value = '';
     document.getElementById(ids.title).textContent = 'Add Ch\u1EEF N\u00F4m entry';
     document.getElementById(ids.existingInfo).hidden = true;

@@ -39,6 +39,22 @@ so it shares scope with the core runtime. The core file calls into it through th
 are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
 `zd-entry-diff-*`, `zd-selection-bar`, `zd-toast`).
 
+## Request recovery on third-party pages
+
+Every local reader-server request has an eight-second client-owned deadline in addition to the
+userscript manager's `GM_xmlhttpRequest` timeout. This matters when a manager invalidates its
+execution context after sending a request: the reader server may answer, but none of the
+manager callbacks reach the popup. The local UI then settles the request itself, restores any
+disabled controls, and tells the user to reload the page and try again.
+
+The Nôm entry modal also clears its prior datalist choices, generated Nôm value, and autofill
+marker immediately when it opens for a different term or its Vietnamese term is edited. A
+slower response for the earlier term is ignored, so suggestions never drift across terms.
+
+There is deliberately no automatic retry. A retry from the same invalidated userscript context
+can send duplicate server work without producing a usable callback, and it cannot safely reload
+or discard a user's unsaved edits. Reloading creates a fresh context under the user's control.
+
 ## Two builds
 
 `scripts/build-nom-userscript.js` and `scripts/build-popupdict-userscript.js` each write two
