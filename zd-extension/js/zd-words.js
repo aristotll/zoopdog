@@ -10,7 +10,10 @@
 
 // Deliberately not global (`/g`): these are used with .test() on single characters, and a
 // global regex carries lastIndex between calls, which makes every other test fail.
-const ZD_WORD_CHAR_RE = /[-ÐA-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụúủứừửữựỳýỵỷỹ]/u;
+// The U+0300-U+036F range covers decomposed input: when a page writes "vùng" as
+// "v" + "u" + U+0300 + "ng", a combining mark that is not a word char ends the walk in
+// getWordAndContext mid-syllable and the lookup sees "vu".
+const ZD_WORD_CHAR_RE = /[-ÐA-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụúủứừửữựỳýỵỷỹ\u0300-\u036f]/u;
 
 function zdIsWordChar(ch) {
   return !!ch && ZD_WORD_CHAR_RE.test(ch);
@@ -84,9 +87,12 @@ function getWordAndContext(mouse) {
   }
   const contextEnd = i;
 
+  // Dictionary keys are precomposed, so decomposed page text has to be folded before any
+  // consumer looks it up. `begin` stays an offset into the untouched node data, which is what
+  // the highlighter measures against.
   return {
-    word: data.substring(begin, end).trim(),
-    context: data.substring(begin, contextEnd).trim(),
+    word: data.substring(begin, end).trim().normalize('NFC'),
+    context: data.substring(begin, contextEnd).trim().normalize('NFC'),
     node: textNode,
     begin: begin
   };

@@ -232,6 +232,26 @@ test('injects the Nom Na Tong webfont for Chu Nom ruby text', () => {
   assert.match(styles, /ruby\.zoopdog-nom-ruby > rt\.zoopdog-nom-rt[\s\S]*font-family:\s*'Zoopdog Nom Na Tong'/);
 });
 
+test('folds decomposed text before matching', () => {
+  // Some pages and browser extensions write "của" as "c" + "u" + U+0309 + "a". The trie is
+  // keyed on precomposed strings, so without folding the walk dies on the combining mark and
+  // the reader silently gets no ruby at all. Built through NFD rather than written out, so
+  // that an editor touching this file cannot recompose the fixture and void the test.
+  const precomposed = 'của bạn';
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  const decomposed = precomposed.normalize('NFD');
+  paragraph.appendChild(dom.document.createTextNode(decomposed));
+  dom.body.appendChild(paragraph);
+
+  assert.notEqual(decomposed, precomposed, 'the fixture really is decomposed');
+
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(paragraph), [NOM_MAP['của'], NOM_MAP['bạn']]);
+  assert.equal(visibleText(paragraph), precomposed, 'the text is left precomposed in the DOM');
+});
+
 test('annotates text a page streams into an existing text node', () => {
   const dom = runRuntime(NOM_MAP);
   const paragraph = dom.document.createElement('p');

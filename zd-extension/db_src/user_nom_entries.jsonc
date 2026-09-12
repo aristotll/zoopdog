@@ -6111,5 +6111,689 @@
     "explain": [
       "Before"
     ]
+  },
+  {
+    "vi": "ngày hôm nay",
+    "nom": [
+      "𣈜𣋚𫢩"
+    ],
+    "explain": [
+      "Today"
+    ]
+  },
+  {
+    "vi": "nghĩ sao",
+    "nom": [
+      "擬哰"
+    ],
+    "explain": [
+      "What do you think"
+    ]
+  },
+  {
+    "vi": "giá thấp",
+    "nom": [
+      "價隰"
+    ],
+    "explain": [
+      "Low price"
+    ]
+  },
+  {
+    "vi": "kiếm được tiền",
+    "nom": [
+      "劍得錢"
+    ],
+    "explain": [
+      "Earn money"
+    ]
+  },
+  {
+    "vi": "kiếm được",
+    "nom": [
+      "劍得"
+    ],
+    "explain": [
+      "Earned"
+    ]
+  },
+  {
+    "vi": "nhất thế giới",
+    "nom": [
+      "一世界"
+    ],
+    "explain": [
+      "the best in the world"
+    ]
+  },
+  {
+    "vi": "tin tốt",
+    "nom": [
+      "信卒"
+    ],
+    "explain": [
+      "The good news"
+    ]
+  },
+  {
+    "vi": "học được",
+    "nom": [
+      "學得"
+    ],
+    "explain": [
+      "learned"
+    ]
+  },
+  {
+    "vi": "tiêu dùng",
+    "nom": [
+      "消用"
+    ],
+    "explain": [
+      "Consumption"
+    ]
+  },
+  {
+    "vi": "phòng ngừa",
+    "nom": [
+      "防禦"
+    ],
+    "explain": [
+      "Prevention"
+    ]
+  },
+  {
+    "vi": "hai tuần",
+    "nom": [
+      "𠄩旬"
+    ],
+    "explain": [
+      "two weeks"
+    ]
+  },
+  {
+    "vi": "tháng tới",
+    "nom": [
+      "𣎃𬧐"
+    ],
+    "explain": [
+      "Next month"
+    ]
+  },
+  {
+    "vi": "không đủ",
+    "nom": [
+      "空𨁥"
+    ],
+    "explain": [
+      "not enough"
+    ]
+  },
+  {
+    "vi": "dòng tiền",
+    "nom": [
+      "𣳔錢"
+    ],
+    "explain": [
+      "Cash Flow"
+    ]
+  },
+  {
+    "vi": "Quả bóng vàng",
+    "nom": [
+      "果𡞗傍"
+    ],
+    "explain": [
+      "Ballon d'Or"
+    ]
+  },
+  {
+    "vi": "tập thể lớn",
+    "nom": [
+      "集體𡘯"
+    ],
+    "explain": [
+      "large collectives"
+    ]
+  },
+  {
+    "vi": "cũng nên",
+    "nom": [
+      "拱𢧚"
+    ],
+    "explain": [
+      "should also"
+    ]
+  },
+  {
+    "vi": "đồng đội cũ",
+    "nom": [
+      "同隊𫇰"
+    ],
+    "explain": [
+      "Former teammates"
+    ]
+  },
+  {
+    "vi": "đặt lại",
+    "nom": [
+      "撻吏"
+    ],
+    "explain": [
+      "Reset"
+    ]
+  },
+  {
+    "vi": "mà còn",
+    "nom": [
+      "𣻕𡀳"
+    ],
+    "explain": [
+      "but also"
+    ]
+  },
+  {
+    "vi": "nghịch lý",
+    "nom": [
+      "逆理"
+    ],
+    "explain": [
+      "Paradox"
+    ]
+  },
+  {
+    "vi": "mạnh mẽ nhất",
+    "nom": [
+      "猛瑪一"
+    ],
+    "explain": [
+      "Most Powerful"
+    ]
+  },
+  {
+    "vi": "tấm vé",
+    "nom": [
+      "𥺑𥿯"
+    ],
+    "explain": [
+      "Ticket"
+    ]
+  },
+  {
+    "vi": "đóng góp cá nhân",
+    "nom": [
+      "㨂𢵰個人"
+    ],
+    "explain": [
+      "Personal Contribution"
+    ]
+  },
+  {
+    "vi": "giải đấu",
+    "nom": [
+      "解斗"
+    ],
+    "explain": [
+      "Tournaments"
+    ]
+  },
+  {
+    "vi": "gây chú ý",
+    "nom": [
+      "掑注意"
+    ],
+    "explain": [
+      "Attention-grabbing"
+    ]
+  },
+  {
+    "vi": "cầu thủ",
+    "nom": [
+      "球手"
+    ],
+    "explain": [
+      "Players"
+    ]
+  },
+  {
+    "vi": "trận đấu",
+    "nom": [
+      "陣斗"
+    ],
+    "explain": [
+      "Match"
+    ]
+  },
+  {
+    "vi": "giành được",
+    "nom": [
+      "掙得"
+    ],
+    "explain": [
+      "acquire"
+    ]
+  },
+  {
+    "vi": "cuộc đua",
+    "nom": [
+      "局𨅮"
+    ],
+    "explain": [
+      "Race"
+    ]
+  },
+  {
+    "vi": "không xa lạ",
+    "nom": [
+      "空賒𨓐"
+    ],
+    "explain": [
+      "no stranger"
+    ]
+  },
+  {
+    "vi": "giành giải",
+    "nom": [
+      "棦解"
+    ],
+    "explain": [
+      "Won the award"
+    ]
+  },
+  {
+    "vi": "kỷ lục",
+    "nom": [
+      "紀錄"
+    ],
+    "explain": [
+      "Record"
+    ]
+  },
+  {
+    "vi": "chưa từng có",
+    "nom": [
+      "渚曾固"
+    ],
+    "explain": [
+      "unprecedented"
+    ]
+  },
+  {
+    "vi": "gây tranh luận",
+    "nom": [
+      "掑爭論"
+    ],
+    "explain": [
+      "Controversial"
+    ]
+  },
+  {
+    "vi": "trên đường",
+    "nom": [
+      "𨑗唐"
+    ],
+    "explain": [
+      "On the road"
+    ]
+  },
+  {
+    "vi": "thuyết phục",
+    "nom": [
+      "說服"
+    ],
+    "explain": [
+      "persuasion"
+    ]
+  },
+  {
+    "vi": "chưa bao giờ",
+    "nom": [
+      "𣗓包𣇞"
+    ],
+    "explain": [
+      "Never"
+    ]
+  },
+  {
+    "vi": "những thời điểm",
+    "nom": [
+      "仍時點"
+    ],
+    "explain": [
+      "Timings"
+    ]
+  },
+  {
+    "vi": "từng được",
+    "nom": [
+      "曾得"
+    ],
+    "explain": [
+      "have been"
+    ]
+  },
+  {
+    "vi": "ngoại lệ",
+    "nom": [
+      "外厲"
+    ],
+    "explain": [
+      "Exceptions"
+    ]
+  },
+  {
+    "vi": "mà là",
+    "nom": [
+      "𣻕𱺵"
+    ],
+    "explain": [
+      "it's"
+    ]
+  },
+  {
+    "vi": "sự nhất quán",
+    "nom": [
+      "事一貫"
+    ],
+    "explain": [
+      "Consistency"
+    ]
+  },
+  {
+    "vi": "bình chọn",
+    "nom": [
+      "評譔"
+    ],
+    "explain": [
+      "Vote"
+    ]
+  },
+  {
+    "vi": "trong khi",
+    "nom": [
+      "沖崎"
+    ],
+    "explain": [
+      "while"
+    ]
+  },
+  {
+    "vi": "khi đó",
+    "nom": [
+      "崎妬"
+    ],
+    "explain": [
+      "at that time"
+    ]
+  },
+  {
+    "vi": "châu Mỹ",
+    "nom": [
+      "洲美"
+    ],
+    "explain": [
+      "Americas"
+    ]
+  },
+  {
+    "vi": "nhị thúc",
+    "nom": [
+      "二叔"
+    ],
+    "explain": [
+      "second uncle"
+    ]
+  },
+  {
+    "vi": "mấy chục",
+    "nom": [
+      "𠇍𨔿"
+    ],
+    "explain": [
+      "dozens of"
+    ]
+  },
+  {
+    "vi": "mấy chục năm",
+    "nom": [
+      "𠇍𨔿𠄼"
+    ],
+    "explain": [
+      "decades"
+    ]
+  },
+  {
+    "vi": "Bước vào",
+    "nom": [
+      "𨀈𠓨"
+    ],
+    "explain": [
+      "Enter"
+    ]
+  },
+  {
+    "vi": "ba đời",
+    "nom": [
+      "𠀧𠁀"
+    ],
+    "explain": [
+      "Three generations"
+    ]
+  },
+  {
+    "vi": "không sợ",
+    "nom": [
+      "空𢜝"
+    ],
+    "explain": [
+      "Fearless"
+    ]
+  },
+  {
+    "vi": "nước mắt",
+    "nom": [
+      "渃眜"
+    ],
+    "explain": [
+      "Tears"
+    ]
+  },
+  {
+    "vi": "tiền lãi",
+    "nom": [
+      "錢賚"
+    ],
+    "explain": [
+      "Interest"
+    ]
+  },
+  {
+    "vi": "đánh chết",
+    "nom": [
+      "打𣩁"
+    ],
+    "explain": [
+      "Beat to death"
+    ]
+  },
+  {
+    "vi": "nhiệt đới",
+    "nom": [
+      "熱帶"
+    ],
+    "explain": [
+      "Tropical"
+    ]
+  },
+  {
+    "vi": "Áp thấp",
+    "nom": [
+      "押隰"
+    ],
+    "explain": [
+      "Low pressure"
+    ]
+  },
+  {
+    "vi": "phía tây nam",
+    "nom": [
+      "𠌨西南"
+    ],
+    "explain": [
+      "Southwest"
+    ]
+  },
+  {
+    "vi": "phụ nhân",
+    "nom": [
+      "婦人"
+    ],
+    "explain": [
+      "Women"
+    ]
+  },
+  {
+    "vi": "không tin",
+    "nom": [
+      "空信"
+    ],
+    "explain": [
+      "I don't believe it"
+    ]
+  },
+  {
+    "vi": "đặc khu",
+    "nom": [
+      "特區"
+    ],
+    "explain": [
+      "Special Zones"
+    ]
+  },
+  {
+    "vi": "Hoàng Sa",
+    "nom": [
+      "黃沙"
+    ],
+    "explain": [
+      "Hoang Sa"
+    ]
+  },
+  {
+    "vi": "gió mạnh",
+    "nom": [
+      "𩙍猛"
+    ],
+    "explain": [
+      "strong winds"
+    ]
+  },
+  {
+    "vi": "sóng biển",
+    "nom": [
+      "㳥㴜"
+    ],
+    "explain": [
+      "ocean waves"
+    ]
+  },
+  {
+    "vi": "áp thấp nhiệt đới",
+    "nom": [
+      "押隰熱帶"
+    ],
+    "explain": [
+      "Tropical Depression"
+    ]
+  },
+  {
+    "vi": "độ vĩ bắc",
+    "nom": [
+      "度偉北"
+    ],
+    "explain": [
+      "North Latitude"
+    ]
+  },
+  {
+    "vi": "vĩ bắc",
+    "nom": [
+      "緯北"
+    ],
+    "explain": [
+      "North latitude"
+    ]
+  },
+  {
+    "vi": "tây nam",
+    "nom": [
+      "西南"
+    ],
+    "explain": [
+      "Southwest"
+    ]
+  },
+  {
+    "vi": "kinh đông",
+    "nom": [
+      "經東"
+    ],
+    "explain": [
+      "Kinh Dong"
+    ]
+  },
+  {
+    "vi": "trải qua",
+    "nom": [
+      "𣥱戈"
+    ],
+    "explain": [
+      "experience"
+    ]
+  },
+  {
+    "vi": "chuyện nhỏ",
+    "nom": [
+      "𡀯𡮈"
+    ],
+    "explain": [
+      "trivia"
+    ]
+  },
+  {
+    "vi": "cường giả",
+    "nom": [
+      "強者"
+    ],
+    "explain": [
+      "Strongman"
+    ]
+  },
+  {
+    "vi": "Không cần khách sáo",
+    "nom": [
+      "空懃客套"
+    ],
+    "explain": [
+      "No need to be polite"
+    ]
+  },
+  {
+    "vi": "Sắc mặt",
+    "nom": [
+      "色𩈘"
+    ],
+    "explain": [
+      "Facial color"
+    ]
+  },
+  {
+    "vi": "tốt đẹp",
+    "nom": [
+      "𡄰惵"
+    ],
+    "explain": [
+      "nice"
+    ]
   }
 ]

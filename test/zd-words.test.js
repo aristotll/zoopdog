@@ -12,9 +12,20 @@ const HISTORICAL_CLASSES = {
   userscript: '-ÐA-Za-zÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀẾỂỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪỬỮỰỲỴÝỶỸạảấầẩẫậắằẳẵặẹẻẽềếểễệỉịọỏốồổỗộớờởỡợụúủứừửữựỳýỵỷỹ'
 };
 
+// Added deliberately after decomposed page text was found to end the word walk mid-syllable.
+// Any other difference from the historical classes is a bug, so the guard below names this one
+// range rather than relaxing into "additions are fine".
+const COMBINING_MARKS = Array.from(
+  {length: 0x36f - 0x300 + 1},
+  (unused, index) => String.fromCodePoint(0x300 + index)
+);
+
 function expandClass(body) {
   const points = new Set(['-']);
-  const text = body.replace(/^-/, '');
+  // The shared class spells its combining range as \uXXXX escapes, which reach .source verbatim.
+  const text = body
+    .replace(/\\u([0-9a-fA-F]{4})/g, (unused, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/^-/, '');
   for (let i = 0; i < text.length; i++) {
     if (text[i + 1] === '-' && text[i + 2]) {
       for (let code = text.codePointAt(i); code <= text.codePointAt(i + 2); code++) {
@@ -54,11 +65,13 @@ test('the shared character class matches every pre-consolidation definition exac
     const added = [...shared].filter((ch) => !historical.has(ch));
     const removed = [...historical].filter((ch) => !shared.has(ch));
 
-    assert.deepEqual(added, [], `no code point was added relative to the ${consumer} class`);
+    assert.deepEqual(added.sort(), [...COMBINING_MARKS].sort(),
+      `only the combining-mark range was added relative to the ${consumer} class`);
     assert.deepEqual(removed, [], `no code point was removed relative to the ${consumer} class`);
   }
 
-  assert.equal(shared.size, 188, 'the class still covers the same 188 code points');
+  assert.equal(shared.size, 188 + COMBINING_MARKS.length,
+    'the class covers the original 188 code points plus the combining range');
 });
 
 test('the character predicate is stateless across repeated calls', () => {
@@ -123,6 +136,43 @@ test('client coordinates alone still resolve a word for callers with no page coo
 
   assert.equal(result.word, 'quản');
   assert.equal(result.context, 'quản lý dự án');
+});
+
+test('a combining mark counts as part of a word', () => {
+  assert.equal(words.zdIsWordChar('\u0300'), true, 'combining grave');
+  assert.equal(words.zdIsWordChar('\u0323'), true, 'combining dot below');
+  assert.equal(words.zdIsWordChar('\u031b'), true, 'combining horn');
+});
+
+test('decomposed page text resolves to the whole precomposed word', () => {
+  // Built through NFD rather than written out, because an editor or a tool that touches this
+  // file would silently recompose pasted literals and the test would stop testing anything.
+  // Some pages and browser extensions hand the DOM exactly this form. Before the combining
+  // range joined the character class the forward walk stopped at the mark after "cha".
+  const decomposed = 'xin ch\u00e0o b\u1ea1n'.normalize('NFD');
+  const node = textNode(decomposed);
+  const result = withDocument({
+    caretRangeFromPoint: () => ({startContainer: node, startOffset: 4})
+  }, () => words.getWordAndContext({x: 1, y: 1}));
+
+  assert.notEqual(decomposed, 'xin ch\u00e0o b\u1ea1n', 'the fixture really is decomposed');
+  assert.equal(result.word, 'ch\u00e0o', 'the word comes back precomposed, as the dictionary keys it');
+  assert.equal(result.context, 'ch\u00e0o b\u1ea1n');
+  assert.equal(result.begin, 4, 'begin stays an offset into the untouched node data');
+  assert.equal(node.data, decomposed, 'the node itself is left alone');
+});
+
+test('candidate generation folds decomposed context into precomposed candidates', () => {
+  const node = textNode('\u0111\u01b0\u1eddng ph\u1ed1 H\u00e0 N\u1ed9i'.normalize('NFD'));
+  const result = withDocument({
+    caretRangeFromPoint: () => ({startContainer: node, startOffset: 0})
+  }, () => words.getWordAndContext({x: 1, y: 1}));
+
+  assert.deepEqual(words.generateCandidates(result.context, 3), [
+    '\u0111\u01b0\u1eddng',
+    '\u0111\u01b0\u1eddng ph\u1ed1',
+    '\u0111\u01b0\u1eddng ph\u1ed1 H\u00e0'
+  ]);
 });
 
 test('a non-text caret target reports no word', () => {

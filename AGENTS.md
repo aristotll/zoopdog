@@ -72,6 +72,8 @@ Each of these owns its subject; this file does not repeat them.
   This is the sole canonical description; `.claude/commands/add-chu-nom.md` is a pointer to it.
 - Why the Chu Nom workflow enforces what it does:
   [`docs/history/chu-nom-lessons.md`](docs/history/chu-nom-lessons.md)
+- The popup userscript's local mode (talking to the `book-translator` reader server to add
+  Chữ Nôm entries / set rendering order from any page): [`docs/local-mode.md`](docs/local-mode.md)
 
 ## Git Hygiene
 

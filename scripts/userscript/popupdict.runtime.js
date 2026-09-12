@@ -199,8 +199,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
     });
   }
 
+  // Normalised here because a selection becomes the key of a saved Chu Nom entry: a decomposed
+  // selection would be stored as a term no precomposed lookup can ever reach again.
   function zooTrimSelectionPunctuation(value) {
-    return String(value || '').trim().replace(/^\p{P}+|\p{P}+$/gu, '').trim();
+    return String(value || '').trim().replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
   }
 
   // -- entry-diff preview (mirrors reader_entry_diff.js) --

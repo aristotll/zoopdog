@@ -172,6 +172,15 @@
   }
 
   function annotateTextNode(textNode) {
+    // Some pages and extensions rewrite text nodes into decomposed Unicode, where "vùng" is
+    // "v" + "u" + U+0300 + "ng" and stops the precomposed-keyed trie one combining mark deep.
+    // Normalising in place keeps splitText offsets valid against the string being matched.
+    var normalized = textNode.nodeValue.normalize('NFC');
+
+    if (normalized !== textNode.nodeValue) {
+      textNode.nodeValue = normalized;
+    }
+
     var inserted = [];
     var node = textNode;
     var tail;
