@@ -69,23 +69,29 @@
   function zooGetJSON(path, params) { return zooHttpRequest('GET', path, params); }
   function zooPost(path, params) { return zooHttpRequest('POST', path, params); }
 
+  // The -local build only ever ships to a machine that is actively running
+  // the book-translator reader server for local-mode development -- unlike
+  // the github-hosted build, nobody installs it without that server. A
+  // /healthz round trip before showing "+ Add Chữ Nôm" / "Set order" bought
+  // nothing but startup latency and a permanent false negative if that one
+  // probe was slow/unlucky (see git history), so this build assumes the
+  // server is up rather than asking first. A real request that fails still
+  // reports its own error normally (zooHttpRequest's onerror/ontimeout).
   function zooProbeLocalMode() {
-    zooGetJSON('/healthz', null).then(function() {
-      ZOO_LOCAL_AVAILABLE = true;
-    }).catch(function() {
-      ZOO_LOCAL_AVAILABLE = false;
-    });
+    ZOO_LOCAL_AVAILABLE = true;
   }
 
   // -- suggestion / debounce / edit-tracking plumbing (mirrors shared/suggest.js) --
 
   function zooDebounce(fn, wait) {
     var timer = null;
-    return function() {
+    var wrapped = function() {
       var args = arguments;
       clearTimeout(timer);
       timer = setTimeout(function() { fn.apply(null, args); }, wait);
     };
+    wrapped.cancel = function() { clearTimeout(timer); };
+    return wrapped;
   }
 
   function zooCreateRaceGuard() {
@@ -176,7 +182,18 @@
   // Normalised here because a selection becomes the key of a saved Chu Nom entry: a decomposed
   // selection would be stored as a term no precomposed lookup can ever reach again.
   function zooTrimSelectionPunctuation(value) {
-    return String(value || '').trim().replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
+    // Some pages (v2ex among them) embed invisible Unicode format characters
+    // -- zero-width space U+200B chief among them -- inside long Vietnamese
+    // phrases as a line-wrap hint. A mouse-drag selection picks those up
+    // along with the visible text, and the resulting string never matches
+    // any dictionary key: "kiến​thức" looks identical to "kiến thức" on screen
+    // but is a different string, so every suggestion/entry/order lookup for
+    // it silently comes back empty. Strip the whole Cf (Format) category --
+    // not just zero-width space -- since the same invisible-hint trick shows
+    // up as word joiners and directional marks too, and none of them belong
+    // in a Chu Nom dictionary key either way.
+    return String(value || '').trim().replace(/\p{Cf}/gu, '')
+      .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
   }
 
   // -- entry-diff preview (mirrors reader_entry_diff.js) --
@@ -562,36 +579,74 @@
   }
 
   function zooHandleSelectionChange() {
-    if (!ZOO_LOCAL_AVAILABLE) return;
-    var selection = window.getSelection ? window.getSelection() : null;
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    // Defensive: this runs on arbitrary third-party pages that may carry
+    // other userscripts/extensions mutating the DOM around the same
+    // selection (removing/replacing nodes mid-drag). An exception here would
+    // otherwise leave the bar stuck in whatever state the last successful
+    // call left it in -- silently "not showing" with no indication why.
+    try {
+      if (!ZOO_LOCAL_AVAILABLE) return;
+      var selection = window.getSelection ? window.getSelection() : null;
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        zooHideSelectionBar();
+        return;
+      }
+      var anchorNode = selection.anchorNode;
+      if (anchorNode && anchorNode.nodeType !== Node.ELEMENT_NODE) anchorNode = anchorNode.parentElement;
+      if (isExcludedTarget(anchorNode)) {
+        zooHideSelectionBar();
+        return;
+      }
+      var text = zooTrimSelectionPunctuation(selection.toString());
+      if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
+        zooHideSelectionBar();
+        return;
+      }
+      var range = selection.getRangeAt(0);
+      var rect = range.getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) {
+        zooHideSelectionBar();
+        return;
+      }
+      zooSelectionAnchorNode = range.commonAncestorContainer;
+      zooShowSelectionBar(rect, text);
+    } catch (error) {
       zooHideSelectionBar();
-      return;
     }
-    var anchorNode = selection.anchorNode;
-    if (anchorNode && anchorNode.nodeType !== Node.ELEMENT_NODE) anchorNode = anchorNode.parentElement;
-    if (isExcludedTarget(anchorNode)) {
-      zooHideSelectionBar();
-      return;
-    }
-    var text = zooTrimSelectionPunctuation(selection.toString());
-    if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
-      zooHideSelectionBar();
-      return;
-    }
-    var range = selection.getRangeAt(0);
-    var rect = range.getBoundingClientRect();
-    if (!rect || (!rect.width && !rect.height)) {
-      zooHideSelectionBar();
-      return;
-    }
-    zooSelectionAnchorNode = range.commonAncestorContainer;
-    zooShowSelectionBar(rect, text);
   }
 
   function zooWireSelectionBar() {
     var debounced = zooDebounce(zooHandleSelectionChange, 180);
     document.addEventListener('selectionchange', debounced);
+    // A mouse/touch drag fires 'selectionchange' repeatedly while it is in
+    // progress, so the debounce above only settles ~180ms after the last one
+    // -- and on a page busy running a pile of other userscripts/extensions,
+    // the browser can delay that timer well past 180ms, which reads as "the
+    // buttons are slow to show up". The gesture's own end event
+    // (mouseup/touchend) fires once the selection is already final, so use
+    // it to show immediately instead of waiting out the debounce; cancel the
+    // pending debounced call so it doesn't re-render the bar (and detach the
+    // buttons the user is about to click) a moment later. The debounced
+    // 'selectionchange' listener stays as the path for selections that don't
+    // end with mouseup/touchend, e.g. keyboard (Shift+Arrow) selection.
+    function immediate(event) {
+      // A mouseup/touchend *on the bar itself* -- e.g. releasing a click on
+      // "+ Add Chữ Nôm" -- natively collapses the page's text selection
+      // first (browsers clear selection on mousedown over a non-text
+      // control such as a <button>). Re-running the handler here would then
+      // see an empty selection and hide the bar before the 'click' event
+      // that follows mouseup ever fires on it -- hiding a button out from
+      // under its own click, so the action never runs. Only react to
+      // mouseup/touchend elsewhere on the page.
+      if (event && event.target && event.target.closest &&
+          event.target.closest('#zoopdog-userscript-selection-bar')) {
+        return;
+      }
+      debounced.cancel();
+      zooHandleSelectionChange();
+    }
+    document.addEventListener('mouseup', immediate);
+    document.addEventListener('touchend', immediate);
     // Capture-phase so a scroll inside a nested scrollable container is seen
     // too (those don't bubble a 'scroll' event to window). But capture also
     // means this sees a scroll from *any* scrollable element on the page --
