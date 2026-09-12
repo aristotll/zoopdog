@@ -27,29 +27,58 @@ class Highlighter {
     if (this.highlights.length) this.off()
     if (node === undefined) return true
 
-    // find endpoint (measured by number of spaces)
+    var boundary = zdContainerBoundary(node)
+    var ranges = []
     var words = 0,
-        prevChar = "";
-    for (var i = begin; i < node.data.length; i++) {
-      if (node.data[i] === " ") {
-        if (prevChar && zdIsWordChar(prevChar)) words++
-      } else if (!zdIsWordChar(node.data[i])) { // break on punctuation
-        break
+        prevChar = "",
+        curNode = node,
+        curBegin = begin
+
+    // A match can straddle more than one <ruby>-wrapped word (see zd-words.js), so keep
+    // building ranges into whatever text node follows once this one runs out, rather than
+    // stopping at this node's own end.
+    while (curNode && words < howManyWords) {
+      var data = curNode.data
+      var i
+      for (i = curBegin; i < data.length; i++) {
+        if (data[i] === " ") {
+          if (prevChar && zdIsWordChar(prevChar)) words++
+        } else if (!zdIsWordChar(data[i])) { // break on punctuation
+          break
+        }
+        if (words === howManyWords) {
+          break
+        }
+        prevChar = data[i]
       }
-      if (words === howManyWords) {
-        break
+
+      if (i === curBegin) break
+      var rangeBegin = curBegin
+      if (data[rangeBegin] === " ") rangeBegin++
+      if (rangeBegin < i) {
+        var range = new Range()
+        range.setStart(curNode, rangeBegin)
+        range.setEnd(curNode, i)
+        ranges.push(range)
       }
-      prevChar = node.data[i]
+
+      if (words >= howManyWords || i < data.length) break
+
+      var nextNode = zdNextTextNode(curNode, boundary)
+      if (!nextNode) break
+      if (prevChar && zdIsWordChar(prevChar)) {
+        // The node boundary itself stands in for the space between words.
+        words++
+        prevChar = ""
+        if (words === howManyWords) break
+      }
+      curNode = nextNode
+      curBegin = 0
     }
-    if (i === begin) return true
-    if (node.data[begin] === " ") begin++
 
-    // https://stackoverflow.com/a/39877924
-    var range = new Range()
-    range.setStart(node, begin)
-    range.setEnd(node, i)
+    if (!ranges.length) return true
 
-    this.highlights = range.getClientRects()
+    this.highlights = ranges.reduce((rects, range) => rects.concat(Array.from(range.getClientRects())), [])
     for (var hl of this.highlights) {
       this.context.rect(hl.left - this.padding,
                         hl.top - this.padding,
@@ -79,4 +108,11 @@ class Highlighter {
     }
   }
 
+}
+
+// Present only under Node, so the class is unit-testable without a browser -- see
+// zd-words.js, which the class relies on for zdIsWordChar/zdContainerBoundary/zdNextTextNode
+// as ambient globals exactly as the extension's manifest load order provides them.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {Highlighter}
 }

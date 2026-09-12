@@ -149,6 +149,122 @@ function zdCaretFromPoint(mouse) {
   return null;
 }
 
+// A Nom-annotated page (the book-translator reader, Zoopdog's own nom-ruby userscript) wraps
+// each word in its own <ruby>, with the Chu Nom reading tucked into a sibling <rt>. That makes
+// the sentence, in DOM terms, a chain of short text nodes rather than one long one, so a
+// compound dictionary entry whose words straddle two <ruby> tags (e.g. "câu" and "nói" each in
+// their own tag) can never be read by scanning a single node's `data`. The helpers below let
+// both the context lookup and the highlighter continue past a node's end into whatever comes
+// next in reading order, while treating <rt> subtrees as invisible -- a reading gloss is not
+// part of the word stream.
+const ZD_CONTEXT_MAX_CHARS = 400;
+const ZD_CONTEXT_MAX_NODES = 60;
+
+function zdNextNode(node, boundary) {
+  if (node.firstChild) {
+    let child = node.firstChild;
+    while (child && child.nodeType === 1 && child.tagName === 'RT') {
+      child = child.nextSibling;
+    }
+    if (child) {
+      return child;
+    }
+  }
+  let cur = node;
+  while (cur && cur !== boundary) {
+    let sib = cur.nextSibling;
+    while (sib && sib.nodeType === 1 && sib.tagName === 'RT') {
+      sib = sib.nextSibling;
+    }
+    if (sib) {
+      return sib;
+    }
+    cur = cur.parentNode;
+  }
+  return null;
+}
+
+// The next Text node after `node` in document order, bounded by `boundary` (never ascended
+// past) and blind to <rt> subtrees.
+function zdNextTextNode(node, boundary) {
+  let cur = zdNextNode(node, boundary);
+  while (cur && cur.nodeType !== 3) {
+    cur = zdNextNode(cur, boundary);
+  }
+  return cur;
+}
+
+// Computed `display` values that keep an element's content in the surrounding inline flow --
+// climbing through these (and no further) is what lets the walk leave one <ruby> and arrive at
+// the next one still inside the same line, without being willing to walk into a wrapper that
+// could mean "different paragraph". `ruby` itself is in this list: it is an inline-level box,
+// but is neither literally "inline" nor "inline-block", so a narrower check would stop the walk
+// at the very first <ruby>, one level up from the click.
+const ZD_INLINE_DISPLAY_VALUES = new Set([
+  'inline', 'inline-block', 'inline-flex', 'inline-grid', 'inline-table', 'contents',
+  'ruby', 'ruby-base', 'ruby-text', 'ruby-base-container', 'ruby-text-container'
+]);
+
+// How far a context walk may widen looking for a boundary ancestor -- deep enough to clear a
+// <ruby> sitting inside a couple of wrapper spans, shallow enough that a point in genuinely
+// unstructured markup falls back to `document.body` quickly.
+const ZD_CONTAINER_SEARCH_MAX_LEVELS = 8;
+
+// The nearest ancestor of `node` whose own box breaks the inline flow (typically the paragraph
+// or line the word sits in), so a forward context walk stops at the end of that text instead of
+// wandering into whatever comes after it just because the last visible character happened to be
+// a word character or a space.
+function zdContainerBoundary(node) {
+  let el = node.nodeType === 1 ? node : node.parentElement;
+  let level = 0;
+  while (el && el.parentElement && level < ZD_CONTAINER_SEARCH_MAX_LEVELS) {
+    const style = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+    const display = style && style.display;
+    if (!display || !ZD_INLINE_DISPLAY_VALUES.has(display)) {
+      return el;
+    }
+    el = el.parentElement;
+    level++;
+  }
+  return el || (typeof document !== 'undefined' && document.body);
+}
+
+// A connecting text node between two <ruby>/<span> word wrappers is often just whitespace, and
+// on server-rendered markup that whitespace is whatever indentation the template happened to
+// leave between tags -- a newline, a run of spaces -- not always the single literal " " a
+// hand-written sentence would have. Treated strictly, that stops the walk on page-formatting
+// whitespace as if it were real punctuation.
+const ZD_INTER_WORD_SPACE_RE = /\s/;
+
+// Continues the word/space run that ends exactly at the end of `fromNode`'s data into whatever
+// text nodes follow in reading order, stopping at the first real non-word, non-space character
+// (or the container boundary, or the safety caps above).
+function zdGatherFollowingContext(fromNode) {
+  const boundary = zdContainerBoundary(fromNode);
+  let text = '';
+  let node = zdNextTextNode(fromNode, boundary);
+  let guardNodes = 0;
+
+  while (node && text.length < ZD_CONTEXT_MAX_CHARS && guardNodes < ZD_CONTEXT_MAX_NODES) {
+    guardNodes++;
+    const data = node.data;
+    let i = 0;
+    while (i < data.length && (zdIsWordChar(data[i]) || ZD_INTER_WORD_SPACE_RE.test(data[i]))) {
+      ++i;
+    }
+    if (i === 0) {
+      break;
+    }
+    text += data.substring(0, i);
+    if (i < data.length) {
+      break;
+    }
+    node = zdNextTextNode(node, boundary);
+  }
+
+  return text;
+}
+
 // adapted from https://stackoverflow.com/a/30606508
 function getWordAndContext(mouse) {
   const caret = zdCaretFromPoint(mouse);
@@ -188,12 +304,21 @@ function getWordAndContext(mouse) {
   }
   const contextEnd = i;
 
+  // The run above stopped because it ran off the end of this node's own data, not because it
+  // hit real punctuation -- keep going into whatever text (skipping <rt> readings) follows in
+  // the page, so a compound entry split across sibling <ruby> tags is still visible as one
+  // context string.
+  let context = data.substring(begin, contextEnd);
+  if (contextEnd === data.length) {
+    context += zdGatherFollowingContext(textNode);
+  }
+
   // Dictionary keys are precomposed, so decomposed page text has to be folded before any
   // consumer looks it up. `begin` stays an offset into the untouched node data, which is what
   // the highlighter measures against.
   return {
     word: data.substring(begin, end).trim().normalize('NFC'),
-    context: data.substring(begin, contextEnd).trim().normalize('NFC'),
+    context: context.trim().normalize('NFC'),
     node: textNode,
     begin: begin,
     // True when this node was found by testing which text the point falls
@@ -231,6 +356,9 @@ if (typeof module !== 'undefined' && module.exports) {
     ZD_WORD_CHAR_RE,
     zdIsWordChar,
     zdCaretFromPoint,
+    zdNextTextNode,
+    zdContainerBoundary,
+    zdGatherFollowingContext,
     getWordAndContext,
     generateCandidates,
     mouseInRects

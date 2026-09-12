@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const words = require('../zd-extension/js/zd-words');
+const {textNode, elementNode, linkChildren, rubyWord, rubyPageStyle} = require('./support/ruby-dom');
 
 // The three literals that existed before consolidation, one per consumer. They are kept here
 // verbatim so the test proves the shared class matches what shipped, not what the shared file
@@ -39,10 +40,6 @@ function expandClass(body) {
   return points;
 }
 
-function textNode(data) {
-  return {nodeType: 3, data};
-}
-
 function withDocument(stub, run) {
   const previous = global.document;
   global.document = stub;
@@ -53,6 +50,23 @@ function withDocument(stub, run) {
       delete global.document;
     } else {
       global.document = previous;
+    }
+  }
+}
+
+// Stubs the bare global `getComputedStyle` the way a browser provides it (not
+// `document.getComputedStyle`), so zdContainerBoundary can be driven without a real DOM.
+// `styleFor(element)` returns just the `display` value the element should report.
+function withComputedStyle(styleFor, run) {
+  const previous = global.getComputedStyle;
+  global.getComputedStyle = (el) => ({display: styleFor(el)});
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete global.getComputedStyle;
+    } else {
+      global.getComputedStyle = previous;
     }
   }
 }
@@ -326,4 +340,103 @@ test('rectangle hit testing covers edges and misses', () => {
   assert.equal(words.mouseInRects({x: 10, y: 10}, rects), true, 'the bottom-right edge counts as inside');
   assert.equal(words.mouseInRects({x: 11, y: 5}, rects), false);
   assert.equal(words.mouseInRects({x: 5, y: 5}, []), false);
+});
+
+// Regression coverage for the bug reported against the book-translator reader: "một câu" and
+// "câu nói" are both dictionary entries, but the reader wraps every word in its own <ruby>, so
+// "một câu" and "câu nói" live in three separate text nodes ("một", "câu", "nói") rather than
+// one flowing sentence. Before zdGatherFollowingContext existed, the context walk stopped dead
+// at the end of whichever <ruby> was clicked, so hovering "câu" could never see "nói" and the
+// popup could only ever resolve to a single word.
+test('a <ruby> ancestor counts as inline despite its unusual computed display', () => {
+  const word = textNode('câu');
+  const ruby = linkChildren(elementNode('RUBY'), [word]);
+  const paragraph = linkChildren(elementNode('P'), [ruby]);
+
+  const boundary = withComputedStyle(rubyPageStyle, () => words.zdContainerBoundary(word));
+
+  assert.equal(boundary, paragraph,
+    'a check for literal "inline"/"inline-block" would stop at the <ruby> itself, since a ' +
+    'browser reports its computed display as "ruby", not "inline"');
+});
+
+test('context follows a compound dictionary entry split across sibling <ruby> word tags', () => {
+  const mot = rubyWord('một');
+  const cau = rubyWord('câu', '句');
+  const noi = rubyWord('nói', '吶');
+  linkChildren(elementNode('P'), [mot.ruby, textNode(' '), cau.ruby, textNode(' '), noi.ruby]);
+
+  const result = withComputedStyle(rubyPageStyle, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: mot.wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  assert.equal(result.word, 'một');
+  assert.equal(result.context, 'một câu nói',
+    'the reading glosses in <rt> ("句", "吶") are not part of the context');
+});
+
+test('clicking a later <ruby> in the same chain resolves the compound starting there', () => {
+  const mot = rubyWord('một');
+  const cau = rubyWord('câu', '句');
+  const noi = rubyWord('nói', '吶');
+  linkChildren(elementNode('P'), [mot.ruby, textNode(' '), cau.ruby, textNode(' '), noi.ruby]);
+
+  const result = withComputedStyle(rubyPageStyle, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: cau.wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  assert.equal(result.word, 'câu');
+  assert.equal(result.context, 'câu nói',
+    'context only looks forward from the click, so "một" is not pulled back in');
+});
+
+test('a real punctuation character still stops the cross-node walk', () => {
+  const mot = rubyWord('một');
+  const cau = rubyWord('câu');
+  linkChildren(elementNode('P'), [mot.ruby, textNode(' '), cau.ruby, textNode('.')]);
+
+  const result = withComputedStyle(rubyPageStyle, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: mot.wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  assert.equal(result.context, 'một câu', 'the "." after "câu" ends the clause, same as in one node');
+});
+
+test('page-formatting whitespace between word tags does not stop the walk', () => {
+  // Server-rendered markup often leaves a newline (or a run of spaces) between tags for
+  // readability rather than the single literal " " a hand-written sentence would have.
+  const mot = rubyWord('một');
+  const cau = rubyWord('câu');
+  linkChildren(elementNode('P'), [mot.ruby, textNode('\n  '), cau.ruby]);
+
+  const result = withComputedStyle(rubyPageStyle, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: mot.wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  // The raw whitespace passes through unnormalized here -- normalizeLookup and
+  // generateCandidates both collapse runs of whitespace downstream -- so the walk not stopping
+  // is what this asserts, not the exact separator.
+  assert.deepEqual(result.context.trim().split(/\s+/), ['một', 'câu'],
+    'the newline-and-indent gap between tags does not end the clause the way real punctuation would');
+});
+
+test('the cross-node walk does not cross into a different paragraph', () => {
+  const mot = rubyWord('một');
+  const cau = rubyWord('câu');
+  const paragraph = linkChildren(elementNode('P'), [mot.ruby, textNode(' '), cau.ruby]);
+
+  const nextParagraph = linkChildren(elementNode('P'), [rubyWord('Sau').ruby]);
+  linkChildren(elementNode('DIV'), [paragraph, nextParagraph]);
+
+  const result = withComputedStyle(rubyPageStyle, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: mot.wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  assert.equal(result.context, 'một câu',
+    'the walk stops at the end of the paragraph instead of reading into the next one');
 });

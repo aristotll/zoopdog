@@ -164,37 +164,77 @@ __ZOOPDOG_RUNTIME_SOURCES__
     // page fired a scroll event" -- see that listener below.
     this.node = node;
 
+    var boundary = zdContainerBoundary(node);
+    var ranges = [];
     var words = 0;
     var prevChar = '';
-    var i;
-    for (i = begin; i < node.data.length; i++) {
-      if (node.data[i] === ' ') {
-        if (prevChar && zdIsWordChar(prevChar)) {
-          words++;
+    var curNode = node;
+    var curBegin = begin;
+
+    // A match can straddle more than one <ruby>-wrapped word (see zd-words.js), so keep
+    // building ranges into whatever text node follows once this one runs out, rather than
+    // stopping at this node's own end.
+    while (curNode && words < howManyWords) {
+      var data = curNode.data;
+      var i;
+      for (i = curBegin; i < data.length; i++) {
+        if (data[i] === ' ') {
+          if (prevChar && zdIsWordChar(prevChar)) {
+            words++;
+          }
+        } else if (!zdIsWordChar(data[i])) {
+          break;
         }
-      } else if (!zdIsWordChar(node.data[i])) {
+
+        if (words === howManyWords) {
+          break;
+        }
+
+        prevChar = data[i];
+      }
+
+      if (i === curBegin) {
         break;
       }
 
-      if (words === howManyWords) {
+      var rangeBegin = curBegin;
+      if (data[rangeBegin] === ' ') {
+        rangeBegin++;
+      }
+      if (rangeBegin < i) {
+        var range = new Range();
+        range.setStart(curNode, rangeBegin);
+        range.setEnd(curNode, i);
+        ranges.push(range);
+      }
+
+      if (words >= howManyWords || i < data.length) {
         break;
       }
 
-      prevChar = node.data[i];
+      var nextNode = zdNextTextNode(curNode, boundary);
+      if (!nextNode) {
+        break;
+      }
+      if (prevChar && zdIsWordChar(prevChar)) {
+        // The node boundary itself stands in for the space between words.
+        words++;
+        prevChar = '';
+        if (words === howManyWords) {
+          break;
+        }
+      }
+      curNode = nextNode;
+      curBegin = 0;
     }
 
-    if (i === begin) {
+    if (!ranges.length) {
       return true;
     }
 
-    if (node.data[begin] === ' ') {
-      begin++;
-    }
-
-    var range = new Range();
-    range.setStart(node, begin);
-    range.setEnd(node, i);
-    this.highlights = Array.from(range.getClientRects());
+    this.highlights = ranges.reduce(function(rects, range) {
+      return rects.concat(Array.from(range.getClientRects()));
+    }, []);
 
     this.context.beginPath();
     for (var j = 0; j < this.highlights.length; j++) {
@@ -441,10 +481,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
         return true;
       }
 
-      if (highlighter.highlights.length && mouseInRects(mouse, highlighter.highlights)) {
-        return true;
-      }
-
       var origin = getWordAndContext(mouse);
       var element = document.elementFromPoint(mouse.x, mouse.y);
 
@@ -462,12 +498,19 @@ __ZOOPDOG_RUNTIME_SOURCES__
         return true;
       }
 
-      clearActiveResult();
-
+      // Checked before clearing: a multi-word match's highlight rect covers
+      // every word in the phrase (e.g. "một câu" also covers "câu"), so the
+      // mouse can sit over a *different* word than the one that produced the
+      // current match without ever leaving that rect. Comparing words here,
+      // instead of gating on the rect the way `mouseout` below does, is what
+      // lets hovering onto "câu" re-look-up and find "câu nói" instead of
+      // getting stuck on "một câu". Same word: nothing to do, and skipping
+      // the clear/reshow keeps the popup from flickering while it sits still.
       if (origin.word === oldWord) {
         return true;
       }
 
+      clearActiveResult();
       oldWord = origin.word;
       var lookup = lookupContext(origin.context);
       if (!lookup) {

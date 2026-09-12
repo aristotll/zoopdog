@@ -274,7 +274,10 @@ test('the Vietnamese word primitives are defined in exactly one browser source',
     {name: 'zdIsWordChar', pattern: /function\s+zdIsWordChar\s*\(|(?:const|var|let)\s+zdIsWordChar\s*=/},
     {name: 'getWordAndContext', pattern: /function\s+getWordAndContext\s*\(|(?:const|var|let)\s+getWordAndContext\s*=/},
     {name: 'generateCandidates', pattern: /function\s+generateCandidates\s*\(|(?:const|var|let)\s+generateCandidates\s*=/},
-    {name: 'mouseInRects', pattern: /function\s+mouseInRects\s*\(|(?:const|var|let)\s+mouseInRects\s*=/}
+    {name: 'mouseInRects', pattern: /function\s+mouseInRects\s*\(|(?:const|var|let)\s+mouseInRects\s*=/},
+    {name: 'zdNextTextNode', pattern: /function\s+zdNextTextNode\s*\(|(?:const|var|let)\s+zdNextTextNode\s*=/},
+    {name: 'zdContainerBoundary', pattern: /function\s+zdContainerBoundary\s*\(|(?:const|var|let)\s+zdContainerBoundary\s*=/},
+    {name: 'zdGatherFollowingContext', pattern: /function\s+zdGatherFollowingContext\s*\(|(?:const|var|let)\s+zdGatherFollowingContext\s*=/}
   ];
 
   const sites = new Map(definitions.map(({name}) => [name, []]));
@@ -336,7 +339,10 @@ test('no browser source carries a second copy of the word character class', () =
 // A file consumes the shared primitives if it calls one of them without declaring it. Load
 // order matters for every such file, not just the obvious one: highlighter.js called the old
 // global from a script the manifest happens to list last, and nothing caught it.
-const SHARED_NAMES = ['zdIsWordChar', 'getWordAndContext', 'generateCandidates', 'mouseInRects'];
+const SHARED_NAMES = [
+  'zdIsWordChar', 'getWordAndContext', 'generateCandidates', 'mouseInRects',
+  'zdNextTextNode', 'zdContainerBoundary'
+];
 
 function sharedConsumers() {
   return browserSources()
