@@ -6795,5 +6795,779 @@
     "explain": [
       "nice"
     ]
+  },
+  {
+    "vi": "một tháng",
+    "nom": [
+      "𠬠𣎃"
+    ],
+    "explain": [
+      "one month"
+    ]
+  },
+  {
+    "vi": "móng tay",
+    "nom": [
+      "幪𢬣"
+    ],
+    "explain": [
+      "nails"
+    ]
+  },
+  {
+    "vi": "Đà Nẵng",
+    "nom": [
+      "多㶞"
+    ],
+    "explain": [
+      "Da Nang"
+    ]
+  },
+  {
+    "vi": "chịu ảnh hưởng",
+    "nom": [
+      "𠹾影響"
+    ],
+    "explain": [
+      "Affected"
+    ]
+  },
+  {
+    "vi": "trên biển",
+    "nom": [
+      "𨑗㴜"
+    ],
+    "explain": [
+      "at sea"
+    ]
+  },
+  {
+    "vi": "sóng lớn",
+    "nom": [
+      "㳥𡘯"
+    ],
+    "explain": [
+      "Large waves"
+    ]
+  },
+  {
+    "vi": "người đàn ông",
+    "nom": [
+      "𠊛僤翁"
+    ],
+    "explain": [
+      "Man"
+    ]
+  },
+  {
+    "vi": "truy nã quốc tế",
+    "nom": [
+      "追拿國際"
+    ],
+    "explain": [
+      "International wanted"
+    ]
+  },
+  {
+    "vi": "Lê Chân",
+    "nom": [
+      "黎真"
+    ],
+    "explain": [
+      "Le Chan"
+    ]
+  },
+  {
+    "vi": "nhập cảnh",
+    "nom": [
+      "入境"
+    ],
+    "explain": [
+      "Immigration"
+    ]
+  },
+  {
+    "vi": "sinh năm",
+    "nom": [
+      "生𢆥"
+    ],
+    "explain": [
+      "Born in"
+    ]
+  },
+  {
+    "vi": "phát lệnh",
+    "nom": [
+      "發令"
+    ],
+    "explain": [
+      "Issuing Commands"
+    ]
+  },
+  {
+    "vi": "hoàn thiện",
+    "nom": [
+      "完善"
+    ],
+    "explain": [
+      "complete"
+    ]
+  },
+  {
+    "vi": "điều ước quốc tế",
+    "nom": [
+      "條約國際"
+    ],
+    "explain": [
+      "International treaties"
+    ]
+  },
+  {
+    "vi": "Bộ Công an",
+    "nom": [
+      "部工安"
+    ],
+    "explain": [
+      "Ministry of Public Security"
+    ]
+  },
+  {
+    "vi": "sân bay quốc tế",
+    "nom": [
+      "𡑝𢒎國際"
+    ],
+    "explain": [
+      "International Airports"
+    ]
+  },
+  {
+    "vi": "đứng đầu",
+    "nom": [
+      "𨅸頭"
+    ],
+    "explain": [
+      "Top"
+    ]
+  },
+  {
+    "vi": "lệnh truy nã",
+    "nom": [
+      "令追拿"
+    ],
+    "explain": [
+      "Wanted Warrant"
+    ]
+  },
+  {
+    "vi": "qua mạng",
+    "nom": [
+      "戈𦁸"
+    ],
+    "explain": [
+      "Via the Internet"
+    ]
+  },
+  {
+    "vi": "áo đen",
+    "nom": [
+      "奧黰"
+    ],
+    "explain": [
+      "black shirt"
+    ]
+  },
+  {
+    "vi": "đứng giữa",
+    "nom": [
+      "𨅸𡧲"
+    ],
+    "explain": [
+      "Stand in the middle"
+    ]
+  },
+  {
+    "vi": "gọi điện",
+    "nom": [
+      "噲電"
+    ],
+    "explain": [
+      "Calling"
+    ]
+  },
+  {
+    "vi": "đe dọa",
+    "nom": [
+      "砥𡃏"
+    ],
+    "explain": [
+      "Threats"
+    ]
+  },
+  {
+    "vi": "mạng xã hội",
+    "nom": [
+      "𦁸社會"
+    ],
+    "explain": [
+      "Social Media"
+    ]
+  },
+  {
+    "vi": "gửi cho",
+    "nom": [
+      "寄朱"
+    ],
+    "explain": [
+      "Send to"
+    ]
+  },
+  {
+    "vi": "chuyển tiền",
+    "nom": [
+      "轉錢"
+    ],
+    "explain": [
+      "Transfer money"
+    ]
+  },
+  {
+    "vi": "gái gọi",
+    "nom": [
+      "𡛔噲"
+    ],
+    "explain": [
+      "Call Girl"
+    ]
+  },
+  {
+    "vi": "trên mạng",
+    "nom": [
+      "連𦁸"
+    ],
+    "explain": [
+      "online"
+    ]
+  },
+  {
+    "vi": "cơ quan tư pháp",
+    "nom": [
+      "機關司法"
+    ],
+    "explain": [
+      "Judicial authorities"
+    ]
+  },
+  {
+    "vi": "tâm lý",
+    "nom": [
+      "心理"
+    ],
+    "explain": [
+      "psychology"
+    ]
+  },
+  {
+    "vi": "thao túng tâm lý",
+    "nom": [
+      "操縱心理"
+    ],
+    "explain": [
+      "psychological manipulation"
+    ]
+  },
+  {
+    "vi": "nạn nhân",
+    "nom": [
+      "難人"
+    ],
+    "explain": [
+      "Victims"
+    ]
+  },
+  {
+    "vi": "tiền ảo",
+    "nom": [
+      "錢幻"
+    ],
+    "explain": [
+      "Virtual Currency"
+    ]
+  },
+  {
+    "vi": "ví điện tử",
+    "nom": [
+      "幃電子"
+    ],
+    "explain": [
+      "E-wallets"
+    ]
+  },
+  {
+    "vi": "thời lượng",
+    "nom": [
+      "時兩"
+    ],
+    "explain": [
+      "Duration"
+    ]
+  },
+  {
+    "vi": "thế hệ trước",
+    "nom": [
+      "世系𠓀"
+    ],
+    "explain": [
+      "Previous generation"
+    ]
+  },
+  {
+    "vi": "không thay đổi",
+    "nom": [
+      "空𠊝𢷮"
+    ],
+    "explain": [
+      "unchanged"
+    ]
+  },
+  {
+    "vi": "quá mạnh",
+    "nom": [
+      "過猛"
+    ],
+    "explain": [
+      "too strong"
+    ]
+  },
+  {
+    "vi": "đáng chú ý",
+    "nom": [
+      "當注意"
+    ],
+    "explain": [
+      "Notable"
+    ]
+  },
+  {
+    "vi": "thu gọn",
+    "nom": [
+      "收𦄣"
+    ],
+    "explain": [
+      "Collapse"
+    ]
+  },
+  {
+    "vi": "tùy chọn",
+    "nom": [
+      "随譔"
+    ],
+    "explain": [
+      "optional"
+    ]
+  },
+  {
+    "vi": "mặt trước",
+    "nom": [
+      "𩈘𠓀"
+    ],
+    "explain": [
+      "Front"
+    ]
+  },
+  {
+    "vi": "mặt sau",
+    "nom": [
+      "末後"
+    ],
+    "explain": [
+      "Back"
+    ]
+  },
+  {
+    "vi": "hướng đến",
+    "nom": [
+      "向𦤾"
+    ],
+    "explain": [
+      "Towards"
+    ]
+  },
+  {
+    "vi": "clip nóng",
+    "nom": [
+      "clip𤎏"
+    ],
+    "explain": [
+      "hot clips/ sex clip"
+    ]
+  },
+  {
+    "vi": "khẩu độ",
+    "nom": [
+      "口度"
+    ],
+    "explain": [
+      "Aperture"
+    ]
+  },
+  {
+    "vi": "thiếu sáng",
+    "nom": [
+      "少創"
+    ],
+    "explain": [
+      "Low light"
+    ]
+  },
+  {
+    "vi": "chiều sâu",
+    "nom": [
+      "朝漊"
+    ],
+    "explain": [
+      "Depth"
+    ]
+  },
+  {
+    "vi": "sáng tạo nội dung",
+    "nom": [
+      "創造內容"
+    ],
+    "explain": [
+      "Content Creation"
+    ]
+  },
+  {
+    "vi": "quay chụp",
+    "nom": [
+      "𢮿𨄴"
+    ],
+    "explain": [
+      "Shooting"
+    ]
+  },
+  {
+    "vi": "tản nhiệt",
+    "nom": [
+      "散熱"
+    ],
+    "explain": [
+      "Heat Sink"
+    ]
+  },
+  {
+    "vi": "Hệ thống tản nhiệt",
+    "nom": [
+      "系統散熱"
+    ],
+    "explain": [
+      "Cooling System"
+    ]
+  },
+  {
+    "vi": "buồng hơi",
+    "nom": [
+      "椖唏"
+    ],
+    "explain": [
+      "Steam Chamber"
+    ]
+  },
+  {
+    "vi": "thế hệ mới",
+    "nom": [
+      "世系㵋"
+    ],
+    "explain": [
+      "New Generation"
+    ]
+  },
+  {
+    "vi": "lớn hơn",
+    "nom": [
+      "𡘯欣"
+    ],
+    "explain": [
+      "Larger"
+    ]
+  },
+  {
+    "vi": "chơi game",
+    "nom": [
+      "𨔈game"
+    ],
+    "explain": [
+      "Gaming"
+    ]
+  },
+  {
+    "vi": "tác vụ",
+    "nom": [
+      "作務"
+    ],
+    "explain": [
+      "Tasks"
+    ]
+  },
+  {
+    "vi": "thời gian dài",
+    "nom": [
+      "時間𨱽"
+    ],
+    "explain": [
+      "Long time"
+    ]
+  },
+  {
+    "vi": "lên đến",
+    "nom": [
+      "𬨠𦤾"
+    ],
+    "explain": [
+      "up to"
+    ]
+  },
+  {
+    "vi": "dài hơn",
+    "nom": [
+      "𨱽欣"
+    ],
+    "explain": [
+      "longer"
+    ]
+  },
+  {
+    "vi": "tiết kiệm năng lượn",
+    "nom": [
+      "節儉能𫅤"
+    ],
+    "explain": [
+      "Energy saving"
+    ]
+  },
+  {
+    "vi": "thiết bị",
+    "nom": [
+      "設備"
+    ],
+    "explain": [
+      "Equipment"
+    ]
+  },
+  {
+    "vi": "xem video",
+    "nom": [
+      "䀡video"
+    ],
+    "explain": [
+      "Watch Video"
+    ]
+  },
+  {
+    "vi": "dòng máy",
+    "nom": [
+      "𣳔𢵯"
+    ],
+    "explain": [
+      "Machine Series"
+    ]
+  },
+  {
+    "vi": "nhiều khả năng",
+    "nom": [
+      "𡗉可能"
+    ],
+    "explain": [
+      "Wide range of possibilities"
+    ]
+  },
+  {
+    "vi": "điện thoại cao cấp",
+    "nom": [
+      "電話高級"
+    ],
+    "explain": [
+      "High-end phones"
+    ]
+  },
+  {
+    "vi": "ảnh hưởng trực tiếp",
+    "nom": [
+      "影響直接"
+    ],
+    "explain": [
+      "Direct Impact"
+    ]
+  },
+  {
+    "vi": "tham khảo thêm",
+    "nom": [
+      "參考添"
+    ],
+    "explain": [
+      "Additional reference"
+    ]
+  },
+  {
+    "vi": "dòng điện thoại",
+    "nom": [
+      "𣳔電話"
+    ],
+    "explain": [
+      "Phone Series"
+    ]
+  },
+  {
+    "vi": "mới nhất",
+    "nom": [
+      "㵋一"
+    ],
+    "explain": [
+      "Latest"
+    ]
+  },
+  {
+    "vi": "thông tin mua hàng",
+    "nom": [
+      "通信𧷸亙"
+    ],
+    "explain": [
+      "Purchase Information"
+    ]
+  },
+  {
+    "vi": "tập trận",
+    "nom": [
+      "習陣"
+    ],
+    "explain": [
+      "Exercises"
+    ]
+  },
+  {
+    "vi": "phóng loạt",
+    "nom": [
+      "倣唰"
+    ],
+    "explain": [
+      "Launch series"
+    ]
+  },
+  {
+    "vi": "tên lửa đạn đạo",
+    "nom": [
+      "箭焒彈道"
+    ],
+    "explain": [
+      "Ballistic missiles"
+    ]
+  },
+  {
+    "vi": "tập trận quân sự",
+    "nom": [
+      "習陣軍事"
+    ],
+    "explain": [
+      "Military exercises"
+    ]
+  },
+  {
+    "vi": "ba bên",
+    "nom": [
+      "𠀧邊"
+    ],
+    "explain": [
+      "Three Sides"
+    ]
+  },
+  {
+    "vi": "báo động cao",
+    "nom": [
+      "報動高"
+    ],
+    "explain": [
+      "High Alarm"
+    ]
+  },
+  {
+    "vi": "Vụ phóng",
+    "nom": [
+      "務放"
+    ],
+    "explain": [
+      "Launch"
+    ]
+  },
+  {
+    "vi": "tháng trước",
+    "nom": [
+      "𣎃𠓀"
+    ],
+    "explain": [
+      "last month"
+    ]
+  },
+  {
+    "vi": "tốn kém",
+    "nom": [
+      "損歉"
+    ],
+    "explain": [
+      "Expensive"
+    ]
+  },
+  {
+    "vi": "gửi đi",
+    "nom": [
+      "寄呧"
+    ],
+    "explain": [
+      "Send"
+    ]
+  },
+  {
+    "vi": "đáp trả",
+    "nom": [
+      "搭㨋"
+    ],
+    "explain": [
+      "Reply"
+    ]
+  },
+  {
+    "vi": "khơi mào",
+    "nom": [
+      "𢵱𦙤"
+    ],
+    "explain": [
+      "Initiation"
+    ]
+  },
+  {
+    "vi": "nước này",
+    "nom": [
+      "渃尼"
+    ],
+    "explain": [
+      "this country"
+    ]
+  },
+  {
+    "vi": "gần nhất",
+    "nom": [
+      "近一"
+    ],
+    "explain": [
+      "Nearest"
+    ]
+  },
+  {
+    "vi": "đúng thời điểm",
+    "nom": [
+      "倲時點"
+    ],
+    "explain": [
+      "Right time"
+    ]
   }
 ]

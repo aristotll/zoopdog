@@ -260,14 +260,14 @@
   pointer-events: auto;
   background: #fff;
   border-radius: 14px;
-  padding: 1.5rem 1.6rem 1.3rem;
-  min-width: 21rem;
+  padding: 24px 26px 21px;
+  min-width: 336px;
   max-width: 90vw;
   max-height: 85vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.08);
   color: #1c1c1e;
   font-size: 14px;
@@ -278,10 +278,10 @@
 
 .zd-modal h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  padding-bottom: 0.7rem;
+  padding-bottom: 11px;
   border-bottom: 1px solid #dcdce0;
   color: #1c1c1e;
 }
@@ -289,8 +289,8 @@
 .zd-modal h2.zd-modal-drag-handle.zd-dragging { cursor: grabbing; }
 
 .zd-modal-hint {
-  margin: -0.4rem 0 0;
-  font-size: 0.78rem;
+  margin: -6px 0 0;
+  font-size: 12px;
   font-weight: 400;
   color: #6b6b70;
 }
@@ -298,24 +298,34 @@
 .zd-modal label {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.75rem;
+  gap: 5px;
+  font-size: 12px;
   font-weight: 600;
   color: #6b6b70;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .zd-modal label input {
-  font-size: 0.95rem;
+  font-size: 15px;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
   color: #1c1c1e;
-  padding: 0.5rem 0.65rem;
+  padding: 8px 10px;
   border: 1px solid #dcdce0;
   border-radius: 7px;
   background: #fbfbfc;
 }
+.zd-modal label.zd-modal-checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.zd-modal label.zd-modal-checkbox-row input { flex: none; }
 .zd-modal label input:hover { border-color: #c4c4cb; }
 .zd-modal label input:focus {
   outline: none;
@@ -327,16 +337,16 @@
 .zd-modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.55rem;
-  margin-top: 0.3rem;
-  padding-top: 0.9rem;
+  gap: 9px;
+  margin-top: 5px;
+  padding-top: 14px;
   border-top: 1px solid #dcdce0;
 }
 .zd-modal-actions button {
-  padding: 0.45rem 1.1rem;
+  padding: 7px 18px;
   border-radius: 7px;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 14px;
   border: 1px solid #dcdce0;
   background: #fff;
   color: #6b6b70;
@@ -351,13 +361,13 @@
 .zd-modal-actions button[type="submit"]:hover { background: #0a56ba; border-color: #0a56ba; }
 .zd-modal-actions button[data-zd-modal-cancel]:hover { background: #f4f4f6; color: #1c1c1e; }
 
-.zd-field-row { display: flex; gap: 0.4rem; }
+.zd-field-row { display: flex; gap: 6px; }
 .zd-field-row input { flex: 1; min-width: 0; }
 .zd-field-button {
   flex-shrink: 0;
-  padding: 0 0.65rem;
+  padding: 0 10px;
   border-radius: 7px;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   background: #fff;
   color: #0b62d0;
@@ -367,47 +377,47 @@
 .zd-field-button:hover { border-color: #0b62d0; background: #f2f7fd; }
 
 .zd-nom-order-words {
-  margin: 0.15rem 0 0;
+  margin: 2px 0 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
+  gap: 6px;
+  font-size: 13px;
   color: #6b6b70;
 }
 .zd-nom-order-word {
-  padding: 0.1rem 0.5rem;
+  padding: 2px 8px;
   border: 1px solid #d9d4c8;
   border-radius: 999px;
   background: transparent;
-  font-size: 0.85rem;
+  font-size: 14px;
   cursor: pointer;
 }
 .zd-nom-order-word[aria-pressed="true"] { border-color: #1a73e8; color: #1a73e8; }
-.zd-nom-order-pick { font-size: 1.25rem; font-family: "Nom Na Tong", "HanaMinB", serif; }
+.zd-nom-order-pick { font-size: 20px; font-family: "Nom Na Tong", "HanaMinB", serif; }
 
 .zd-entry-diff-list {
   margin: 0;
-  padding: 0.7rem 0.85rem;
+  padding: 11px 14px;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  min-width: min(30rem, 78vw);
-  max-height: min(24rem, 46vh);
+  gap: 10px;
+  min-width: min(480px, 78vw);
+  max-height: min(384px, 46vh);
   overflow-y: auto;
   flex-shrink: 0;
   border: 1px solid #dcdce0;
   border-radius: 8px;
   background: #fbfbfc;
 }
-.zd-entry-diff-row + .zd-entry-diff-row { border-top: 1px dashed #dcdce0; padding-top: 0.65rem; }
+.zd-entry-diff-row + .zd-entry-diff-row { border-top: 1px dashed #dcdce0; padding-top: 10px; }
 .zd-entry-diff-key {
   position: sticky;
   top: 0;
   z-index: 1;
-  margin: -0.7rem -0.85rem 0;
-  padding: 0.55rem 0.85rem 0.5rem;
+  margin: -11px -14px 0;
+  padding: 9px 14px 8px;
   background: #f2f3f6;
   border-bottom: 1px solid #dcdce0;
 }
@@ -416,18 +426,18 @@
 .zd-entry-diff-field {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 6px;
   color: #6b6b70;
-  font-size: 0.7rem;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 0.2rem;
+  margin-bottom: 3px;
 }
 .zd-entry-diff-badge {
   text-transform: none;
   letter-spacing: 0;
-  font-size: 0.64rem;
-  padding: 0 0.3rem;
+  font-size: 10px;
+  padding: 0 5px;
   border-radius: 999px;
   border: 1px solid #dcdce0;
   color: #6b6b70;
@@ -437,23 +447,23 @@
 .zd-entry-diff-line {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
-  font-size: 0.98rem;
+  gap: 7px;
+  font-size: 16px;
   line-height: 1.65;
   word-break: break-word;
 }
 .zd-entry-diff-mark {
   flex-shrink: 0;
-  width: 0.9rem;
+  width: 14px;
   text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85rem;
+  font-size: 14px;
   color: #6b6b70;
 }
 .zd-entry-diff-old .zd-entry-diff-mark { color: #b3261e; }
 .zd-entry-diff-new .zd-entry-diff-mark { color: #1e7a3c; }
-.zd-entry-diff-list del { color: #b3261e; text-decoration: line-through; background: #fdecea; border-radius: 4px; padding: 0.05rem 0.25rem; }
-.zd-entry-diff-list ins { color: #1e7a3c; text-decoration: none; background: #e6f6ea; border-radius: 4px; padding: 0.05rem 0.25rem; }
+.zd-entry-diff-list del { color: #b3261e; text-decoration: line-through; background: #fdecea; border-radius: 4px; padding: 1px 4px; }
+.zd-entry-diff-list ins { color: #1e7a3c; text-decoration: none; background: #e6f6ea; border-radius: 4px; padding: 1px 4px; }
 .zd-entry-diff-list del mark { background: #f7c9c4; color: #7d1810; }
 .zd-entry-diff-list ins mark { background: #b7e6c6; color: #10592f; }
 .zd-entry-diff-empty { color: #6b6b70; font-style: italic; }
@@ -462,9 +472,9 @@
 
 .zd-modal-status {
   margin: 0;
-  padding: 0.5rem 0.7rem;
+  padding: 8px 11px;
   border-radius: 6px;
-  font-size: 0.82rem;
+  font-size: 13px;
   background: #fdecea;
   color: #b3261e;
 }
@@ -472,14 +482,14 @@
 .zd-toast {
   position: fixed;
   left: 50%;
-  bottom: 2.2rem;
+  bottom: 35px;
   z-index: 2147483647;
   transform: translateX(-50%);
   background: rgba(20, 20, 24, 0.9);
   color: #fff;
-  padding: 0.55rem 1rem;
+  padding: 9px 16px;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 14px;
   font-family: "Fira Sans", sans-serif;
   opacity: 0;
   transition: opacity 0.22s ease;

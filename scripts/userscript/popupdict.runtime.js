@@ -417,6 +417,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
       vi: 'zoopdog-nom-vi',
       nom: 'zoopdog-nom-nom',
       suggestions: 'zoopdog-nom-nom-suggestions',
+      replaceRow: 'zoopdog-nom-replace-row',
+      replace: 'zoopdog-nom-replace',
       explain: 'zoopdog-nom-explain',
       notesRefresh: 'zoopdog-nom-notes-refresh',
       diffPreview: 'zoopdog-nom-diff-preview',
@@ -575,11 +577,16 @@ __ZOOPDOG_RUNTIME_SOURCES__
       document.getElementById(ids.confirmBtn).hidden = true;
       document.getElementById(ids.saveBtn).hidden = false;
       document.getElementById(ids.saveBtn).textContent = stateFlags.isUpdate ? 'Preview update' : 'Save';
+      // Only meaningful once there is a stored entry to replace -- a
+      // brand-new vi term has nothing for the checkbox to act on.
+      document.getElementById(ids.replaceRow).hidden = !stateFlags.isUpdate;
+      if (!stateFlags.isUpdate) document.getElementById(ids.replace).checked = false;
     }
 
     [nomInput, explainInput].forEach(function(input) {
       input.addEventListener('input', resetPreview);
     });
+    document.getElementById(ids.replace).addEventListener('change', resetPreview);
 
     var nextNotesEngine = zooCreateEngineRotator();
     document.getElementById(ids.notesRefresh).addEventListener('click', function() {
@@ -667,6 +674,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       var query = { vi: vi, nom: nom };
       var explain = explainInput.value.trim();
       if (explain) query.explain = explain;
+      if (stateFlags.isUpdate && document.getElementById(ids.replace).checked) query.replace = '1';
       return { vi: vi, nom: nom, query: query };
     }
 
@@ -741,6 +749,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
     document.getElementById(ids.explain).value = '';
     document.getElementById(ids.title).textContent = 'Add Ch\u1EEF N\u00F4m entry';
     document.getElementById(ids.existingInfo).hidden = true;
+    document.getElementById(ids.replaceRow).hidden = true;
+    document.getElementById(ids.replace).checked = false;
     zooSetModalStatus(ids.status, '', false);
     document.getElementById(ids.diffPreview).hidden = true;
     document.getElementById(ids.diffPreview).textContent = '';
@@ -929,6 +939,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
       '<label>Ch\u1EEF N\u00F4m',
       '<input id="', nomIds.nom, '" type="text" required list="', nomIds.suggestions, '">',
       '<datalist id="', nomIds.suggestions, '"></datalist>',
+      '</label>',
+      '<label id="', nomIds.replaceRow, '" class="zd-modal-checkbox-row" hidden>',
+      '<input id="', nomIds.replace, '" type="checkbox">',
+      'Replace the stored spelling instead of adding a variant',
       '</label>',
       '<label>Notes',
       '<span class="zd-field-row">',

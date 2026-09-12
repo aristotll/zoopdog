@@ -62,9 +62,14 @@ module between the two repos.
   never blocking the fields above — see "Known slow paths" below.
 - `GET /v1/nom/entry?vi=...` — whether a term is already recorded, to switch the modal into
   update mode.
-- `POST /v1/nom/entries?vi=...&nom=...[&explain=...][&preview=1]` — write a new/extended entry.
-  Additive only (never overwrites an existing rendering), so the "Add" path skips the
-  preview step entirely; only an *update* (term already on file) goes through preview → confirm.
+- `POST /v1/nom/entries?vi=...&nom=...[&explain=...][&preview=1][&replace=1]` — write a
+  new/extended/corrected entry. Extends by default (never drops an existing rendering), so
+  the "Add" path skips the preview step entirely; only an *update* (term already on file)
+  goes through preview → confirm. `replace=1` is the update-only escape hatch for correcting
+  a wrong rendering (a typo, a mis-scanned character): it drops the stored variant(s) instead
+  of keeping them alongside the fix. The popup's "Add Chữ Nôm entry" modal surfaces this as a
+  "Replace the stored spelling instead of adding a variant" checkbox, shown only once the
+  term is recognized as an update.
 - `GET /v1/nom/order?vi=...&scope=global` — the term's known renderings plus whatever order is
   already recorded, for the "Set order" picker.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
