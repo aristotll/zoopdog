@@ -115,6 +115,20 @@ test('builders assemble the runtime instead of inlining it', () => {
       `${runtime} is syntax-checked as code`
     );
   }
+
+  // popupdict-local.runtime.js is a fragment concatenated inside popupdict.runtime.js's IIFE
+  // (see __ZOOPDOG_RUNTIME_SOURCES__), so it carries no header of its own -- wrap it in one to
+  // check its syntax the same way as any other runtime source.
+  const localFragmentPath = path.join(scriptsDir, 'userscript', 'popupdict-local.runtime.js');
+  const localFragment = fs.readFileSync(localFragmentPath, 'utf8');
+  assert.doesNotMatch(localFragment, /==UserScript==/,
+    'popupdict-local.runtime.js is a fragment, not a standalone userscript');
+  const probePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-fragment-')), 'probe.js');
+  fs.writeFileSync(probePath, `(function() {\n${localFragment}\n})();`);
+  assert.doesNotThrow(
+    () => execFileSync(process.execPath, ['--check', probePath], {stdio: 'pipe'}),
+    'popupdict-local.runtime.js is syntax-checked as code'
+  );
 });
 
 test('runtime placeholders must be replaced exactly once', () => {
@@ -169,6 +183,46 @@ test('generated userscripts declare a stamped version and their update location'
     assert.match(source, new RegExp(`^// @updateURL\\s+${url}$`, 'm'));
     assert.match(source, new RegExp(`^// @downloadURL\\s+${url}$`, 'm'));
   }
+});
+
+test('the -local userscripts carry local-mode grants and update from their own file, not github', () => {
+  const repoPaths = require('../scripts/lib/paths');
+  const {readUserscriptVersion, PENDING_VERSION} = require('../scripts/lib/userscript');
+
+  for (const builder of ['scripts/build-nom-userscript.js', 'scripts/build-popupdict-userscript.js']) {
+    execFileSync(process.execPath, [builder], {cwd: repoRoot, stdio: 'pipe'});
+  }
+
+  for (const [mainKey, localKey] of [
+    ['nomUserscript', 'nomLocalUserscript'],
+    ['popupUserscript', 'popupLocalUserscript']
+  ]) {
+    const mainSource = fs.readFileSync(repoPaths.absolute[mainKey], 'utf8');
+    const localSource = fs.readFileSync(repoPaths.absolute[localKey], 'utf8');
+    const localUrl = repoPaths.localFileUrl(localKey);
+    const localVersion = readUserscriptVersion(localSource);
+
+    assert.ok(localVersion && localVersion !== PENDING_VERSION, `${localKey} carries a real @version`);
+    assert.match(localSource, /^\/\/ @name\s+.+\(Local\)$/m, `${localKey} names itself distinctly`);
+    assert.doesNotMatch(mainSource, /\(Local\)/, `${mainKey} does not carry the -local suffix`);
+    assert.match(localSource, new RegExp(`^// @updateURL\\s+${localUrl.replace(/\//g, '\\/')}$`, 'm'));
+    assert.match(localSource, new RegExp(`^// @downloadURL\\s+${localUrl.replace(/\//g, '\\/')}$`, 'm'));
+    assert.doesNotMatch(mainSource, new RegExp(localUrl.replace(/\//g, '\\/')),
+      `${mainKey} never points at a local file:// URL`);
+  }
+
+  const popupLocalSource = fs.readFileSync(repoPaths.absolute.popupLocalUserscript, 'utf8');
+  const popupMainSource = fs.readFileSync(repoPaths.absolute.popupUserscript, 'utf8');
+
+  assert.match(popupLocalSource, /@grant\s+GM_xmlhttpRequest/,
+    'popupdict-local grants GM_xmlhttpRequest for local mode');
+  assert.match(popupLocalSource, /@connect\s+127\.0\.0\.1/);
+  assert.match(popupLocalSource, /function zooRenderLocalActions/,
+    'popupdict-local inlines the local-mode runtime');
+  assert.doesNotMatch(popupMainSource, /GM_xmlhttpRequest/,
+    'the github-hosted popupdict never asks for the local-mode grant');
+  assert.doesNotMatch(popupMainSource, /function zooRenderLocalActions/,
+    'the github-hosted popupdict never inlines the local-mode runtime');
 });
 
 test('both generated userscripts rebuild byte-identically', (t) => {

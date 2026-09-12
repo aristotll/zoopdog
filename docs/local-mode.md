@@ -24,12 +24,34 @@ popup can extend the same dictionary from anywhere.
 
 ## Where it lives
 
-Everything is in `scripts/userscript/popupdict.runtime.js`, in the "Local mode" section near the
-top of the file (search for `ZOO_LOCAL_BASE`). Nothing here has its own source module — it is
-part of the userscript runtime like everything else, built by
-`scripts/build-popupdict-userscript.js` into `zoopdog-popupdict.user.js`. Matching styles are in
-`scripts/userscript/popupdict.css` under the "Local mode" comment near the end of the file
-(`zd-local-*`, `zd-modal-*`, `zd-entry-diff-*`, `zd-selection-bar`, `zd-toast`).
+This ability only ships in the **`-local` build** — `zoopdog-popupdict-local.user.js`, built
+from `scripts/userscript/popupdict-local.runtime.js` (search for `ZOO_LOCAL_BASE`) and
+`scripts/userscript/popupdict-local.css`. The github-hosted `zoopdog-popupdict.user.js` never
+inlines any of it and never asks for the `GM_xmlhttpRequest` / `127.0.0.1` grants it needs — see
+"Two builds" below.
+
+`popupdict-local.runtime.js` has no header or IIFE of its own: `scripts/build-popupdict-userscript.js`
+concatenates it inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
+`__ZOOPDOG_RUNTIME_SOURCES__`, the same mechanism used for the other inlined browser sources),
+so it shares scope with the core runtime. The core file calls into it through three
+`typeof x === 'function'` guarded call sites (`zooRenderLocalActions`, `zooProbeLocalMode`,
+`zooWireSelectionBar`) that are silent no-ops when this fragment isn't built in. Matching styles
+are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
+`zd-entry-diff-*`, `zd-selection-bar`, `zd-toast`).
+
+## Two builds
+
+`scripts/build-nom-userscript.js` and `scripts/build-popupdict-userscript.js` each write two
+files per run: the github-hosted `.user.js` (unchanged name, `@updateURL`/`@downloadURL` point
+at the raw github URL as before) and a `-local.user.js` variant whose `@name` gets a `(Local)`
+suffix and whose `@updateURL`/`@downloadURL` point at `file://<absolute path to that file on
+this machine>` instead — so Violentmonkey's "track local file" picks up a rebuild directly,
+without waiting on a github push or periodic update check. The `-local` files are never
+committed (see `.gitignore`); `make rebuild-userscripts` regenerates both pairs.
+
+For `zoopdog-nom-ruby.user.js` the two builds are otherwise identical — that script has no
+local-mode ability to gate, so `-local` only changes the update contract, giving a fast local
+dev/reinstall loop decoupled from the github auto-update cadence.
 
 | Piece | Function(s) |
 | --- | --- |
@@ -99,7 +121,7 @@ for the same reason: there is no "book" to scope a local, book-only order to.
 ## Testing changes here
 
 ```sh
-node --check scripts/userscript/popupdict.runtime.js
+node --check scripts/userscript/popupdict-local.runtime.js
 node scripts/build-popupdict-userscript.js
 make verify
 ```
@@ -107,7 +129,8 @@ make verify
 `make verify` does not exercise local mode's network calls (there is no DOM/browser harness in
 this repo's `test/`); it only checks that the runtime source is syntactically valid and that the
 generated userscript stays in sync with it. To verify the feature itself, start the
-`book-translator` reader server, install the rebuilt userscript, and hover/select a Vietnamese
+`book-translator` reader server, install the rebuilt **`zoopdog-popupdict-local.user.js`**
+(the plain `zoopdog-popupdict.user.js` has none of this code), and hover/select a Vietnamese
 term on any page.
 
 ## Cross-repo pointer

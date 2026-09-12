@@ -62,6 +62,12 @@ See [dictionary-data.md](dictionary-data.md) for what each userscript embeds and
 rebuild is required. The builders also stamp `@version`, so pushing a rebuilt
 userscript to `master` is what makes installed copies auto-update.
 
+Each builder writes two files: the committed `zoopdog-*.user.js` (updates from github, as
+above) and an uncommitted `zoopdog-*-local.user.js` that updates from its own `file://` path on
+this machine instead — for `zoopdog-popupdict-local.user.js` that also means it is the only
+build carrying the local Chữ Nôm add/edit ability (see
+[local-mode.md](local-mode.md)). See `.gitignore` for the `-local` filenames.
+
 ## Rebuilding the browser runtime dictionary
 
 ```sh

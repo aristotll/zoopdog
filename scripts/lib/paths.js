@@ -15,6 +15,8 @@ const relative = Object.freeze({
   userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',
   nomUserscript: 'zoopdog-nom-ruby.user.js',
   popupUserscript: 'zoopdog-popupdict.user.js',
+  nomLocalUserscript: 'zoopdog-nom-ruby-local.user.js',
+  popupLocalUserscript: 'zoopdog-popupdict-local.user.js',
   defaultInput: '.idea/newfile.md',
   openspecChanges: 'openspec/changes',
   openspecArchive: 'openspec/changes/archive',
@@ -42,6 +44,13 @@ function rawUrl(key) {
   return `${rawBaseUrl}/${relative[key]}`;
 }
 
+// The -local userscripts never publish to github: they update from their own built file on
+// this machine, so Violentmonkey's "track local file" polling picks up a rebuild directly.
+function localFileUrl(key) {
+  assertKnown(key);
+  return `file://${resolveIn(rootDir, key)}`;
+}
+
 const absolute = Object.freeze(Object.fromEntries(
   Object.keys(relative).map((key) => [key, resolveIn(rootDir, key)])
 ));
@@ -52,5 +61,6 @@ module.exports = {
   absolute,
   resolveIn,
   rawBaseUrl,
-  rawUrl
+  rawUrl,
+  localFileUrl
 };

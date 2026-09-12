@@ -19,6 +19,95 @@ function zdIsWordChar(ch) {
   return !!ch && ZD_WORD_CHAR_RE.test(ch);
 }
 
+// How far out of the container the caret named the search may widen. Four
+// levels is enough to climb from a click-target overlay to the card that
+// holds both it and the text underneath, and short enough that a point over
+// genuinely empty space finds nothing rather than some distant word.
+const ZD_TEXT_SEARCH_MAX_LEVELS = 4;
+
+// The text node whose own rect contains (x, y), or null -- what
+// elementFromPoint answers for elements, answered here for text.
+//
+// Strictly containing, never merely nearest: a point in the gap between two
+// words belongs to neither, and answering "the closest one" there made the
+// popup show for a word the pointer was not on, then hide again on the next
+// move, which reads as a flicker.
+//
+// Subtrees whose own box misses the point are skipped, so this costs a walk
+// down one branch rather than over the whole container.
+function zdTextNodeAtPoint(root, x, y) {
+  if (!root || typeof document === 'undefined' || !document.createRange) {
+    return null;
+  }
+  let found = null;
+
+  function visit(node) {
+    if (found) {
+      return;
+    }
+    if (node.nodeType === 3) {
+      if (!node.data || !node.data.trim()) {
+        return;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rects = range.getClientRects();
+      for (let i = 0; i < rects.length; i++) {
+        const rect = rects[i];
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          found = node;
+          return;
+        }
+      }
+      return;
+    }
+    if (node.nodeType === 1 && typeof node.getBoundingClientRect === 'function') {
+      const box = node.getBoundingClientRect();
+      if (box.width && box.height &&
+          (x < box.left || x > box.right || y < box.top || y > box.bottom)) {
+        return;
+      }
+    }
+    const children = node.childNodes;
+    if (!children) {
+      return;
+    }
+    for (let i = 0; i < children.length && !found; i++) {
+      visit(children[i]);
+    }
+  }
+
+  visit(root);
+  return found;
+}
+
+// The caret APIs below are meant to resolve to a text node, but over certain
+// compact or CSS-quirky layouts -- a heading packed tight inside a link, an
+// ellipsis-truncated breadcrumb, a word this very script wrapped in <ruby> --
+// Chromium's hit-testing gives up and hands back an *element* boundary
+// instead (a documented engine limitation, not something either side did
+// wrong): "the caret would go here, among this container's children" rather
+// than a precise text offset.
+//
+// The element it names is not always one the text even lives in. A search
+// result card puts a link-shaped click target over the whole row, so both
+// this API and elementFromPoint answer with that overlay while the word the
+// pointer is on sits in a sibling subtree underneath -- searching the
+// overlay finds the card's title, or nothing, never the line being hovered.
+// So the search widens outward from the named element until it reaches an
+// ancestor that holds the text actually under the pointer.
+function zdRecoverTextNode(container, x, y) {
+  let node = container;
+  for (let level = 0; node && level <= ZD_TEXT_SEARCH_MAX_LEVELS; level++) {
+    const found = zdTextNodeAtPoint(node, x, y);
+    if (found) {
+      return found;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
 // Point resolution differs per engine and per caller. The extension passes client coordinates
 // only; the website page also has page coordinates, and there are documents where the client
 // pair resolves to nothing while the page pair resolves correctly. Trying the page pair second
@@ -34,12 +123,24 @@ function zdCaretFromPoint(mouse) {
     if (document.caretPositionFromPoint) {            // Firefox
       const position = document.caretPositionFromPoint(x, y);
       if (position) {
-        return {node: position.offsetNode, offset: position.offset};
+        if (position.offsetNode && position.offsetNode.nodeType === 3) {
+          return {node: position.offsetNode, offset: position.offset};
+        }
+        const near = zdRecoverTextNode(position.offsetNode, x, y);
+        if (near) {
+          return {node: near, offset: 0, atPoint: true};
+        }
       }
     } else if (document.caretRangeFromPoint) {        // Chrome
       const range = document.caretRangeFromPoint(x, y);
       if (range) {
-        return {node: range.startContainer, offset: range.startOffset};
+        if (range.startContainer && range.startContainer.nodeType === 3) {
+          return {node: range.startContainer, offset: range.startOffset};
+        }
+        const near = zdRecoverTextNode(range.startContainer, x, y);
+        if (near) {
+          return {node: near, offset: 0, atPoint: true};
+        }
       }
     } else {
       return null;
@@ -94,7 +195,13 @@ function getWordAndContext(mouse) {
     word: data.substring(begin, end).trim().normalize('NFC'),
     context: data.substring(begin, contextEnd).trim().normalize('NFC'),
     node: textNode,
-    begin: begin
+    begin: begin,
+    // True when this node was found by testing which text the point falls
+    // inside, rather than taken from the caret API. A caller that would
+    // otherwise cross-check the result against elementFromPoint can skip
+    // that: containment is what produced this node in the first place, and
+    // the element at the point may well be an overlay the text is not in.
+    atPoint: caret.atPoint === true
   };
 }
 

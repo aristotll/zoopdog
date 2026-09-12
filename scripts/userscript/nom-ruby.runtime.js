@@ -1,9 +1,11 @@
 // ==UserScript==
-// @name        Zoopdog Nom Ruby
+// @name        Zoopdog Nom Ruby__ZOOPDOG_NAME_SUFFIX__
 // @description Add Chu Nom ruby annotations to Vietnamese text using Zoopdog dictionary data
 // @author      Zoopdog Contributors
 // @namespace   https://github.com/tabidots/zoopdog
 // @match       *://*/*
+// @exclude     http://127.0.0.1:8770/*
+// @exclude     http://localhost:8770/*
 // @grant       GM_addStyle
 // @version     __ZOOPDOG_VERSION__
 // @updateURL   __ZOOPDOG_UPDATE_URL__

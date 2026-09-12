@@ -153,6 +153,7 @@ function runRuntime(nomMap) {
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
+    '__ZOOPDOG_NAME_SUFFIX__': '',
     '__ZOOPDOG_UPDATE_URL__': 'about:blank',
     '__ZOOPDOG_DOWNLOAD_URL__': 'about:blank',
     '__ZOOPDOG_VERSION__': '0.0.0-test'

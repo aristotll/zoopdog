@@ -9,3 +9,8 @@ out
 gen
 /zd-extension.crx
 /zd-extension.pem
+
+# Local-only userscript builds (docs/local-mode.md): update from this machine's own file via
+# Violentmonkey's "track local file", never from github, so they are never committed.
+/zoopdog-nom-ruby-local.user.js
+/zoopdog-popupdict-local.user.js

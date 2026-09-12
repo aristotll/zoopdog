@@ -183,6 +183,120 @@ test('a non-text caret target reports no word', () => {
   assert.equal(result, false);
 });
 
+// A fake `document.createRange` whose ranges report the rect(s) `rectsByNode` was given for
+// whatever node `selectNodeContents` was called with -- enough of the real Range contract for
+// zdClosestTextNode to measure distance against, without a real DOM.
+function withRects(rectsByNode, doc) {
+  return Object.assign({}, doc, {
+    createRange: () => {
+      let target = null;
+      return {
+        selectNodeContents(node) { target = node; },
+        getClientRects: () => rectsByNode.get(target) || []
+      };
+    }
+  });
+}
+
+// Reproduces a real Google search-results page: a compact <h3> sitelink packs its Chữ Nôm word
+// straight inside a <ruby>, followed by a plain " 2" text node and a trailing empty <span> (an
+// arrow icon rendered from CSS, no text of its own) -- and Chromium's caretRangeFromPoint there
+// hands back the <h3> itself (nodeType 1) with startOffset sitting past *every* child, not a
+// text node. Naively walking backward from that boundary by DOM adjacency lands on " 2" (the
+// nearest sibling with any text) instead of "Trang" (what the pointer is actually over) --
+// exactly why the recovery has to rank every candidate by real pixel distance, not tree order.
+test('a non-text caret target recovers the word closest to the pointer, not just the nearest sibling', () => {
+  const word = textNode('Trang');
+  const ruby = {nodeType: 1, childNodes: [word]};
+  const spacer = textNode(' 2');
+  const icon = {nodeType: 1, childNodes: []};
+  const h3 = {nodeType: 1, childNodes: [ruby, spacer, icon]};
+
+  const rectsByNode = new Map([
+    [word, [{left: 171, right: 217, top: 305, bottom: 326}]],
+    [spacer, [{left: 217, right: 230, top: 305, bottom: 326}]]
+  ]);
+
+  const result = withDocument(
+    withRects(rectsByNode, {caretRangeFromPoint: () => ({startContainer: h3, startOffset: 3})}),
+    () => words.getWordAndContext({x: 194, y: 315})
+  );
+
+  assert.equal(result.word, 'Trang');
+  assert.equal(result.node, word);
+});
+
+// The search-result card case: a link-shaped click target is laid over the whole row, so the
+// caret API names that overlay -- but the line being hovered lives in a sibling subtree under
+// the card, not in the overlay at all. Searching only the named element finds the card's title
+// or nothing, which is why those description lines never showed a popup; the search has to
+// widen outwards until it reaches an ancestor holding the text under the pointer.
+test('a caret naming an overlay finds the text under the pointer outside it', () => {
+  const title = textNode('Trang');
+  const overlay = {nodeType: 1, childNodes: [title]};
+  const word = textNode('người');
+  const line = {nodeType: 1, childNodes: [word]};
+  const card = {nodeType: 1, childNodes: [overlay, line]};
+  overlay.parentElement = card;
+
+  const rectsByNode = new Map([
+    [title, [{left: 171, right: 217, top: 300, bottom: 320}]],
+    [word, [{left: 202, right: 239, top: 390, bottom: 406}]]
+  ]);
+
+  const result = withDocument(
+    withRects(rectsByNode, {caretRangeFromPoint: () => ({startContainer: overlay, startOffset: 0})}),
+    () => words.getWordAndContext({x: 221, y: 398})
+  );
+
+  assert.equal(result.word, 'người');
+  assert.equal(result.node, word);
+  assert.equal(result.atPoint, true, 'found by containment, so callers can skip the elementFromPoint check');
+});
+
+// The flicker guard: answering with the nearest word for a point that is on no word at all made
+// the popup appear for something the pointer was not over, then vanish on the next move.
+test('a point inside no word at all reports no word, however close one is', () => {
+  const word = textNode('Trang');
+  const ruby = {nodeType: 1, childNodes: [word]};
+  const card = {nodeType: 1, childNodes: [ruby]};
+
+  const rectsByNode = new Map([[word, [{left: 171, right: 217, top: 300, bottom: 320}]]]);
+
+  const result = withDocument(
+    withRects(rectsByNode, {caretRangeFromPoint: () => ({startContainer: card, startOffset: 0})}),
+    () => words.getWordAndContext({x: 219, y: 310})   // two px past the word's right edge
+  );
+
+  assert.equal(result, false);
+});
+
+test('a container with no text anywhere in it still reports no word', () => {
+  const emptyWrapper = {nodeType: 1, childNodes: []};
+  const container = {nodeType: 1, childNodes: [emptyWrapper]};
+  const result = withDocument(
+    withRects(new Map(), {caretRangeFromPoint: () => ({startContainer: container, startOffset: 0})}),
+    () => words.getWordAndContext({x: 1, y: 1})
+  );
+
+  assert.equal(result, false);
+});
+
+test('a document with no createRange support cannot recover from a non-text caret target', () => {
+  // The plain "a non-text caret target reports no word" test above already covers this --
+  // named separately here because it is the thing that makes the *recovery* itself opt-in
+  // rather than a hard requirement: an older engine or a test document missing createRange
+  // degrades to the pre-recovery behaviour instead of throwing.
+  const word = textNode('Trang');
+  const ruby = {nodeType: 1, childNodes: [word]};
+  const h3 = {nodeType: 1, childNodes: [ruby]};
+  const result = withDocument({
+    caretRangeFromPoint: () => ({startContainer: h3, startOffset: 1})
+  }, () => words.getWordAndContext({x: 194, y: 315}));
+
+  assert.equal(result, false);
+});
+
 test('a caret on whitespace or past the end reports no word', () => {
   const node = textNode('xin chào');
   const at = (offset) => withDocument({

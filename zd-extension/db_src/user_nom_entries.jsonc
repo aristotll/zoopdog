@@ -7569,5 +7569,1245 @@
     "explain": [
       "Right time"
     ]
+  },
+  {
+    "vi": "Thời lượng",
+    "nom": [
+      "時量"
+    ],
+    "explain": [
+      "Duration"
+    ]
+  },
+  {
+    "vi": "Thời lượng pin",
+    "nom": [
+      "時量pin"
+    ],
+    "explain": [
+      "Battery life"
+    ]
+  },
+  {
+    "vi": "Chủ tịch nước",
+    "nom": [
+      "主席渃"
+    ],
+    "explain": [
+      "President"
+    ]
+  },
+  {
+    "vi": "Tô Lâm",
+    "nom": [
+      "蘇林"
+    ],
+    "explain": [
+      "To Lam"
+    ]
+  },
+  {
+    "vi": "chuyến thăm",
+    "nom": [
+      "轉探"
+    ],
+    "explain": [
+      "Visit"
+    ]
+  },
+  {
+    "vi": "Tiễn đoàn",
+    "nom": [
+      "踐團"
+    ],
+    "explain": [
+      "Farewell"
+    ]
+  },
+  {
+    "vi": "Pháp ngữ",
+    "nom": [
+      "法語"
+    ],
+    "explain": [
+      "French"
+    ]
+  },
+  {
+    "vi": "Lễ tân",
+    "nom": [
+      "禮賓"
+    ],
+    "explain": [
+      "Reception"
+    ]
+  },
+  {
+    "vi": "Chủ tịch Thượng viện",
+    "nom": [
+      "主席上院"
+    ],
+    "explain": [
+      "President of the Senate"
+    ]
+  },
+  {
+    "vi": "không gian vũ trụ",
+    "nom": [
+      "空間宇宙"
+    ],
+    "explain": [
+      "Aerospace"
+    ]
+  },
+  {
+    "vi": "chuyên gia công nghệ",
+    "nom": [
+      "專家工藝"
+    ],
+    "explain": [
+      "Technology Experts"
+    ]
+  },
+  {
+    "vi": "dâng hoa",
+    "nom": [
+      "仩花"
+    ],
+    "explain": [
+      "Offering flowers"
+    ]
+  },
+  {
+    "vi": "cộng đồng người Việt",
+    "nom": [
+      "共同𠊛越"
+    ],
+    "explain": [
+      "Vietnamese community"
+    ]
+  },
+  {
+    "vi": "Đại thập tự",
+    "nom": [
+      "大十字"
+    ],
+    "explain": [
+      "The Great Cross"
+    ]
+  },
+  {
+    "vi": "bậc nhất",
+    "nom": [
+      "堛一"
+    ],
+    "explain": [
+      "First class"
+    ]
+  },
+  {
+    "vi": "nước Pháp",
+    "nom": [
+      "渃法"
+    ],
+    "explain": [
+      "France"
+    ]
+  },
+  {
+    "vi": "quan hệ song phương",
+    "nom": [
+      "關係雙方"
+    ],
+    "explain": [
+      "Bilateral relations"
+    ]
+  },
+  {
+    "vi": "công nghiệp quốc phòng",
+    "nom": [
+      "工業國防"
+    ],
+    "explain": [
+      "Defense Industry"
+    ]
+  },
+  {
+    "vi": "công nghệ quốc phòng",
+    "nom": [
+      "工藝國防"
+    ],
+    "explain": [
+      "Defense Technology"
+    ]
+  },
+  {
+    "vi": "khoa học công nghệ",
+    "nom": [
+      "科學工藝"
+    ],
+    "explain": [
+      "Science and Technology"
+    ]
+  },
+  {
+    "vi": "đường sắt",
+    "nom": [
+      "塘鉄"
+    ],
+    "explain": [
+      "Railways"
+    ]
+  },
+  {
+    "vi": "Hội nghị thượng đỉnh",
+    "nom": [
+      "會議上頂"
+    ],
+    "explain": [
+      "Summit"
+    ]
+  },
+  {
+    "vi": "nền kinh tế",
+    "nom": [
+      "𡋂經濟"
+    ],
+    "explain": [
+      "Economy"
+    ]
+  },
+  {
+    "vi": "đoàn đại biểu",
+    "nom": [
+      "團代表"
+    ],
+    "explain": [
+      "Delegation"
+    ]
+  },
+  {
+    "vi": "Bộ trưởng Ngoại giao",
+    "nom": [
+      "部長外交"
+    ],
+    "explain": [
+      "Minister of Foreign Affairs"
+    ]
+  },
+  {
+    "vi": "Công an",
+    "nom": [
+      "公安"
+    ],
+    "explain": [
+      "Police"
+    ]
+  },
+  {
+    "vi": "Tài chính",
+    "nom": [
+      "財政"
+    ],
+    "explain": [
+      "Finance"
+    ]
+  },
+  {
+    "vi": "Bộ Tài chính",
+    "nom": [
+      "部財正"
+    ],
+    "explain": [
+      "Ministry of Finance"
+    ]
+  },
+  {
+    "vi": "Phó Chủ nhiệm",
+    "nom": [
+      "副主任"
+    ],
+    "explain": [
+      "Deputy Chairman"
+    ]
+  },
+  {
+    "vi": "Đại sứ Việt Nam",
+    "nom": [
+      "大使越南"
+    ],
+    "explain": [
+      "Ambassador of Vietnam"
+    ]
+  },
+  {
+    "vi": "lần thứ hai",
+    "nom": [
+      "吝次𠄩"
+    ],
+    "explain": [
+      "the second time"
+    ]
+  },
+  {
+    "vi": "năm nay",
+    "nom": [
+      "𠄼𫢩"
+    ],
+    "explain": [
+      "this year"
+    ]
+  },
+  {
+    "vi": "hợp tác đa phương",
+    "nom": [
+      "合作多方"
+    ],
+    "explain": [
+      "Multilateral cooperation"
+    ]
+  },
+  {
+    "vi": "thúc đẩy hợp tác",
+    "nom": [
+      "促𢩽合作"
+    ],
+    "explain": [
+      "Fostering collaboration"
+    ]
+  },
+  {
+    "vi": "vấn đề toàn cầu",
+    "nom": [
+      "問題全球"
+    ],
+    "explain": [
+      "Global Issues"
+    ]
+  },
+  {
+    "vi": "Chương trình nghị sự",
+    "nom": [
+      "章程議事"
+    ],
+    "explain": [
+      "Agenda"
+    ]
+  },
+  {
+    "vi": "trí tuệ",
+    "nom": [
+      "智彗"
+    ],
+    "explain": [
+      "Wisdom"
+    ]
+  },
+  {
+    "vi": "trí tuệ nhân tạo",
+    "nom": [
+      "智彗人造"
+    ],
+    "explain": [
+      "Artificial Intelligence"
+    ]
+  },
+  {
+    "vi": "tham khảo kinh nghiệm",
+    "nom": [
+      "參考經驗"
+    ],
+    "explain": [
+      "Experience Reference"
+    ]
+  },
+  {
+    "vi": "có thêm",
+    "nom": [
+      "固添"
+    ],
+    "explain": [
+      "have more"
+    ]
+  },
+  {
+    "vi": "quá trình xây dựng",
+    "nom": [
+      "過程𡏦𥩯"
+    ],
+    "explain": [
+      "Construction Process"
+    ]
+  },
+  {
+    "vi": "không chỉ là",
+    "nom": [
+      "空只𱺵"
+    ],
+    "explain": [
+      "not just"
+    ]
+  },
+  {
+    "vi": "người bạn",
+    "nom": [
+      "𠊛伴"
+    ],
+    "explain": [
+      "Friend"
+    ]
+  },
+  {
+    "vi": "đối tác tin cậy",
+    "nom": [
+      "對作信𢚁"
+    ],
+    "explain": [
+      "Trusted Partner"
+    ]
+  },
+  {
+    "vi": "mà còn là",
+    "nom": [
+      "𣻕𡀳𱺵"
+    ],
+    "explain": [
+      "but also"
+    ]
+  },
+  {
+    "vi": "có nhiều",
+    "nom": [
+      "固𡗉"
+    ],
+    "explain": [
+      "There are many"
+    ]
+  },
+  {
+    "vi": "thế mạnh",
+    "nom": [
+      "世猛"
+    ],
+    "explain": [
+      "Strengths"
+    ]
+  },
+  {
+    "vi": "thế mạnh",
+    "nom": [
+      "勢猛"
+    ],
+    "explain": [
+      "Strengths"
+    ]
+  },
+  {
+    "vi": "mục tiêu phát triển",
+    "nom": [
+      "目標發展"
+    ],
+    "explain": [
+      "Development Goals"
+    ]
+  },
+  {
+    "vi": "ưu tiên cao",
+    "nom": [
+      "優先高"
+    ],
+    "explain": [
+      "High Priority"
+    ]
+  },
+  {
+    "vi": "hợp tác kinh tế",
+    "nom": [
+      "合作經濟"
+    ],
+    "explain": [
+      "Economic Cooperation"
+    ]
+  },
+  {
+    "vi": "kết nối hạ tầng",
+    "nom": [
+      "結綏下層"
+    ],
+    "explain": [
+      "Infrastructure Connection"
+    ]
+  },
+  {
+    "vi": "đánh trượt",
+    "nom": [
+      "打跌"
+    ],
+    "explain": [
+      "Slip"
+    ]
+  },
+  {
+    "vi": "sự tồn tại",
+    "nom": [
+      "事存在"
+    ],
+    "explain": [
+      "Existence"
+    ]
+  },
+  {
+    "vi": "rơi vào",
+    "nom": [
+      "淶𠓨"
+    ],
+    "explain": [
+      "fall into"
+    ]
+  },
+  {
+    "vi": "thổi vào",
+    "nom": [
+      "𠺙𠓨"
+    ],
+    "explain": [
+      "Blow In"
+    ]
+  },
+  {
+    "vi": "vang lên",
+    "nom": [
+      "㘇𬨠"
+    ],
+    "explain": [
+      "resounding"
+    ]
+  },
+  {
+    "vi": "mường tượng",
+    "nom": [
+      "𠉋象"
+    ],
+    "explain": [
+      "Imagine"
+    ]
+  },
+  {
+    "vi": "lăng không",
+    "nom": [
+      "凌空"
+    ],
+    "explain": [
+      "Ling Kongkong!"
+    ]
+  },
+  {
+    "vi": "đèn lửa",
+    "nom": [
+      "畑焒"
+    ],
+    "explain": [
+      "Fire Lamp"
+    ]
+  },
+  {
+    "vi": "hoa lệ",
+    "nom": [
+      "華麗"
+    ],
+    "explain": [
+      "magnificent"
+    ]
+  },
+  {
+    "vi": "quả táo",
+    "nom": [
+      "果棗"
+    ],
+    "explain": [
+      "apples"
+    ]
+  },
+  {
+    "vi": "chạm nhau",
+    "nom": [
+      "𪮻僥"
+    ],
+    "explain": [
+      "Touch each other"
+    ]
+  },
+  {
+    "vi": "Hay lắm",
+    "nom": [
+      "咍𡗋"
+    ],
+    "explain": [
+      "Very good"
+    ]
+  },
+  {
+    "vi": "Không hay",
+    "nom": [
+      "空咍"
+    ],
+    "explain": [
+      "Not good"
+    ]
+  },
+  {
+    "vi": "tiến vào",
+    "nom": [
+      "進𠓨"
+    ],
+    "explain": [
+      "Enter"
+    ]
+  },
+  {
+    "vi": "tờ giấy",
+    "nom": [
+      "詞紙"
+    ],
+    "explain": [
+      "Sheet of paper"
+    ]
+  },
+  {
+    "vi": "tờ giấy trắng",
+    "nom": [
+      "詞紙𤽸"
+    ],
+    "explain": [
+      "White Paper"
+    ]
+  },
+  {
+    "vi": "giấy trắng",
+    "nom": [
+      "紙𤽸"
+    ],
+    "explain": [
+      "White Paper"
+    ]
+  },
+  {
+    "vi": "thanh đao",
+    "nom": [
+      "青刀"
+    ],
+    "explain": [
+      "Thanh Dao"
+    ]
+  },
+  {
+    "vi": "rung lên",
+    "nom": [
+      "𢫝𬨠"
+    ],
+    "explain": [
+      "vibrating"
+    ]
+  },
+  {
+    "vi": "lưỡi đao",
+    "nom": [
+      "𦧜刀"
+    ],
+    "explain": [
+      "blade"
+    ]
+  },
+  {
+    "vi": "Trích Diệp Phi Hoa",
+    "nom": [
+      "摘葉飛花"
+    ],
+    "explain": [
+      "Quoting Ye Fei Hua"
+    ]
+  },
+  {
+    "vi": "hay quá",
+    "nom": [
+      "咍過"
+    ],
+    "explain": [
+      "Good."
+    ]
+  },
+  {
+    "vi": "hay hơn",
+    "nom": [
+      "咍欣"
+    ],
+    "explain": [
+      "better"
+    ]
+  },
+  {
+    "vi": "đưa tới",
+    "nom": [
+      "迻𬧐"
+    ],
+    "explain": [
+      "Bring to"
+    ]
+  },
+  {
+    "vi": "một cặp",
+    "nom": [
+      "𠬠笈"
+    ]
+  },
+  {
+    "vi": "một thước",
+    "nom": [
+      "𠬠𡱩"
+    ],
+    "explain": [
+      "one yard"
+    ]
+  },
+  {
+    "vi": "trên đời",
+    "nom": [
+      "𨕭𠁀"
+    ],
+    "explain": [
+      "in the world"
+    ]
+  },
+  {
+    "vi": "có tội",
+    "nom": [
+      "固罪"
+    ],
+    "explain": [
+      "guilty"
+    ]
+  },
+  {
+    "vi": "tấn công",
+    "nom": [
+      "進攻"
+    ],
+    "explain": [
+      "attack",
+      "Attack"
+    ]
+  },
+  {
+    "vi": "Có người nói",
+    "nom": [
+      "固𠊛吶"
+    ],
+    "explain": [
+      "Someone said"
+    ]
+  },
+  {
+    "vi": "thật ra là",
+    "nom": [
+      "實𫥨𱺵"
+    ],
+    "explain": [
+      "in fact"
+    ]
+  },
+  {
+    "vi": "ngừng lại",
+    "nom": [
+      "凝吏"
+    ],
+    "explain": [
+      "Stop"
+    ]
+  },
+  {
+    "vi": "bí mật lớn",
+    "nom": [
+      "秘密𡘯"
+    ],
+    "explain": [
+      "Big Secret"
+    ]
+  },
+  {
+    "vi": "già trẻ",
+    "nom": [
+      "𫅷𥘷"
+    ],
+    "explain": [
+      "Young and old"
+    ]
+  },
+  {
+    "vi": "nhớ rõ",
+    "nom": [
+      "𢖵𤑟"
+    ],
+    "explain": [
+      "Remember clearly"
+    ]
+  },
+  {
+    "vi": "nhớ rằng",
+    "nom": [
+      "𢖵哴"
+    ],
+    "explain": [
+      "Remember that"
+    ]
+  },
+  {
+    "vi": "lóe lên",
+    "nom": [
+      "𤑬𬨠"
+    ],
+    "explain": [
+      "flash"
+    ]
+  },
+  {
+    "vi": "không chết",
+    "nom": [
+      "空𣩂"
+    ],
+    "explain": [
+      "not dead"
+    ]
+  },
+  {
+    "vi": "Một trong",
+    "nom": [
+      "𠬠沖"
+    ],
+    "explain": [
+      "One of the"
+    ]
+  },
+  {
+    "vi": "Lời đồn",
+    "nom": [
+      "唎訰"
+    ],
+    "explain": [
+      "Rumors"
+    ]
+  },
+  {
+    "vi": "cười nhạt",
+    "nom": [
+      "唭溂"
+    ],
+    "explain": [
+      "faint smile"
+    ]
+  },
+  {
+    "vi": "đúng là thế",
+    "nom": [
+      "倲𱺵世"
+    ],
+    "explain": [
+      "That's right"
+    ]
+  },
+  {
+    "vi": "Cùng lúc đó",
+    "nom": [
+      "共𣅶妬"
+    ],
+    "explain": [
+      "At the same time"
+    ]
+  },
+  {
+    "vi": "không biết chút gì",
+    "nom": [
+      "空別𡭧之"
+    ],
+    "explain": [
+      "not know anything"
+    ]
+  },
+  {
+    "vi": "không nói gì",
+    "nom": [
+      "空吶之"
+    ],
+    "explain": [
+      "Say nothing"
+    ]
+  },
+  {
+    "vi": "người đầu tiên",
+    "nom": [
+      "𠊛頭先"
+    ],
+    "explain": [
+      "First Person"
+    ]
+  },
+  {
+    "vi": "tìm tới",
+    "nom": [
+      "尋𬧐"
+    ]
+  },
+  {
+    "vi": "đang ở đâu",
+    "nom": [
+      "當於兜"
+    ],
+    "explain": [
+      "Where are you?"
+    ]
+  },
+  {
+    "vi": "giết được",
+    "nom": [
+      "悊待"
+    ],
+    "explain": [
+      "kill"
+    ]
+  },
+  {
+    "vi": "tìm không được",
+    "nom": [
+      "尋空得"
+    ],
+    "explain": [
+      "couldn't find it"
+    ]
+  },
+  {
+    "vi": "thất tung",
+    "nom": [
+      "失蹤"
+    ]
+  },
+  {
+    "vi": "nghĩ tới",
+    "nom": [
+      "擬𬧐"
+    ],
+    "explain": [
+      "Thinking about"
+    ]
+  },
+  {
+    "vi": "rất muốn",
+    "nom": [
+      "窒㦖"
+    ],
+    "explain": [
+      "Highly Wanted"
+    ]
+  },
+  {
+    "vi": "một điểm",
+    "nom": [
+      "𠬠點"
+    ],
+    "explain": [
+      "One point"
+    ]
+  },
+  {
+    "vi": "Tiếng cười",
+    "nom": [
+      "㗂唭"
+    ],
+    "explain": [
+      "Laughter"
+    ]
+  },
+  {
+    "vi": "rất lâu",
+    "nom": [
+      "窒𱍿"
+    ],
+    "explain": [
+      "for a long time"
+    ]
+  },
+  {
+    "vi": "không có tác dụng gì",
+    "nom": [
+      "空固作用之"
+    ],
+    "explain": [
+      "has no effect"
+    ]
+  },
+  {
+    "vi": "lẽ ra",
+    "nom": [
+      "𨤰𤄷"
+    ],
+    "explain": [
+      "should have"
+    ]
+  },
+  {
+    "vi": "gây tranh cãi",
+    "nom": [
+      "掑爭𠳚"
+    ],
+    "explain": [
+      "Controversial"
+    ]
+  },
+  {
+    "vi": "người thuận tay trái",
+    "nom": [
+      "𠊛順𢬣債"
+    ],
+    "explain": [
+      "Left-handed"
+    ]
+  },
+  {
+    "vi": "thuận tay trái",
+    "nom": [
+      "順𢬣債"
+    ],
+    "explain": [
+      "Left-handed"
+    ]
+  },
+  {
+    "vi": "thiết kế giao diện",
+    "nom": [
+      "設計交面"
+    ],
+    "explain": [
+      "Interface Design"
+    ]
+  },
+  {
+    "vi": "Tiếng Dân",
+    "nom": [
+      "㗂民"
+    ]
+  },
+  {
+    "vi": "được tin",
+    "nom": [
+      "得信"
+    ],
+    "explain": [
+      "Trusted"
+    ]
+  },
+  {
+    "vi": "sớm hơn",
+    "nom": [
+      "𣋽欣"
+    ],
+    "explain": [
+      "sooner"
+    ]
+  },
+  {
+    "vi": "May là",
+    "nom": [
+      "𠶣𱺵"
+    ],
+    "explain": [
+      "Fortunately"
+    ]
+  },
+  {
+    "vi": "bộc nhân",
+    "nom": [
+      "僕人"
+    ],
+    "explain": [
+      "servitude"
+    ]
+  },
+  {
+    "vi": "áo xanh",
+    "nom": [
+      "襖青"
+    ],
+    "explain": [
+      "Blue Shirt"
+    ]
+  },
+  {
+    "vi": "phía sau",
+    "nom": [
+      "𱘃𢖖"
+    ],
+    "explain": [
+      "Rear"
+    ]
+  },
+  {
+    "vi": "bay qua",
+    "nom": [
+      "𢒎戈"
+    ],
+    "explain": [
+      "Flying Over"
+    ]
+  },
+  {
+    "vi": "kình phong",
+    "nom": [
+      "劲風"
+    ],
+    "explain": [
+      "Qiang Feng"
+    ]
+  },
+  {
+    "vi": "lóa mắt",
+    "nom": [
+      "𤆷眜"
+    ],
+    "explain": [
+      "dazzle"
+    ]
+  },
+  {
+    "vi": "Đây chính là",
+    "nom": [
+      "低正𱺵"
+    ],
+    "explain": [
+      "This is"
+    ]
+  },
+  {
+    "vi": "nhìn tới",
+    "nom": [
+      "𥆾𬧐"
+    ],
+    "explain": [
+      "Look forward"
+    ]
+  },
+  {
+    "vi": "Đúng thế",
+    "nom": [
+      "倲世"
+    ],
+    "explain": [
+      "That's right"
+    ]
+  },
+  {
+    "vi": "giá trị liên thành",
+    "nom": [
+      "價值連城"
+    ],
+    "explain": [
+      "Intercity Values"
+    ]
+  },
+  {
+    "vi": "nhìn thấy rất rõ",
+    "nom": [
+      "𥆾𧡊窒𤑟"
+    ],
+    "explain": [
+      "see very clearly"
+    ]
+  },
+  {
+    "vi": "yêu nhau",
+    "nom": [
+      "㤇僥"
+    ],
+    "explain": [
+      "love each other"
+    ]
+  },
+  {
+    "vi": "bước lên",
+    "nom": [
+      "𨀈𬨠"
+    ],
+    "explain": [
+      "Step Up"
+    ]
+  },
+  {
+    "vi": "vọt lên",
+    "nom": [
+      "浡𬨠"
+    ],
+    "explain": [
+      "Jump Up"
+    ]
+  },
+  {
+    "vi": "lùi lại",
+    "nom": [
+      "𤈞吏"
+    ],
+    "explain": [
+      "Stepping back"
+    ]
+  },
+  {
+    "vi": "độ cao",
+    "nom": [
+      "度高"
+    ],
+    "explain": [
+      "Altitude"
+    ]
+  },
+  {
+    "vi": "tăng lãi suất",
+    "nom": [
+      "增賚率"
+    ],
+    "explain": [
+      "interest rate increases"
+    ]
+  },
+  {
+    "vi": "việc nhà",
+    "nom": [
+      "役茹"
+    ],
+    "explain": [
+      "Household chores"
+    ]
+  },
+  {
+    "vi": "cả ngày",
+    "nom": [
+      "哿𣈜"
+    ],
+    "explain": [
+      "All day"
+    ]
+  },
+  {
+    "vi": "lượt xem",
+    "nom": [
+      "𦀎䀡"
+    ],
+    "explain": [
+      "Views"
+    ]
+  },
+  {
+    "vi": "bài đăng",
+    "nom": [
+      "排登"
+    ],
+    "explain": [
+      "Posts"
+    ]
   }
 ]

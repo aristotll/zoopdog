@@ -21,7 +21,15 @@ const sourcePath = repoPaths.absolute.dictionary;
 const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
-const targetPath = repoPaths.absolute.nomUserscript;
+
+// The -local variant is identical in every way except its update contract: it points at its
+// own file on this machine (for Violentmonkey's "track local file") instead of the github raw
+// URL, so rebuilding it never collides with the auto-updating github-hosted copy. It is never
+// committed -- see .gitignore.
+const VARIANTS = [
+  {targetKey: 'nomUserscript', nameSuffix: ''},
+  {targetKey: 'nomLocalUserscript', nameSuffix: ' (Local)'}
+];
 
 function buildNomMap(entries) {
   const map = new Map();
@@ -83,12 +91,17 @@ function mergeExtractedNomMap(nomMap, extractedPayload) {
   }
 }
 
-function buildUserscript(nomMap) {
+function buildUserscript(nomMap, variant) {
+  const updateUrl = variant.targetKey === 'nomLocalUserscript'
+    ? repoPaths.localFileUrl(variant.targetKey)
+    : repoPaths.rawUrl(variant.targetKey);
+
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
-    '__ZOOPDOG_UPDATE_URL__': repoPaths.rawUrl('nomUserscript'),
-    '__ZOOPDOG_DOWNLOAD_URL__': repoPaths.rawUrl('nomUserscript'),
+    '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
+    '__ZOOPDOG_UPDATE_URL__': updateUrl,
+    '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,
     // The real stamp is decided on write, by comparing this draft with the committed file.
     '__ZOOPDOG_VERSION__': PENDING_VERSION
   });
@@ -110,10 +123,14 @@ function main() {
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToNomMap(nomMap, userNomOrder);
 
-  const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap));
+  for (const variant of VARIANTS) {
+    const targetPath = repoPaths.absolute[variant.targetKey];
+    const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap, variant));
 
-  console.log(`Wrote ${targetPath}`);
-  console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+    console.log(`Wrote ${targetPath}`);
+    console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+  }
+
   console.log(`Embedded ${Object.keys(nomMap).length} dictionary entries`);
   if (fs.existsSync(extractedMdxPath)) {
     console.log(`Merged extracted MDX data from ${extractedMdxPath}`);

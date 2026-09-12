@@ -22,7 +22,6 @@ const rootDir = repoPaths.rootDir;
 const dictionaryPath = repoPaths.absolute.dictionary;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
-const targetPath = repoPaths.absolute.popupUserscript;
 
 const sourceFiles = [
   'zd-extension/js/lib/chroma.min.js',
@@ -31,6 +30,15 @@ const sourceFiles = [
   'zd-extension/js/zd-pron-data.js',
   'zd-extension/js/zd-pron-functions.js',
   'zd-extension/js/zd-pron-drawtones.js'
+];
+
+// The -local variant adds the "add/edit Chu Nom entries" ability (docs/local-mode.md) by
+// concatenating its runtime + stylesheet into the same build; the github-hosted variant never
+// inlines that code, so it never asks for the GM_xmlhttpRequest / 127.0.0.1 grants either. It
+// is never committed -- see .gitignore -- and updates from its own file on this machine.
+const VARIANTS = [
+  {targetKey: 'popupUserscript', nameSuffix: '', localMode: false},
+  {targetKey: 'popupLocalUserscript', nameSuffix: ' (Local)', localMode: true}
 ];
 
 function isCjkDefinition(definition) {
@@ -104,26 +112,49 @@ function applyUserNomOrderToDictionary(dictionary, orderEntries) {
   });
 }
 
-function readRuntimeSources() {
-  return sourceFiles.map((relativePath) => {
+function readRuntimeSources(localMode) {
+  const parts = sourceFiles.map((relativePath) => {
     const absolutePath = path.join(rootDir, relativePath);
     return [
       `// ===== ${relativePath} =====`,
       fs.readFileSync(absolutePath, 'utf8')
     ].join('\n');
-  }).join('\n\n');
+  });
+
+  if (localMode) {
+    parts.push([
+      '// ===== scripts/userscript/popupdict-local.runtime.js =====',
+      readRuntime('popupdict-local.runtime.js')
+    ].join('\n'));
+  }
+
+  return parts.join('\n\n');
 }
 
+const LOCAL_GRANT_LINES = '\n' + [
+  '// @grant       GM_xmlhttpRequest',
+  '// @connect     127.0.0.1',
+  '// @connect     localhost'
+].join('\n');
 
-function buildUserscript(dictionary, maxWords, runtimeSources) {
+function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
+  const css = variant.localMode
+    ? readRuntime('popupdict.css') + '\n' + readRuntime('popupdict-local.css')
+    : readRuntime('popupdict.css');
+  const updateUrl = variant.localMode
+    ? repoPaths.localFileUrl(variant.targetKey)
+    : repoPaths.rawUrl(variant.targetKey);
+
   return renderRuntime(readRuntime('popupdict.runtime.js'), {
-    '"__ZOOPDOG_CSS__"': JSON.stringify(readRuntime('popupdict.css')),
+    '"__ZOOPDOG_CSS__"': JSON.stringify(css),
     '__ZOOPDOG_RUNTIME_SOURCES__': runtimeSources,
     '{"__ZOOPDOG_DICTIONARY__": true}': JSON.stringify(dictionary),
     '__ZOOPDOG_MAX_WORDS__': maxWords,
     '__ZOOPDOG_KEY_COUNT__': Object.keys(dictionary).length,
-    '__ZOOPDOG_UPDATE_URL__': repoPaths.rawUrl('popupUserscript'),
-    '__ZOOPDOG_DOWNLOAD_URL__': repoPaths.rawUrl('popupUserscript'),
+    '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
+    '__ZOOPDOG_LOCAL_GRANTS__': variant.localMode ? LOCAL_GRANT_LINES : '',
+    '__ZOOPDOG_UPDATE_URL__': updateUrl,
+    '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,
     // The real stamp is decided on write, by comparing this draft with the committed file.
     '__ZOOPDOG_VERSION__': PENDING_VERSION
   });
@@ -140,15 +171,19 @@ function main() {
   applyUserNomOrderToDictionary(dictionary, userNomEntries);
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToDictionary(dictionary, userNomOrder);
-  const runtimeSources = readRuntimeSources();
 
-  const {version, changed} = writeVersionedUserscript(
-    targetPath,
-    buildUserscript(dictionary, maxWords, runtimeSources)
-  );
+  for (const variant of VARIANTS) {
+    const targetPath = repoPaths.absolute[variant.targetKey];
+    const runtimeSources = readRuntimeSources(variant.localMode);
+    const {version, changed} = writeVersionedUserscript(
+      targetPath,
+      buildUserscript(dictionary, maxWords, runtimeSources, variant)
+    );
 
-  console.log(`Wrote ${targetPath}`);
-  console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+    console.log(`Wrote ${targetPath}`);
+    console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+  }
+
   console.log(`Embedded ${Object.keys(dictionary).length} dictionary keys`);
   if (userNomEntries.length) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
