@@ -183,13 +183,19 @@
       textNode.nodeValue = normalized;
     }
 
+    // Matching walks the original, un-split text so a short ASCII-only word (e.g. "xe")
+    // keeps the Vietnamese diacritics around it in view for shouldAnnotateMatch, even after
+    // an earlier match in the same sentence has been spliced out into its own ruby node.
+    var fullText = textNode.nodeValue;
     var inserted = [];
     var node = textNode;
+    var offset = 0;
     var tail;
 
-    while ((tail = addRuby(node))) {
-      inserted.push(tail.previousSibling, tail);
-      node = tail;
+    while ((tail = addRuby(node, fullText, offset))) {
+      inserted.push(tail.node.previousSibling, tail.node);
+      node = tail.node;
+      offset = tail.offset;
     }
 
     if (inserted.length) {
@@ -197,15 +203,14 @@
     }
   }
 
-  function addRuby(textNode) {
-    var text = textNode.nodeValue;
-    var match = findNomMatch(text);
+  function addRuby(textNode, fullText, offset) {
+    var match = findNomMatch(fullText, offset);
 
     if (!match) {
       return null;
     }
 
-    var after = textNode.splitText(match.index);
+    var after = textNode.splitText(match.index - offset);
     var matchedText = after.nodeValue.substring(0, match.length);
     after.nodeValue = after.nodeValue.substring(match.length);
 
@@ -220,11 +225,11 @@
     ruby.appendChild(rt);
 
     after.parentNode.insertBefore(ruby, after);
-    return after;
+    return {node: after, offset: match.index + match.length};
   }
 
-  function findNomMatch(text) {
-    for (var i = 0; i < text.length; i++) {
+  function findNomMatch(text, offset) {
+    for (var i = offset; i < text.length; i++) {
       if (!isWordChar(text.charAt(i)) || isWordChar(text.charAt(i - 1))) {
         continue;
       }

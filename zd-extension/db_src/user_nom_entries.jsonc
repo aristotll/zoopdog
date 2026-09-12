@@ -9073,5 +9073,573 @@
     "explain": [
       "not good"
     ]
+  },
+  {
+    "vi": "đô la Mỹ",
+    "nom": [
+      "dollar美"
+    ],
+    "explain": [
+      "US dollar"
+    ]
+  },
+  {
+    "vi": "kém hơn",
+    "nom": [
+      "歉欣"
+    ],
+    "explain": [
+      "Inferior"
+    ]
+  },
+  {
+    "vi": "sinh con",
+    "nom": [
+      "生崑"
+    ],
+    "explain": [
+      "Childbirth"
+    ]
+  },
+  {
+    "vi": "có con",
+    "nom": [
+      "固崑"
+    ],
+    "explain": [
+      "have children"
+    ]
+  },
+  {
+    "vi": "bố mẹ",
+    "nom": [
+      "佈姆"
+    ],
+    "explain": [
+      "Parents"
+    ]
+  },
+  {
+    "vi": "quay lại",
+    "nom": [
+      "𢮿吏"
+    ],
+    "explain": [
+      "Back"
+    ]
+  },
+  {
+    "vi": "Cảnh sát hình sự Công an",
+    "nom": [
+      "警察刑事公安"
+    ],
+    "explain": [
+      "Criminal Police",
+      "Police"
+    ]
+  },
+  {
+    "vi": "Ma Kiên La",
+    "nom": [
+      "麻堅羅"
+    ],
+    "explain": [
+      "Ma Kien La"
+    ]
+  },
+  {
+    "vi": "Giết người",
+    "nom": [
+      "悊𠊛"
+    ],
+    "explain": [
+      "Murder"
+    ]
+  },
+  {
+    "vi": "tình cảm",
+    "nom": [
+      "情感"
+    ],
+    "explain": [
+      "Affection"
+    ]
+  },
+  {
+    "vi": "giữa hai người",
+    "nom": [
+      "𡧲𠄩𠊛"
+    ],
+    "explain": [
+      "between the two"
+    ]
+  },
+  {
+    "vi": "chị gái",
+    "nom": [
+      "姉𡛔"
+    ],
+    "explain": [
+      "sister"
+    ]
+  },
+  {
+    "vi": "bị từ chối",
+    "nom": [
+      "被辭挃"
+    ],
+    "explain": [
+      "rejected"
+    ]
+  },
+  {
+    "vi": "Cơ quan Công an",
+    "nom": [
+      "機關公安"
+    ],
+    "explain": [
+      "Police Agency"
+    ]
+  },
+  {
+    "vi": "đi xuống",
+    "nom": [
+      "𠫾𠖈"
+    ],
+    "explain": [
+      "go down"
+    ]
+  },
+  {
+    "vi": "cầm kéo",
+    "nom": [
+      "忣捁"
+    ],
+    "explain": [
+      "hold scissors"
+    ]
+  },
+  {
+    "vi": "Bị đâm",
+    "nom": [
+      "備鈂"
+    ],
+    "explain": [
+      "Stabbed"
+    ]
+  },
+  {
+    "vi": "bỏ chạy",
+    "nom": [
+      "𠬃𧼋"
+    ],
+    "explain": [
+      "Running away"
+    ]
+  },
+  {
+    "vi": "trái cửa",
+    "nom": [
+      "債𨷯"
+    ],
+    "explain": [
+      "Left Door"
+    ]
+  },
+  {
+    "vi": "giữ được",
+    "nom": [
+      "拧得"
+    ],
+    "explain": [
+      "Hold"
+    ]
+  },
+  {
+    "vi": "gây án",
+    "nom": [
+      "胲案"
+    ],
+    "explain": [
+      "committing a crime"
+    ]
+  },
+  {
+    "vi": "cây kéo",
+    "nom": [
+      "𣘃捁"
+    ],
+    "explain": [
+      "Scissors"
+    ]
+  },
+  {
+    "vi": "đi cấp cứu",
+    "nom": [
+      "𠫾急救"
+    ],
+    "explain": [
+      "go to the emergency room"
+    ]
+  },
+  {
+    "vi": "cộng đồng người Việt Nam",
+    "nom": [
+      "共同𠊛越南"
+    ],
+    "explain": [
+      "Vietnamese community"
+    ]
+  },
+  {
+    "vi": "gửi thông báo",
+    "nom": [
+      "㨳通報"
+    ],
+    "explain": [
+      "Send notifications"
+    ]
+  },
+  {
+    "vi": "tắt ứng dụng",
+    "nom": [
+      "𤎕應用"
+    ],
+    "explain": [
+      "Disable the app"
+    ]
+  },
+  {
+    "vi": "tạm ngừng",
+    "nom": [
+      "暫凝"
+    ],
+    "explain": [
+      "Suspension"
+    ]
+  },
+  {
+    "vi": "không áp dụng",
+    "nom": [
+      "空壓用"
+    ],
+    "explain": [
+      "Not applicable"
+    ]
+  },
+  {
+    "vi": "thời gian hoạt động",
+    "nom": [
+      "時間活動"
+    ],
+    "explain": [
+      "Uptime"
+    ]
+  },
+  {
+    "vi": "khung giờ",
+    "nom": [
+      "椌𣇞"
+    ],
+    "explain": [
+      "Time Frame"
+    ]
+  },
+  {
+    "vi": "khu vực hoạt động",
+    "nom": [
+      "區域活動"
+    ],
+    "explain": [
+      "Operating Area"
+    ]
+  },
+  {
+    "vi": "hội nhóm",
+    "nom": [
+      "會𡖡"
+    ],
+    "explain": [
+      "Guilds"
+    ]
+  },
+  {
+    "vi": "chi phí vận hành",
+    "nom": [
+      "支費運行"
+    ],
+    "explain": [
+      "Operating Costs"
+    ]
+  },
+  {
+    "vi": "chạy xe",
+    "nom": [
+      "𧼋車"
+    ],
+    "explain": [
+      "Driving"
+    ]
+  },
+  {
+    "vi": "bị xử lý",
+    "nom": [
+      "被處理"
+    ],
+    "explain": [
+      "Handled"
+    ]
+  },
+  {
+    "vi": "nếu muốn",
+    "nom": [
+      "裊㦖"
+    ],
+    "explain": [
+      "if desired"
+    ]
+  },
+  {
+    "vi": "gửi tới",
+    "nom": [
+      "寄𬧐"
+    ],
+    "explain": [
+      "Send to"
+    ]
+  },
+  {
+    "vi": "xem là",
+    "nom": [
+      "䀡𱺵"
+    ],
+    "explain": [
+      "view as"
+    ]
+  },
+  {
+    "vi": "khóa tài khoản",
+    "nom": [
+      "鎻財款"
+    ],
+    "explain": [
+      "Account Lock"
+    ]
+  },
+  {
+    "vi": "quyền chủ động",
+    "nom": [
+      "権主動"
+    ],
+    "explain": [
+      "Initiative"
+    ]
+  },
+  {
+    "vi": "hành vi khác",
+    "nom": [
+      "行爲恪"
+    ],
+    "explain": [
+      "Other behaviors"
+    ]
+  },
+  {
+    "vi": "làm ảnh hưởng",
+    "nom": [
+      "𫜵影響"
+    ],
+    "explain": [
+      "Affecting"
+    ]
+  },
+  {
+    "vi": "Bộ quy tắc",
+    "nom": [
+      "部規則"
+    ],
+    "explain": [
+      "Rules"
+    ]
+  },
+  {
+    "vi": "ký kết",
+    "nom": [
+      "記結"
+    ],
+    "explain": [
+      "Signing"
+    ]
+  },
+  {
+    "vi": "những hành vi",
+    "nom": [
+      "仍行爲"
+    ],
+    "explain": [
+      "behaviors"
+    ]
+  },
+  {
+    "vi": "vi phạm quy định",
+    "nom": [
+      "違犯規定"
+    ],
+    "explain": [
+      "Violations of regulations"
+    ]
+  },
+  {
+    "vi": "quá trình hoạt động",
+    "nom": [
+      "過程活動"
+    ],
+    "explain": [
+      "Operation Process"
+    ]
+  },
+  {
+    "vi": "chuyến đi",
+    "nom": [
+      "轉呧"
+    ],
+    "explain": [
+      "Trips"
+    ]
+  },
+  {
+    "vi": "Mạnh Hùng",
+    "nom": [
+      "猛雄"
+    ],
+    "explain": [
+      "Manh Hung"
+    ]
+  },
+  {
+    "vi": "bị ảnh hưởng",
+    "nom": [
+      "被影響"
+    ],
+    "explain": [
+      "affected"
+    ]
+  },
+  {
+    "vi": "Trợ giúp",
+    "nom": [
+      "助𢴇"
+    ],
+    "explain": [
+      "Help"
+    ]
+  },
+  {
+    "vi": "Trung tâm Trợ giúp",
+    "nom": [
+      "中心助𢴇"
+    ],
+    "explain": [
+      "Help Center"
+    ]
+  },
+  {
+    "vi": "kênh báo cáo",
+    "nom": [
+      "涇報告"
+    ],
+    "explain": [
+      "Reporting Channels"
+    ]
+  },
+  {
+    "vi": "được báo cáo",
+    "nom": [
+      "得報告"
+    ],
+    "explain": [
+      "Reported"
+    ]
+  },
+  {
+    "vi": "cuối ngày",
+    "nom": [
+      "𡳳𣈜"
+    ],
+    "explain": [
+      "end of day"
+    ]
+  },
+  {
+    "vi": "gửi báo cáo",
+    "nom": [
+      "寄報告"
+    ],
+    "explain": [
+      "Submit a report"
+    ]
+  },
+  {
+    "vi": "tỷ lệ",
+    "nom": [
+      "比例"
+    ],
+    "explain": [
+      "Rate"
+    ]
+  },
+  {
+    "vi": "chương trình thưởng",
+    "nom": [
+      "章程賞"
+    ],
+    "explain": [
+      "Rewards Program"
+    ]
+  },
+  {
+    "vi": "Ủy ban",
+    "nom": [
+      "委班"
+    ],
+    "explain": [
+      "Commission"
+    ]
+  },
+  {
+    "vi": "Công ty",
+    "nom": [
+      "公司"
+    ],
+    "explain": [
+      "Company"
+    ]
+  },
+  {
+    "vi": "điện thoại thông minh",
+    "nom": [
+      "電話聰明"
+    ],
+    "explain": [
+      "Smartphones"
+    ]
+  },
+  {
+    "vi": "Bên cạnh đó",
+    "nom": [
+      "邊𧣲妬"
+    ],
+    "explain": [
+      "Besides"
+    ]
+  },
+  {
+    "vi": "pháp luật cạnh tranh",
+    "nom": [
+      "法律競爭"
+    ],
+    "explain": [
+      "Competition Law"
+    ]
   }
 ]

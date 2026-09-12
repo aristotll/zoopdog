@@ -306,6 +306,23 @@ test('a rewritten text node leaves no annotated copy of the old text behind', ()
   assert.deepEqual(rubyAnnotations(paragraph), ['情感']);
 });
 
+test('a short ASCII-only word keeps its Vietnamese context after an earlier match in the same node is split off', () => {
+  // "xe" itself carries no diacritics, so annotating it as ASCII-only text relies on
+  // Vietnamese context nearby. Annotating "chạy" first splits the text node and leaves "xe"
+  // in a tail node whose own text has lost that context, even though the original sentence
+  // clearly had it just before the match.
+  const map = Object.assign({}, NOM_MAP, {chạy: '走', xe: '車'});
+  const dom = runRuntime(map);
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('chạy xe'));
+  dom.body.appendChild(paragraph);
+
+  dom.tick();
+
+  assert.equal(visibleText(paragraph), 'chạy xe');
+  assert.deepEqual(rubyAnnotations(paragraph), ['走', '車']);
+});
+
 test('re-scanning unchanged content does not duplicate annotations', () => {
   const dom = runRuntime(NOM_MAP);
   const paragraph = dom.document.createElement('p');
