@@ -33,6 +33,7 @@ make verify
 | `js/` | Website behaviour |
 | `zd-extension/` | Chrome extension, Manifest V3; pages, styles, and `js/` runtime |
 | `zd-extension/js/zd-words.js` | Shared Vietnamese word primitives — one definition, used by the extension, the website, and the popup userscript |
+| `zd-extension/js/zd-nom-match.js` | Shared Chu Nom matching engine — one definition, inlined into the nom-ruby userscript and required by `scripts/nom-inspect.js`/tests |
 | `zd-extension/db_src/` | Dictionary sources, including the hand-maintained `user_nom_entries.jsonc` |
 | `scripts/lib/` | Shared primitives for scripts; defined once, imported never redefined |
 | `scripts/userscript/` | The browser runtime and CSS embedded in the generated userscripts |
@@ -74,6 +75,8 @@ Each of these owns its subject; this file does not repeat them.
   [`docs/history/chu-nom-lessons.md`](docs/history/chu-nom-lessons.md)
 - The popup userscript's local mode (talking to the `book-translator` reader server to add
   Chữ Nôm entries / set rendering order from any page): [`docs/local-mode.md`](docs/local-mode.md)
+- Checking what the nom-ruby userscript would annotate, or what the popup dictionary would
+  show for a term, locally and without a browser: [`docs/nom-validation.md`](docs/nom-validation.md)
 
 ## Git Hygiene
 

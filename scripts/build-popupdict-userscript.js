@@ -160,7 +160,10 @@ function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
   });
 }
 
-function main() {
+// The full merge pipeline -- base dictionary, hand-maintained entries, then display order --
+// in one place so the popup userscript builder and Node-side tooling (scripts/nom-inspect.js
+// and its tests) can never see two different popup dictionaries for the same repository state.
+function buildFullDictionary() {
   const userNomEntries = readUserNomEntries(userNomPath);
   const entries = readJson(dictionaryPath).concat(
     toDictionaryEntries(userNomEntries)
@@ -171,6 +174,12 @@ function main() {
   applyUserNomOrderToDictionary(dictionary, userNomEntries);
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToDictionary(dictionary, userNomOrder);
+
+  return {dictionary, maxWords, userNomEntries, userNomOrder};
+}
+
+function main() {
+  const {dictionary, maxWords, userNomEntries, userNomOrder} = buildFullDictionary();
 
   for (const variant of VARIANTS) {
     const targetPath = repoPaths.absolute[variant.targetKey];
@@ -199,6 +208,7 @@ module.exports = {
   applyUserNomOrderToDictionary,
   isCjkDefinition,
   readRuntimeSources,
+  buildFullDictionary,
   main
 };
 

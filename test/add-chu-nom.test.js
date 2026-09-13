@@ -130,6 +130,7 @@ function installRealBuilders(fixtureRoot) {
   for (const relative of [
     'zd-extension/js/lib/chroma.min.js',
     'zd-extension/js/zd-words.js',
+    'zd-extension/js/zd-nom-match.js',
     'zd-extension/js/zd-pron-data.js',
     'zd-extension/js/zd-pron-functions.js',
     'zd-extension/js/zd-pron-drawtones.js'

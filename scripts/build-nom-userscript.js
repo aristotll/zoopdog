@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
+const path = require('path');
 const {
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap
@@ -21,6 +22,7 @@ const sourcePath = repoPaths.absolute.dictionary;
 const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
+const nomMatchEnginePath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-nom-match.js');
 
 // The -local variant is identical in every way except its update contract: it points at its
 // own file on this machine (for Violentmonkey's "track local file") instead of the github raw
@@ -97,6 +99,7 @@ function buildUserscript(nomMap, variant) {
     : repoPaths.rawUrl(variant.targetKey);
 
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
+    '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
@@ -107,7 +110,11 @@ function buildUserscript(nomMap, variant) {
   });
 }
 
-function main() {
+// The full merge pipeline -- base dictionary, extracted MDX data, hand-maintained entries,
+// then display order -- in one place so the userscript builder and Node-side tooling
+// (scripts/nom-inspect.js and its tests) can never see two different Chu Nom maps for the
+// same repository state.
+function buildFullNomMap() {
   const entries = readJson(sourcePath);
   const nomMap = buildNomMap(entries);
 
@@ -122,6 +129,12 @@ function main() {
   // produced, and the userscript renders candidate 0 as the ruby.
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToNomMap(nomMap, userNomOrder);
+
+  return {nomMap, userNomEntries, userNomOrder};
+}
+
+function main() {
+  const {nomMap, userNomEntries, userNomOrder} = buildFullNomMap();
 
   for (const variant of VARIANTS) {
     const targetPath = repoPaths.absolute[variant.targetKey];
@@ -148,6 +161,7 @@ module.exports = {
   extractNomCandidates,
   buildNomMap,
   mergeExtractedNomMap,
+  buildFullNomMap,
   main
 };
 

@@ -5,10 +5,14 @@
 // vm against a minimal DOM that reports the same mutation records a browser reports.
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
 const {readRuntime, renderRuntime} = require('../scripts/lib/userscript');
+
+const nomMatchEnginePath = path.join(__dirname, '..', 'zd-extension/js/zd-nom-match.js');
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -151,6 +155,7 @@ function createDom() {
 function runRuntime(nomMap) {
   const dom = createDom();
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
+    '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': '',

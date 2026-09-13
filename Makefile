@@ -3,6 +3,8 @@ INPUT ?= .idea/newfile.md
 MANIFEST ?=
 ARCHIVE ?=
 DRY_RUN ?=
+TEXT ?=
+TERM ?=
 
 # The review manifest holds proposed dictionary edits awaiting approval, so its path is
 # never defaulted: a fixed name in a world-writable shared directory would let an unrelated
@@ -22,7 +24,7 @@ endif
 
 .PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts \
-	rebuild-extension-vnedict-json \
+	rebuild-extension-vnedict-json nom-annotate nom-popup \
 	check-openspec verify verify-scripts verify-browser verify-add-chu-nom
 
 help:
@@ -33,6 +35,8 @@ help:
 	@echo "make rebuild-popupdict-userscript"
 	@echo "make rebuild-userscripts"
 	@echo "make rebuild-extension-vnedict-json"
+	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
+	@echo "make nom-popup TERM='...'     # what the popup dictionary would show for TERM"
 	@echo "make check-openspec    # report OpenSpec lifecycle state; writes nothing"
 	@echo "make check-openspec ARCHIVE=1 [DRY_RUN=1]  # archive eligible changes, promote deltas"
 	@echo "make verify            # tests + syntax-check maintenance and browser scripts"
@@ -64,6 +68,17 @@ rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript
 
 rebuild-extension-vnedict-json:
 	$(NODE) scripts/build-extension-vnedict-json.js
+
+# Reads the same dictionary sources the userscript builders do (see scripts/nom-inspect.js),
+# so the answer here never drifts from what a rebuilt userscript would actually show -- no
+# rebuild or browser install needed to check one word or sentence.
+nom-annotate:
+	@test -n "$(TEXT)" || { echo "TEXT is required: make nom-annotate TEXT='...'" >&2; exit 1; }
+	$(NODE) scripts/nom-inspect.js annotate "$(TEXT)"
+
+nom-popup:
+	@test -n "$(TERM)" || { echo "TERM is required: make nom-popup TERM='...'" >&2; exit 1; }
+	$(NODE) scripts/nom-inspect.js popup "$(TERM)"
 
 # Reporting is the default because a bare run of a check must never leave a dirty worktree.
 # Archiving moves change directories and writes canonical specs, so it is opt-in, and
