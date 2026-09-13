@@ -175,6 +175,31 @@
     input.dataset.autofillDefault = value;
   }
 
+  // zooWireDatalistAutoClear's focus handler only fires once, at the moment
+  // the field is focused -- but suggestions arrive from an async fetch that
+  // can resolve *after* that moment (the reader clicked in, and only then
+  // did the network round-trip land). zooSetAutofillDefault still runs when
+  // it resolves, refilling the field with a full candidate while it is
+  // already focused, with no second 'focus' event to clear it again. The
+  // field is then left sitting at a value that exactly equals its own first
+  // datalist option, so the native dropdown -- opened before the data
+  // arrived, or reopened without a fresh focus -- filters to that one match
+  // (or shows nothing at all, if the browser cached an empty popup from
+  // before the options existed). Regression: "cứu người" --
+  // the field settled on "救人" post-fetch while focused, and the
+  // datalist never got a chance to show its other 79 candidates (including
+  // "救𠊛") until the input was blurred and refocused by
+  // hand. Setting the default and immediately clearing it back out
+  // (mirroring the focus handler's own condition) keeps the field blank
+  // whenever the reader is actively looking at it, so the dropdown --
+  // opened now or later -- always reflects the freshly-arrived, unfiltered
+  // list; zooWireDatalistAutoClear's blur handler still restores the
+  // default if nothing gets picked.
+  function zooSetAutofillDefaultLive(input, value, isEdited) {
+    zooSetAutofillDefault(input, value);
+    if (document.activeElement === input && !isEdited()) input.value = '';
+  }
+
   function zooClearNomGeneratedState(ids) {
     zooFillDatalist(ids.suggestions, []);
     var nomInput = document.getElementById(ids.nom);
@@ -831,7 +856,7 @@
         var existing = results[1];
         zooFillDatalist(ids.suggestions, candidates);
         if (!nomEdits.edited) {
-          zooSetAutofillDefault(nomInput, candidates.length ? candidates[0] : '');
+          zooSetAutofillDefaultLive(nomInput, candidates.length ? candidates[0] : '', function() { return nomEdits.edited; });
         }
         if (existing.exists) {
           stateFlags.isUpdate = true;
