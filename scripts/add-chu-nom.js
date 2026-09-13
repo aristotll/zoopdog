@@ -12,7 +12,6 @@ const {
   parseFileMention,
   parseInputText
 } = require('./add-chu-nom/input');
-const {upsertUserEntriesJsonc} = require('./add-chu-nom/jsonc');
 const {collectManifestIssues, validateManifest} = require('./add-chu-nom/manifest');
 const {buildReviewProjection, createPlan, summarizePlan} = require('./add-chu-nom/plan');
 const {DECISION_FIELDS, applyDecisions, readDecisions} = require('./add-chu-nom/decisions');
@@ -183,7 +182,6 @@ module.exports = {
   applyDecisions,
   collectManifestIssues,
   validateManifest,
-  upsertUserEntriesJsonc,
   cleanupInputContent,
   applyManifest,
   main

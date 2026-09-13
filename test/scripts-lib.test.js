@@ -8,8 +8,26 @@ const cjk = require('../scripts/lib/cjk');
 const paths = require('../scripts/lib/paths');
 const sources = require('../scripts/lib/sources');
 const userscript = require('../scripts/lib/userscript');
+const shardPath = require('../scripts/lib/shard-path');
+const nomCsv = require('../scripts/lib/nom-entries-csv');
 
 const repoRoot = path.resolve(__dirname, '..');
+
+// Parses the `| vi | shard path |` fixture table out of SHARDING.md rather than duplicating it
+// here by hand -- the doc is the one source of truth both this repo and book-translator's
+// Python suite assert against.
+function readShardingFixture() {
+  const doc = fs.readFileSync(
+    path.join(repoRoot, 'zd-extension/db_src/user_nom_entries/SHARDING.md'),
+    'utf8'
+  );
+  const rows = [];
+  for (const line of doc.split('\n')) {
+    const match = /^\|\s*(.+?)\s*\|\s*(\d{2}\/\d{2}\.csv)\s*\|$/.exec(line);
+    if (match) rows.push({vi: match[1], shardPath: match[2]});
+  }
+  return rows;
+}
 
 test('text helpers normalize Vietnamese consistently', () => {
   assert.equal(text.cleanText('\uFEFF  tiếng Anh  '), 'tiếng Anh');
@@ -190,4 +208,60 @@ test('a userscript is restamped only when its other bytes change', (t) => {
 
   const sameDay = userscript.writeVersionedUserscript(target, draft('var a = 3;'), day(6));
   assert.deepEqual(sameDay, {version: '2026.09.06.1', changed: true});
+});
+
+test('shardPathFor matches the documented fixture (parity with book-translator)', () => {
+  const fixture = readShardingFixture();
+  assert.ok(fixture.length >= 20, 'SHARDING.md fixture table should have its documented rows');
+  for (const {vi, shardPath: expected} of fixture) {
+    assert.equal(shardPath.shardPathFor(vi), expected, `shard path for "${vi}"`);
+  }
+});
+
+test('shardPathFor is stable and matches its own components', () => {
+  assert.equal(shardPath.shardPathFor('quản lý'), shardPath.shardPathFor('  Quản   Lý  '));
+  const {folder, file, index} = shardPath.shardComponentsFor('quản lý');
+  assert.equal(`${folder}/${file}.csv`, shardPath.shardPathFor('quản lý'));
+  assert.ok(index >= 0 && index < shardPath.SHARD_COUNT);
+});
+
+test('allShardPaths enumerates exactly 128 fixed paths', () => {
+  const all = shardPath.allShardPaths();
+  assert.equal(all.length, 128);
+  assert.equal(new Set(all).size, 128);
+  assert.ok(all.includes('00/00.csv'));
+  assert.ok(all.includes('07/15.csv'));
+});
+
+test('nom-entries-csv round-trips single- and multi-valued entries', () => {
+  const entries = [
+    {vi: 'quản lý', nom: ['管理'], explain: ['manager, manage, administer']},
+    {vi: 'ăn xong', nom: ['咹歱', '咹了'], explain: ['finish eating', 'after eating']}
+  ];
+  const csv = nomCsv.serializeShardCsv(entries);
+  const parsed = nomCsv.parseShardCsv(csv);
+  const byVi = Object.fromEntries(parsed.map((e) => [e.vi, e]));
+  assert.deepEqual(byVi['quản lý'].nom, ['管理']);
+  assert.deepEqual(byVi['quản lý'].explain, ['manager, manage, administer']);
+  assert.deepEqual(byVi['ăn xong'].nom, ['咹歱', '咹了']);
+  assert.deepEqual(byVi['ăn xong'].explain, ['finish eating', 'after eating']);
+});
+
+test('nom-entries-csv sorts rows by normalized vi and parses an empty/header-only shard', () => {
+  const csv = nomCsv.serializeShardCsv([
+    {vi: 'Việt Nam', nom: ['越南'], explain: []},
+    {vi: 'ăn xong', nom: ['咹歱'], explain: []}
+  ]);
+  const lines = csv.trim().split('\n');
+  assert.equal(lines[0], 'vi,nom,explain');
+  assert.ok(lines[1].startsWith('ăn xong'), 'ăn xong sorts before Việt Nam');
+  assert.deepEqual(nomCsv.parseShardCsv('vi,nom,explain\n'), []);
+  assert.deepEqual(nomCsv.parseShardCsv(''), []);
+});
+
+test('nom-entries-csv rejects a literal list separator instead of silently merging values', () => {
+  assert.throws(
+    () => nomCsv.serializeShardCsv([{vi: 'x', nom: ['a|b'], explain: []}]),
+    /reserved list separator/
+  );
 });

@@ -1,107 +1,26 @@
 const fs = require('fs');
 const {cleanText, normalizeTerm} = require('./lib/text');
+const {readAllEntries} = require('./lib/nom-entries-store');
 
-function stripJsonComments(source) {
-  let result = '';
-  let inString = false;
-  let quote = '';
-  let escaped = false;
-
-  for (let i = 0; i < source.length; i++) {
-    const ch = source[i];
-    const next = source[i + 1];
-
-    if (inString) {
-      result += ch;
-      if (escaped) {
-        escaped = false;
-      } else if (ch === '\\') {
-        escaped = true;
-      } else if (ch === quote) {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"' || ch === "'") {
-      inString = true;
-      quote = ch;
-      result += ch;
-      continue;
-    }
-
-    if (ch === '/' && next === '/') {
-      while (i < source.length && source[i] !== '\n') {
-        i++;
-      }
-      result += '\n';
-      continue;
-    }
-
-    if (ch === '/' && next === '*') {
-      i += 2;
-      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) {
-        if (source[i] === '\n') {
-          result += '\n';
-        }
-        i++;
-      }
-      i++;
-      continue;
-    }
-
-    result += ch;
-  }
-
-  return result.replace(/,\s*([}\]])/g, '$1');
-}
-
-function asTextArray(value) {
-  const values = Array.isArray(value) ? value : [value];
-  return values.map(cleanText).filter(Boolean);
-}
-
-function parseUserNomEntries(source, sourcePath) {
-  const payload = JSON.parse(stripJsonComments(source));
-  const rawEntries = Array.isArray(payload) ? payload : payload.entries;
-
-  if (!Array.isArray(rawEntries)) {
-    throw new Error(`${sourcePath} must contain an array, or an object with an entries array`);
-  }
-
-  return rawEntries.map((entry, index) => {
-    const vi = cleanText(entry.vi || entry.vn || entry.word);
-    const nom = asTextArray(entry.nom || entry.chuNom || entry.chunom);
-    const explain = asTextArray(
-      entry.explain ||
-      entry.explains ||
-      entry.explanation ||
-      entry.definitions
-    );
-
-    if (!vi) {
-      throw new Error(`${sourcePath} entry ${index + 1} is missing vi`);
-    }
-
-    if (!nom.length) {
-      throw new Error(`${sourcePath} entry ${index + 1} is missing nom`);
-    }
-
-    return {
-      vi,
-      key: normalizeTerm(vi),
-      nom,
-      explain
-    };
-  });
-}
-
+// `readUserNomEntries` used to parse a single hand-maintained JSONC file; it now reads the
+// sharded CSV store under `sourcePath` (a directory) instead. The function's signature and
+// return shape (`{vi, key, nom, explain}[]`) are unchanged on purpose -- see
+// openspec/changes/shard-user-nom-entries-csv/design.md Decision 5 -- so
+// `scripts/add-chu-nom/sources.js` and both userscript builders need no changes at all.
 function readUserNomEntries(sourcePath) {
   if (!fs.existsSync(sourcePath)) {
     return [];
   }
 
-  return parseUserNomEntries(fs.readFileSync(sourcePath, 'utf8'), sourcePath);
+  return readAllEntries(sourcePath).map((entry) => {
+    if (!entry.vi) {
+      throw new Error(`${sourcePath} has an entry missing vi`);
+    }
+    if (!entry.nom.length) {
+      throw new Error(`${sourcePath} entry "${entry.vi}" is missing nom`);
+    }
+    return entry;
+  });
 }
 
 function mergeUserNomEntriesIntoNomMap(nomMap, userEntries) {
@@ -130,9 +49,6 @@ function toDictionaryEntries(userEntries) {
 module.exports = {
   cleanText,
   normalizeTerm,
-  stripJsonComments,
-  asTextArray,
-  parseUserNomEntries,
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap,
   toDictionaryEntries

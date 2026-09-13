@@ -5,8 +5,9 @@ repository** — the `book-translator` project's reader/TTS server
 (`scripts/reader/tts_server.py` there, started with `--nom-data
 <path-to-this-repo>/zd-extension/db_src`). When that server is reachable, the popup gains two
 extra actions on every looked-up term: **"+ Add Chữ Nôm"** and **"Set order"**, writing straight
-into this repo's `zd-extension/db_src/user_nom_entries.jsonc` /
-`user_nom_order.jsonc` — the same files `/add-chu-nom` and the reader's own modals write.
+into this repo's `zd-extension/db_src/user_nom_entries/` shard store (128 CSV files, see
+`SHARDING.md` in that directory) and `user_nom_order.jsonc` — the same store `/add-chu-nom` and
+the reader's own modals write.
 
 This file only covers the userscript side. The server, its routes, and its Notes-translation
 provider chain are documented in the other repository — see the cross-repo pointer at the
@@ -127,12 +128,16 @@ for the same reason: there is no "book" to scope a local, book-only order to.
   `scripts/reader/routes_suggest.py` for `NOTES_DRAFT_PROVIDERS` (edge-first, tuned for this
   draft specifically — separate from `DEFAULT_MT_PROVIDERS`, which is the real translation
   pipeline's order and must not be repurposed for this).
-- **Any write (`POST /v1/nom/entries` or `/v1/nom/order`) bumps a file's mtime**, which makes the
-  *next* request that touches the Nôm dictionary on that server pay a one-time reload of the
-  whole merged index (tens of thousands of terms, roughly 1–1.5s as of this writing) — see
-  `LiveNomIndex.refresh()` in `book-translator/scripts/reader/nom_live.py`. This shows up as
-  "the request right after I saved something felt slow," not the save itself. Nothing to fix
-  here; it is how the server stays in sync across tabs/sessions without a restart.
+- **A `POST /v1/nom/entries` write bumps one `user_nom_entries/` shard's mtime** (128 CSV
+  shards replaced the old single `user_nom_entries.jsonc` file — see `SHARDING.md` in that
+  directory), which makes the *next* request that touches the Nôm dictionary reparse just that
+  one small shard, not the whole tens-of-thousands-of-term merged index —
+  `LiveNomIndex`'s base-layer cache (`nom_sources._load_base_layers` in
+  `book-translator/scripts/reader/nom_sources.py`) keeps `vnedict2.json`/`mdx_nom.json` around
+  across a reload triggered only by a shard or `user_nom_order.jsonc` change. A `POST
+  /v1/nom/order` write still bumps `user_nom_order.jsonc`'s single-file mtime, which is cheap to
+  reparse on its own. Nothing to fix here; it is how the server stays in sync across
+  tabs/sessions without a restart.
 
 ## Testing changes here
 

@@ -11,11 +11,13 @@ const {
   snapshotFiles
 } = require('./fsutil');
 const {cleanupInputContent} = require('./input');
-const {readJsonValueEnd, upsertUserEntriesJsonc} = require('./jsonc');
+const {readJsonValueEnd} = require('./jsonc');
 const {validateManifest} = require('./manifest');
 const {isEmbeddableTerm} = require('../lib/cjk');
 const repoPaths = require('../lib/paths');
 const {stableUnique} = require('../lib/text');
+const {shardPathFor} = require('../lib/shard-path');
+const {upsertEntries} = require('../lib/nom-entries-store');
 
 function defaultCommandRunner(command, args, options) {
   return spawnSync(command, args, {
@@ -60,18 +62,21 @@ function applyManifest(manifest, options = {}) {
     };
   }
   const commandRunner = options.commandRunner || defaultCommandRunner;
-  const userPath = repoPaths.resolveIn(repoRoot, 'userNomEntries');
+  const userDir = repoPaths.resolveIn(repoRoot, 'userNomEntries');
   const nomTarget = repoPaths.resolveIn(repoRoot, 'nomUserscript');
   const popupTarget = repoPaths.resolveIn(repoRoot, 'popupUserscript');
   const inputPath = manifest.source && manifest.source.kind === 'file'
     ? resolveInsideRoot(repoRoot, manifest.source.path)
     : null;
-  const ownedPaths = stableUnique([userPath, nomTarget, popupTarget, inputPath].filter(Boolean));
+  // Only the shards these entries' keys hash to are ever written, so only those need a
+  // rollback snapshot -- not the whole 128-shard store.
+  const touchedShardPaths = stableUnique(approvedEntries.map((entry) => shardPathFor(entry.vi)))
+    .map((relative) => path.join(userDir, relative));
+  const ownedPaths = stableUnique([...touchedShardPaths, nomTarget, popupTarget, inputPath].filter(Boolean));
   const snapshot = snapshotFiles(ownedPaths);
 
   try {
-    const currentUserSource = fs.existsSync(userPath) ? fs.readFileSync(userPath, 'utf8') : '[]\n';
-    atomicWrite(userPath, upsertUserEntriesJsonc(currentUserSource, approvedEntries));
+    upsertEntries(userDir, approvedEntries);
 
     const removedItemIds = new Set(approvedEntries
       .filter((entry) => entry.primary)

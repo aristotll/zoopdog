@@ -18,7 +18,7 @@
 const fs = require('fs');
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {extractNomCandidates} = require('./lib/cjk');
-const {stripJsonComments} = require('./user-nom-entries');
+const {stripJsonComments} = require('./lib/jsonc-strip');
 
 const CANDIDATE_SEPARATOR = ' / ';
 

@@ -6,11 +6,41 @@ const path = require('node:path');
 const {WorkflowError} = require('./errors');
 const {atomicWrite} = require('../lib/fsutil');
 
+// Every regular file under `dir`, sorted for a deterministic walk order regardless of the
+// filesystem's own directory-entry ordering.
+function listFilesRecursive(dir) {
+  const entries = fs.readdirSync(dir, {withFileTypes: true}).sort((a, b) => a.name.localeCompare(b.name));
+  const files = [];
+  for (const entry of entries) {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFilesRecursive(target));
+    } else if (entry.isFile()) {
+      files.push(target);
+    }
+  }
+  return files;
+}
+
+// A single file's content hash, or -- for a directory (the sharded `user_nom_entries/` store) --
+// a hash over every file beneath it in a fixed sort order, each framed with its relative path so
+// a rename and a content change can never produce the same digest.
 function hashFile(target) {
   if (!fs.existsSync(target)) {
     return null;
   }
-  return crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+  const hash = crypto.createHash('sha256');
+  if (fs.statSync(target).isDirectory()) {
+    for (const file of listFilesRecursive(target)) {
+      hash.update(path.relative(target, file));
+      hash.update('\0');
+      hash.update(fs.readFileSync(file));
+      hash.update('\0');
+    }
+    return hash.digest('hex');
+  }
+  hash.update(fs.readFileSync(target));
+  return hash.digest('hex');
 }
 
 function resolveInsideRoot(repoRoot, relativePath) {

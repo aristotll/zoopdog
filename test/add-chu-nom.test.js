@@ -6,8 +6,44 @@ const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 
 const userEntries = require('../scripts/user-nom-entries');
+const shardPath = require('../scripts/lib/shard-path');
+const nomStore = require('../scripts/lib/nom-entries-store');
 const cli = require('../scripts/add-chu-nom');
 const repoRoot = path.resolve(__dirname, '..');
+
+const USER_NOM_ENTRIES_RELATIVE = 'zd-extension/db_src/user_nom_entries';
+
+function userNomEntriesDir(root) {
+  return path.join(root, USER_NOM_ENTRIES_RELATIVE);
+}
+
+function writeEmptyShards(dir) {
+  for (const relative of shardPath.allShardPaths()) {
+    const target = path.join(dir, relative);
+    fs.mkdirSync(path.dirname(target), {recursive: true});
+    fs.writeFileSync(target, 'vi,nom,explain\n');
+  }
+}
+
+// A standalone shard-root fixture for tests that exercise `nom-entries-store` directly,
+// independent of the full `makeFixture` CLI sandbox below.
+function makeShardDir(t, initialEntries = []) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-user-nom-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  writeEmptyShards(dir);
+  if (initialEntries.length) {
+    nomStore.upsertEntries(dir, initialEntries);
+  }
+  return dir;
+}
+
+function snapshotShardDir(dir) {
+  const snapshot = {};
+  for (const relative of shardPath.allShardPaths()) {
+    snapshot[relative] = fs.readFileSync(path.join(dir, relative), 'utf8');
+  }
+  return snapshot;
+}
 
 function writeJson(target, value) {
   fs.mkdirSync(path.dirname(target), {recursive: true});
@@ -47,14 +83,10 @@ function makeFixture(t) {
   writeJson(path.join(root, 'zd-extension/db_src/mdx_nom.json'), {
     entries: {'kiểm tra': ['檢查']}
   });
-  fs.writeFileSync(path.join(root, 'zd-extension/db_src/user_nom_entries.jsonc'), `[
-  {
-    // Existing entry comment.
-    "vi": "tiếng Anh",
-    "nom": ["㗂英"],
-    "explain": ["English language"]
-  }
-]\n`);
+  writeEmptyShards(userNomEntriesDir(root));
+  nomStore.upsertEntries(userNomEntriesDir(root), [
+    {vi: 'tiếng Anh', nom: ['㗂英'], explain: ['English language']}
+  ]);
   fs.writeFileSync(path.join(root, '.idea/newfile.md'), [
     '# Queue',
     'quan ly, kiểm tra xem',
@@ -131,16 +163,12 @@ function approveActionable(manifest) {
   return manifest;
 }
 
-test('existing user entry parser preserves Vietnamese text and normalizes lookup keys', () => {
-  const parsed = userEntries.parseUserNomEntries(`[
-    {
-      // Keep this comment parseable.
-      "vi": "  Quản   Lý  ",
-      "nom": ["管理"],
-      "explain": "manage",
-    },
-  ]`, 'fixture.jsonc');
+test('readUserNomEntries reads the sharded CSV store and normalizes lookup keys', (t) => {
+  const dir = makeShardDir(t, [
+    {vi: '  Quản   Lý  ', nom: ['管理'], explain: ['manage']}
+  ]);
 
+  const parsed = userEntries.readUserNomEntries(dir);
   assert.deepEqual(parsed, [{
     vi: 'Quản   Lý',
     key: 'quản lý',
@@ -149,14 +177,13 @@ test('existing user entry parser preserves Vietnamese text and normalizes lookup
   }]);
 });
 
+test('readUserNomEntries returns an empty array for a missing store', () => {
+  assert.deepEqual(userEntries.readUserNomEntries('/does/not/exist'), []);
+});
+
 test('user entry module exposes the existing normalization helpers for reuse', () => {
   assert.equal(userEntries.cleanText('\uFEFF  tiếng Anh  '), 'tiếng Anh');
   assert.equal(userEntries.normalizeTerm('  Quản   Lý  '), 'quản lý');
-  assert.equal(
-    userEntries.stripJsonComments('{/* note */"ok": true,}'),
-    '{"ok": true}'
-  );
-  assert.deepEqual(userEntries.asTextArray([' a ', '', 'b']), ['a', 'b']);
 });
 
 test('shared helper refactor keeps both generated userscripts byte-identical', () => {
@@ -592,15 +619,14 @@ test('apply validation requires approval and rejects stale source hashes before 
   }));
   const manifestPath = path.join(fixture.root, 'plan.json');
   writeJson(manifestPath, manifest);
-  const userPath = path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc');
-  const before = fs.readFileSync(userPath);
+  const before = snapshotShardDir(userNomEntriesDir(fixture.root));
 
   const noApproval = captureIo();
   const noApprovalExit = cli.main([
     'apply', '--manifest', manifestPath, '--repo-root', fixture.root
   ], noApproval.io);
   assert.equal(noApprovalExit, cli.EXIT_CODES.VALIDATION);
-  assert.deepEqual(fs.readFileSync(userPath), before);
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), before);
 
   fs.appendFileSync(path.join(fixture.root, 'zd-extension/db_src/vnedict2.json'), ' ');
   const stale = captureIo();
@@ -609,7 +635,7 @@ test('apply validation requires approval and rejects stale source hashes before 
   ], stale.io);
   assert.equal(staleExit, cli.EXIT_CODES.STALE);
   assert.equal(JSON.parse(stale.stderr()).error.category, 'stale');
-  assert.deepEqual(fs.readFileSync(userPath), before);
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), before);
 });
 
 test('manifest validation rejects unsafe paths, invalid Nom, and duplicate apply keys', (t) => {
@@ -752,117 +778,85 @@ test('apply CLI classifies unreadable JSON as manifest validation failure', (t) 
   assert.equal(JSON.parse(output.stderr()).error.category, 'validation');
 });
 
-test('JSONC upsert changes only values, preserves comments, and appends new entries', () => {
-  const source = `[
-  {
-    // Keep this field comment.
-    "vi": "Quản lý",
-    "nom": ["舊"],
-    "explain": ["old"],
-  },
-  /* Keep this entry comment. */
-  {
-    "vi": "giữ lại",
-    "nom": ["保持"]
-  },
-]\n`;
+test('shard upsert changes only values and appends new entries across shards', (t) => {
+  const dir = makeShardDir(t, [
+    {vi: 'Quản lý', nom: ['舊'], explain: ['old']},
+    {vi: 'giữ lại', nom: ['保持'], explain: []}
+  ]);
 
-  const updated = cli.upsertUserEntriesJsonc(source, [
+  const result = nomStore.upsertEntries(dir, [
     {vi: 'quản lý', key: 'quản lý', nom: ['管理'], explain: ['manage']},
     {vi: 'Sao Vàng', key: 'sao vàng', nom: ['𣋀黃'], explain: ['yellow star']}
   ]);
 
-  assert.match(updated, /Keep this field comment/);
-  assert.match(updated, /Keep this entry comment/);
-  const parsed = userEntries.parseUserNomEntries(updated, 'updated.jsonc');
+  const parsed = userEntries.readUserNomEntries(dir);
   // Updating merges into the stored values rather than replacing them.
   assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').nom, ['舊', '管理']);
   assert.deepEqual(parsed.find((entry) => entry.key === 'quản lý').explain, ['old', 'manage']);
   assert.deepEqual(parsed.find((entry) => entry.key === 'giữ lại').nom, ['保持']);
   assert.deepEqual(parsed.find((entry) => entry.key === 'sao vàng').nom, ['𣋀黃']);
+  // Only the shards these two terms hash to were written.
+  assert.ok(result.written.length >= 1 && result.written.length <= 2);
 
-  const replaced = cli.upsertUserEntriesJsonc(source, [
+  nomStore.upsertEntries(dir, [
     {vi: 'quản lý', key: 'quản lý', nom: ['管理'], explain: ['manage'], replace: true}
   ]);
-  const replacedParsed = userEntries.parseUserNomEntries(replaced, 'replaced.jsonc');
+  const replacedParsed = userEntries.readUserNomEntries(dir);
   assert.deepEqual(replacedParsed.find((entry) => entry.key === 'quản lý').nom, ['管理']);
-  assert.match(replaced, /Keep this field comment/);
 });
 
-test('JSONC upsert inserts a missing property before trailing comments and preserves CRLF indentation', () => {
-  const source = '[\r\n    {\r\n        "vi": "quản lý",\r\n        "nom": ["舊"] // keep trailing comment\r\n    }\r\n]\r\n';
-  const updated = cli.upsertUserEntriesJsonc(source, [
-    {vi: 'quản lý', nom: ['管理'], explain: ['manage']}
-  ]);
-
-  assert.match(updated, /\["舊","管理"\], \/\/ keep trailing comment/);
-  assert.match(updated, /\r\n        "explain": \["manage"\]\r\n/);
-  assert.doesNotMatch(updated, /(^|[^\r])\n/);
-  assert.deepEqual(
-    userEntries.parseUserNomEntries(updated, 'crlf.jsonc')[0].explain,
-    ['manage']
-  );
-});
-
-test('JSONC upsert de-duplicates approved keys and is byte-idempotent', () => {
-  const source = '[\n  // keep\n]\n';
+test('shard upsert de-duplicates approved keys and only rewrites the touched shard', (t) => {
+  const dir = makeShardDir(t);
   const approved = [
     {vi: 'Đồng nghiệp', nom: ['同業'], explain: ['colleague']},
     {vi: 'đồng   nghiệp', nom: [' 同業', '同業'], explain: ['coworker', 'colleague ']}
   ];
 
-  const once = cli.upsertUserEntriesJsonc(source, approved);
-  const twice = cli.upsertUserEntriesJsonc(once, approved);
-  const parsed = userEntries.parseUserNomEntries(once, 'fixture.jsonc');
+  const before = snapshotShardDir(dir);
+  const once = nomStore.upsertEntries(dir, approved);
+  assert.equal(once.written.length, 1, 'both entries hash to the same shard');
 
-  assert.equal(parsed.filter((entry) => entry.key === 'đồng nghiệp').length, 1);
+  const parsed = userEntries.readUserNomEntries(dir).filter((entry) => entry.key === 'đồng nghiệp');
+  assert.equal(parsed.length, 1);
   assert.deepEqual(parsed[0].nom, ['同業']);
   assert.deepEqual(parsed[0].explain, ['colleague', 'coworker']);
-  assert.equal(twice, once);
+
+  // Unrelated shards were never touched.
+  const after = snapshotShardDir(dir);
+  const touchedShard = once.written[0];
+  for (const relative of Object.keys(before)) {
+    if (relative === touchedShard) continue;
+    assert.equal(after[relative], before[relative], `${relative} must be untouched`);
+  }
+
+  // Re-applying the same entries is a byte-level no-op.
+  const twice = nomStore.upsertEntries(dir, approved);
+  assert.deepEqual(twice.written, []);
 });
 
-test('JSONC append preserves an established four/eight-space indentation style', () => {
-  const source = '[\n    {\n        "vi": "cũ",\n        "nom": ["舊"]\n    }\n]\n';
-  const updated = cli.upsertUserEntriesJsonc(source, [
-    {vi: 'mới', nom: ['新'], explain: ['new']}
+test('shard upsert merges into an existing entry instead of replacing it', (t) => {
+  const dir = makeShardDir(t, [
+    {vi: 'tiếng Anh', nom: ['㗂英', '㗂鶯'], explain: ['English']}
   ]);
 
-  // The file's four/eight-space indentation is preserved, and appended values use the same
-  // single-line style as the update path so one file never mixes two formats.
-  assert.match(
-    updated,
-    /\n    \{\n        "vi": "mới",\n        "nom": \["新"\],\n        "explain": \["new"\]\n    \}\n/
-  );
-  assert.equal(userEntries.parseUserNomEntries(updated, 'style.jsonc').length, 2);
-});
-
-test('JSONC upsert merges into an existing entry instead of replacing it', () => {
-  const source = `[
-  {
-    // Keep this comment.
-    "vi": "tiếng Anh",
-    "nom": ["㗂英", "㗂鶯"],
-    "explain": ["English"]
-  }
-]
-`;
-
-  const merged = cli.upsertUserEntriesJsonc(source, [
+  nomStore.upsertEntries(dir, [
     {vi: 'tiếng Anh', nom: ['㗂英'], explain: ['English language']}
   ]);
-  const [entry] = userEntries.parseUserNomEntries(merged, 'fixture.jsonc');
-
+  const [entry] = userEntries.readUserNomEntries(dir).filter((e) => e.key === 'tiếng anh');
   assert.deepEqual(entry.nom, ['㗂英', '㗂鶯'], 'existing Nom variants survive');
   assert.deepEqual(entry.explain, ['English', 'English language']);
-  assert.match(merged, /\/\/ Keep this comment\./);
 
-  const replaced = cli.upsertUserEntriesJsonc(source, [
+  const replaceDir = makeShardDir(t, [
+    {vi: 'tiếng Anh', nom: ['㗂英', '㗂鶯'], explain: ['English']}
+  ]);
+  nomStore.upsertEntries(replaceDir, [
     {vi: 'tiếng Anh', nom: ['㗂英'], explain: ['English language'], replace: true}
   ]);
-  const [replacedEntry] = userEntries.parseUserNomEntries(replaced, 'fixture.jsonc');
+  const [replacedEntry] = userEntries.readUserNomEntries(replaceDir).filter((e) => e.key === 'tiếng anh');
   assert.deepEqual(replacedEntry.nom, ['㗂英'], 'replace: true opts into shrinking');
   assert.deepEqual(replacedEntry.explain, ['English language']);
 });
+
 
 test('manifest validation gates the replace opt-in behind review', (t) => {
   const fixture = makeFixture(t);
@@ -899,41 +893,6 @@ test('manifest validation gates the replace opt-in behind review', (t) => {
   );
 });
 
-test('JSONC append after a trailing comment stays valid and preserves the comment', () => {
-  const source = `[
-  {
-    "vi": "tiếng Anh",
-    "nom": ["㗂英"],
-    "explain": []
-  }
-  // Trailing note kept for maintainers.
-]
-`;
-
-  const appended = cli.upsertUserEntriesJsonc(source, [
-    {vi: 'quản lý', nom: ['管理'], explain: ['manage']}
-  ]);
-
-  assert.match(appended, /\/\/ Trailing note kept for maintainers\./);
-  assert.deepEqual(
-    userEntries.parseUserNomEntries(appended, 'fixture.jsonc').map((entry) => entry.key),
-    ['tiếng Anh'.toLocaleLowerCase('vi-VN'), 'quản lý']
-  );
-
-  // A block comment in the same position works too.
-  const blockSource = source.replace(
-    '// Trailing note kept for maintainers.',
-    '/* Trailing block note. */'
-  );
-  const blockAppended = cli.upsertUserEntriesJsonc(blockSource, [
-    {vi: 'quản lý', nom: ['管理'], explain: []}
-  ]);
-  assert.match(blockAppended, /\/\* Trailing block note\. \*\//);
-  assert.equal(
-    userEntries.parseUserNomEntries(blockAppended, 'fixture.jsonc').length,
-    2
-  );
-});
 
 test('file cleanup removes only applied items and preserves unresolved content', () => {
   const source = '# Queue\nquan ly, kiểm tra xem; giữ lại\nSao Vàng\n';
@@ -1038,9 +997,7 @@ test('transactional apply updates, builds, verifies, and reports structured resu
     '--check',
     '--check'
   ]);
-  const entries = userEntries.readUserNomEntries(
-    path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc')
-  );
+  const entries = userEntries.readUserNomEntries(userNomEntriesDir(fixture.root));
   assert.deepEqual(entries.find((entry) => entry.key === 'quản lý').nom, ['管理']);
 });
 
@@ -1048,14 +1005,11 @@ test('apply with no approved entries performs no writes, builds, or checks', (t)
   const fixture = makeFixture(t);
   const manifest = cli.createPlan({repoRoot: fixture.root, words: 'quan ly'});
   manifest.entries[0].decision = 'reject';
-  const owned = [
-    'zd-extension/db_src/user_nom_entries.jsonc',
-    'zoopdog-nom-ruby.user.js',
-    'zoopdog-popupdict.user.js'
-  ];
+  const owned = ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js'];
   const before = Object.fromEntries(owned.map((relative) => [
     relative, fs.readFileSync(path.join(fixture.root, relative))
   ]));
+  const beforeShards = snapshotShardDir(userNomEntriesDir(fixture.root));
 
   const result = cli.applyManifest(manifest, {
     repoRoot: fixture.root,
@@ -1076,6 +1030,7 @@ test('apply with no approved entries performs no writes, builds, or checks', (t)
   owned.forEach((relative) => {
     assert.deepEqual(fs.readFileSync(path.join(fixture.root, relative)), before[relative]);
   });
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), beforeShards);
 });
 
 test('a key the Nom builder excludes is reported, not rolled back', (t) => {
@@ -1111,9 +1066,8 @@ test('a key the Nom builder excludes is reported, not rolled back', (t) => {
   assert.deepEqual(result.updated, ['y']);
   assert.deepEqual(result.notEmbedded, ['y']);
   assert.deepEqual(
-    userEntries.readUserNomEntries(
-      path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc')
-    ).find((entry) => entry.key === 'y').nom,
+    userEntries.readUserNomEntries(userNomEntriesDir(fixture.root))
+      .find((entry) => entry.key === 'y').nom,
     ['醫']
   );
 });
@@ -1121,14 +1075,11 @@ test('a key the Nom builder excludes is reported, not rolled back', (t) => {
 test('transactional apply restores exact bytes when a build fails', (t) => {
   const fixture = makeFixture(t);
   const manifest = approveActionable(cli.createPlan({repoRoot: fixture.root, words: 'quan ly'}));
-  const owned = [
-    'zd-extension/db_src/user_nom_entries.jsonc',
-    'zoopdog-nom-ruby.user.js',
-    'zoopdog-popupdict.user.js'
-  ];
+  const owned = ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js'];
   const before = Object.fromEntries(owned.map((relative) => [
     relative, fs.readFileSync(path.join(fixture.root, relative))
   ]));
+  const beforeShards = snapshotShardDir(userNomEntriesDir(fixture.root));
   const runner = (command, args) => {
     if (args[0] === 'scripts/build-nom-userscript.js') {
       fs.writeFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'), 'changed');
@@ -1148,27 +1099,26 @@ test('transactional apply restores exact bytes when a build fails', (t) => {
   owned.forEach((relative) => {
     assert.deepEqual(fs.readFileSync(path.join(fixture.root, relative)), before[relative]);
   });
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), beforeShards);
 });
 
 test('transactional apply rolls back when generated maps omit an approved key', (t) => {
   const fixture = makeFixture(t);
   const manifest = approveActionable(cli.createPlan({repoRoot: fixture.root, words: 'quan ly'}));
-  const userPath = path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc');
-  const before = fs.readFileSync(userPath);
+  const before = snapshotShardDir(userNomEntriesDir(fixture.root));
 
   assert.throws(() => cli.applyManifest(manifest, {
     repoRoot: fixture.root,
     approved: true,
     commandRunner: fixture.commandRunner
   }), /missing approved key/);
-  assert.deepEqual(fs.readFileSync(userPath), before);
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), before);
 });
 
 test('transactional apply rolls back when a syntax check fails', (t) => {
   const fixture = makeFixture(t);
   const manifest = approveActionable(cli.createPlan({repoRoot: fixture.root, words: 'quan ly'}));
-  const userPath = path.join(fixture.root, 'zd-extension/db_src/user_nom_entries.jsonc');
-  const before = fs.readFileSync(userPath);
+  const before = snapshotShardDir(userNomEntriesDir(fixture.root));
   const runner = (command, args) => {
     if (args[0] === 'scripts/build-nom-userscript.js') {
       fs.writeFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'),
@@ -1188,7 +1138,7 @@ test('transactional apply rolls back when a syntax check fails', (t) => {
     approved: true,
     commandRunner: runner
   }), /syntax-check/);
-  assert.deepEqual(fs.readFileSync(userPath), before);
+  assert.deepEqual(snapshotShardDir(userNomEntriesDir(fixture.root)), before);
 });
 
 test('isolated end-to-end apply runs the real repository builders', (t) => {

@@ -11,7 +11,7 @@ const relative = Object.freeze({
   runtimeDictionary: 'zd-extension/js/vnedict.json',
   runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
-  userNomEntries: 'zd-extension/db_src/user_nom_entries.jsonc',
+  userNomEntries: 'zd-extension/db_src/user_nom_entries',
   userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',
   nomUserscript: 'zoopdog-nom-ruby.user.js',
   popupUserscript: 'zoopdog-popupdict.user.js',

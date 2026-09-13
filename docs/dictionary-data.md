@@ -18,8 +18,8 @@ through generated runtime files. Rebuild them after any merge or hand-maintained
 make rebuild-extension-vnedict-json
 ```
 
-The target folds in the hand-maintained `zd-extension/db_src/user_nom_entries.jsonc` the same
-way both userscript builders do -- its renderings lead lower-priority candidates while its
+The target folds in the hand-maintained `zd-extension/db_src/user_nom_entries/` shard store the
+same way both userscript builders do -- its renderings lead lower-priority candidates while its
 explanations follow the existing glosses -- and then applies `user_nom_order.jsonc` as the
 final override. Without that fold an entry added by
 `/add-chu-nom` reaches the two userscripts and stays invisible in the extension, which reads
