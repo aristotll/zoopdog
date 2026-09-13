@@ -178,10 +178,14 @@ function buildFullDictionary() {
   return {dictionary, maxWords, userNomEntries, userNomOrder};
 }
 
-function main() {
+function main(argv = process.argv.slice(2)) {
+  const localOnly = argv.includes('--local-only');
+  const variants = localOnly
+    ? VARIANTS.filter((variant) => variant.localMode)
+    : VARIANTS;
   const {dictionary, maxWords, userNomEntries, userNomOrder} = buildFullDictionary();
 
-  for (const variant of VARIANTS) {
+  for (const variant of variants) {
     const targetPath = repoPaths.absolute[variant.targetKey];
     const runtimeSources = readRuntimeSources(variant.localMode);
     const {version, changed} = writeVersionedUserscript(
@@ -213,5 +217,5 @@ module.exports = {
 };
 
 if (require.main === module) {
-  main();
+  main(process.argv.slice(2));
 }

@@ -133,10 +133,14 @@ function buildFullNomMap() {
   return {nomMap, userNomEntries, userNomOrder};
 }
 
-function main() {
+function main(argv = process.argv.slice(2)) {
+  const localOnly = argv.includes('--local-only');
+  const variants = localOnly
+    ? VARIANTS.filter((variant) => variant.targetKey === 'nomLocalUserscript')
+    : VARIANTS;
   const {nomMap, userNomEntries, userNomOrder} = buildFullNomMap();
 
-  for (const variant of VARIANTS) {
+  for (const variant of variants) {
     const targetPath = repoPaths.absolute[variant.targetKey];
     const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap, variant));
 
@@ -166,5 +170,5 @@ module.exports = {
 };
 
 if (require.main === module) {
-  main();
+  main(process.argv.slice(2));
 }

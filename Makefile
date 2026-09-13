@@ -24,7 +24,7 @@ endif
 
 .PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts \
-	rebuild-extension-vnedict-json nom-annotate nom-popup \
+	rebuild-local-userscripts rebuild-extension-vnedict-json nom-annotate nom-popup \
 	check-openspec verify verify-scripts verify-browser verify-add-chu-nom
 
 help:
@@ -34,6 +34,7 @@ help:
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
 	@echo "make rebuild-userscripts"
+	@echo "make rebuild-local-userscripts  # rebuild only the (Local) userscript variants"
 	@echo "make rebuild-extension-vnedict-json"
 	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
 	@echo "make nom-popup TERM='...'     # what the popup dictionary would show for TERM"
@@ -65,6 +66,12 @@ rebuild-popupdict-userscript:
 	$(NODE) scripts/build-popupdict-userscript.js
 
 rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript
+
+# The (Local) variants are never committed (see .gitignore) and update from their own file on
+# this machine, so rebuilding just them skips writing the github-hosted variants needlessly.
+rebuild-local-userscripts:
+	$(NODE) scripts/build-nom-userscript.js --local-only
+	$(NODE) scripts/build-popupdict-userscript.js --local-only
 
 rebuild-extension-vnedict-json:
 	$(NODE) scripts/build-extension-vnedict-json.js
