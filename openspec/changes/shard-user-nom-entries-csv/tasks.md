@@ -74,6 +74,32 @@
       the touched shard and not the base layers were reparsed.
 - [x] 5.6 Run that repo's full test suite; update its docs referencing the single-file format.
 
+## 6a. Fast-follows (from design.md's Open Questions)
+
+- [x] 6a.1 Add `test/user-nom-entries-shards.test.js`: permanent shard-integrity verification
+      (re-derive and byte-compare every shard, confirm shard assignment, confirm no duplicate
+      rows). Caught and fixed 10 pre-existing duplicate-keyed rows inherited from the old file;
+      rebuilt both generated userscripts against the corrected data.
+- [x] 6a.2 Add `book-translator`'s `test_shard_relative_path_matches_zoopdogs_fixture` (hand-copied
+      fixture, no submodule). Caught and fixed a real cross-repo shard-assignment bug: Python's
+      `_shard_relative_path` was hashing `_normalize_term` (with old/new spelling folding) instead
+      of a `_shard_key` that matches this repo's `normalizeTerm` exactly.
+- [x] 6a.3 Full `make verify` sweep after landing 6a.1/6a.2 surfaced three more pre-existing
+      issues, all fixed: (a) `nom-entries-csv.js`'s shard sort used bare `localeCompare()`, whose
+      result depends on the runtime's default locale/ICU data -- observed to sort the same input
+      differently across two ordinary `node` invocations on the same machine, which made 107 of
+      128 committed shards fail their own re-derivation check; replaced with a plain codepoint
+      comparator (`compareNormalized`) that can never depend on the environment, then re-sorted
+      and re-committed every affected shard and rebuilt both userscripts + `js/vnedict.json`
+      against the corrected byte layout. (b) `scripts/add-chu-nom/errors.js` still declared five
+      `jsonc_*` error codes (`jsonc_property_expected`, `jsonc_colon_expected`,
+      `jsonc_empty_object`, `jsonc_duplicate_key`, `jsonc_array_missing`) that only the deleted
+      JSONC-splicing logic in `jsonc.js` ever raised -- removed as dead enum entries. (c)
+      `.codex/commands/add-chu-nom.md` and `.claude/commands/add-chu-nom.md` had been deleted in
+      an unrelated prior commit without updating the tests that require them; restored verbatim
+      from git history (content unaffected by this change -- the CLI's plan/review/apply
+      interface didn't change, only the storage format underneath it).
+
 ## 6. Landing
 
 - [ ] 6.1 Land this repo's migration (sections 1–4) first; confirm `zoopdog-nom-ruby.user.js` /

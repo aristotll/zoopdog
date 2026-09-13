@@ -9,7 +9,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {stripJsonComments} = require('./lib/jsonc-strip');
-const {cleanText} = require('./lib/text');
+const {cleanText, normalizeTerm, stableUnique} = require('./lib/text');
 const {allShardPaths, shardPathFor} = require('./lib/shard-path');
 const {serializeShardCsv, parseShardCsv} = require('./lib/nom-entries-csv');
 const {atomicWrite} = require('./lib/fsutil');
@@ -36,8 +36,31 @@ function readOldEntries(sourcePath) {
   });
 }
 
+// The old single-file store never enforced "one row per term" -- book-translator's own
+// pre-sharding `append_user_nom_entry` always appended a new row rather than editing one in
+// place, so the same normalized term could (and, in this data, does: 10 pairs as of writing)
+// accumulate more than one row over time. The new shard store's whole premise is exactly one
+// row per term, so migrating must merge these the same way `nom-entries-store.js`'s own upsert
+// does -- additive union, never dropping a variant either row carried -- rather than writing
+// duplicate rows into the same shard (every duplicate-keyed row hashes to the same shard by
+// construction, since the shard key *is* the normalized term).
+function mergeDuplicates(entries) {
+  const byKey = new Map();
+  for (const entry of entries) {
+    const key = normalizeTerm(entry.vi);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, {vi: entry.vi, nom: [...entry.nom], explain: [...entry.explain]});
+      continue;
+    }
+    existing.nom = stableUnique([...existing.nom, ...entry.nom]);
+    existing.explain = stableUnique([...existing.explain, ...entry.explain]);
+  }
+  return [...byKey.values()];
+}
+
 function entrySetKey(entry) {
-  return JSON.stringify([entry.vi, [...entry.nom].sort(), [...entry.explain].sort()]);
+  return JSON.stringify([normalizeTerm(entry.vi), [...entry.nom].sort(), [...entry.explain].sort()]);
 }
 
 function main() {
@@ -46,12 +69,14 @@ function main() {
   const shardRoot = repoPaths.absolute.userNomEntries;
 
   const oldEntries = readOldEntries(oldPath);
+  const mergedEntries = mergeDuplicates(oldEntries);
+  const duplicateKeyCount = oldEntries.length - mergedEntries.length;
 
   const byShardPath = new Map();
   for (const relative of allShardPaths()) {
     byShardPath.set(relative, []);
   }
-  for (const entry of oldEntries) {
+  for (const entry of mergedEntries) {
     const relative = shardPathFor(entry.vi);
     byShardPath.get(relative).push(entry);
   }
@@ -60,17 +85,18 @@ function main() {
     atomicWrite(path.join(shardRoot, relative), serializeShardCsv(entries));
   }
 
-  // Verify: re-reading every shard reproduces the exact same entry set (order-independent) as
-  // what was read from the old file, before this script reports success.
+  // Verify: re-reading every shard reproduces the exact same *merged* entry set
+  // (order-independent, and merging is idempotent so re-deriving from the merged set is the
+  // correct comparison here, not the raw pre-merge rows) before this script reports success.
   const rereadEntries = [];
   for (const relative of allShardPaths()) {
     rereadEntries.push(...parseShardCsv(fs.readFileSync(path.join(shardRoot, relative), 'utf8')));
   }
-  const before = new Set(oldEntries.map(entrySetKey));
+  const before = new Set(mergedEntries.map(entrySetKey));
   const after = new Set(rereadEntries.map(entrySetKey));
   const missing = [...before].filter((key) => !after.has(key));
   const unexpected = [...after].filter((key) => !before.has(key));
-  if (missing.length || unexpected.length) {
+  if (missing.length || unexpected.length || rereadEntries.length !== mergedEntries.length) {
     throw new Error(
       `Migration verification failed: ${missing.length} entries missing after migration, ` +
       `${unexpected.length} unexpected entries introduced. Nothing further was written.`
@@ -78,13 +104,14 @@ function main() {
   }
 
   const touchedShards = [...byShardPath.entries()].filter(([, entries]) => entries.length).length;
-  console.log(`Migrated ${oldEntries.length} entries into ${touchedShards} non-empty shards ` +
+  console.log(`Migrated ${oldEntries.length} entries (${duplicateKeyCount} duplicate-keyed rows ` +
+    `merged) into ${mergedEntries.length} rows across ${touchedShards} non-empty shards ` +
     `(of ${allShardPaths().length} total) under ${path.relative(repoRoot, shardRoot)}.`);
-  console.log(`Verified: re-read entry set matches the original ${oldEntries.length}-entry file exactly.`);
+  console.log('Verified: re-read entry set matches the merged set exactly.');
 }
 
 if (require.main === module) {
   main();
 }
 
-module.exports = {readOldEntries, entrySetKey, main};
+module.exports = {readOldEntries, mergeDuplicates, entrySetKey, main};

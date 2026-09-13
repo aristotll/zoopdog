@@ -127,8 +127,23 @@ function parseShardCsv(text) {
   return entries;
 }
 
+// Plain codepoint comparison, not `localeCompare` -- `localeCompare()` with no explicit locale
+// resolves against the runtime's default locale and ICU data, which differ across Node builds
+// and machines (observed: the same input sorted differently on two ordinary `node -e` runs on
+// this same machine). A shard's sort order only needs to be *some* fixed order stable enough
+// that one insertion is a one-line diff (design.md Decision 4); it was never meant to be
+// linguistically correct Vietnamese alphabetical order, so there is nothing to lose by pinning
+// it to something that can never depend on the environment.
+function compareNormalized(a, b) {
+  const left = normalizeTerm(a.vi);
+  const right = normalizeTerm(b.vi);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function serializeShardCsv(entries) {
-  const sorted = [...entries].sort((a, b) => normalizeTerm(a.vi).localeCompare(normalizeTerm(b.vi)));
+  const sorted = [...entries].sort(compareNormalized);
   const lines = [serializeRow(HEADER)];
   for (const entry of sorted) {
     assertNoListSeparator(entry.nom, 'nom', entry.vi);

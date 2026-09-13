@@ -71,14 +71,9 @@ const ERROR_CODES = Object.freeze({
   decision_entry_unknown: {exit: EXIT_CODES.VALIDATION, hint: 'Use an id from the review projection that plan or review emitted.'},
   decision_entry_not_actionable: {exit: EXIT_CODES.VALIDATION, hint: 'This entry is skipped and takes no decision; leave it out.'},
 
-  // JSONC editing
-  jsonc_unterminated_comment: {exit: EXIT_CODES.VALIDATION, hint: 'Close the block comment in the user entries file.'},
-  jsonc_unterminated_string: {exit: EXIT_CODES.VALIDATION, hint: 'Close the string literal in the user entries file.'},
-  jsonc_property_expected: {exit: EXIT_CODES.VALIDATION, hint: 'Repair the malformed object in the user entries file.'},
-  jsonc_colon_expected: {exit: EXIT_CODES.VALIDATION, hint: 'Add the missing colon after the property name.'},
-  jsonc_empty_object: {exit: EXIT_CODES.VALIDATION, hint: 'The entry object has no properties to merge into; repair it by hand.'},
-  jsonc_duplicate_key: {exit: EXIT_CODES.VALIDATION, hint: 'Remove the duplicate key from the user entries file.'},
-  jsonc_array_missing: {exit: EXIT_CODES.VALIDATION, hint: 'The user entries file must contain a top-level array.'},
+  // JSONC scanning (generated userscript output; see scripts/add-chu-nom/jsonc.js)
+  jsonc_unterminated_comment: {exit: EXIT_CODES.VALIDATION, hint: 'Close the block comment in the generated userscript.'},
+  jsonc_unterminated_string: {exit: EXIT_CODES.VALIDATION, hint: 'Close the string literal in the generated userscript.'},
 
   // Apply transaction
   build_step_failed: {exit: EXIT_CODES.APPLY_FAILED, hint: 'Every file was restored. Fix the reported build failure, then re-run apply.'},

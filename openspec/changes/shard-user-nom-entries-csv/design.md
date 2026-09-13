@@ -200,14 +200,32 @@ given moment, a rollback in one repo without the matching rollback in the other 
 after this repo's migration lands rather than leaving the two repos on different layouts for an
 extended period.
 
-## Open Questions
+## Open Questions (resolved)
 
-- Should the migration script's fixture-verification step (set-equality check) become a permanent
-  `make verify` target that re-derives all 128 shards from scratch and diffs against what's
-  committed, catching hand-edits that violate sort order or the shard-assignment invariant? Leaning
-  yes, but scoping it here would grow this change; flagging as a likely fast-follow.
-- `book-translator` currently has no automated cross-repo test that pins its sharding
-  implementation against this repo's fixture file at a specific commit/path. For now the fixture
-  is duplicated by hand into both repos' test fixtures (mirroring how `nom_sources.py` already
-  duplicates several of this repo's algorithms today); a longer-term fix (shared submodule, published
-  package) is out of scope here.
+- **Permanent shard-integrity verification**: landed as `test/user-nom-entries-shards.test.js`
+  (runs under `make verify` automatically, no Makefile change needed). It re-derives every
+  committed shard from its own parsed entries and asserts byte-identity (catches hand edits that
+  break sort order, quoting, or the codec), confirms every entry lives in the shard its own `vi`
+  actually hashes to, and confirms no shard holds two rows for the same normalized term. Running
+  this against the real repo caught real pre-existing debt: 10 duplicate-keyed rows had survived
+  in the original `user_nom_entries.jsonc` (book-translator's pre-sharding `append_user_nom_entry`
+  always appended rather than editing in place) and the first version of the migration script
+  copied them into shards unmerged, violating the new "exactly one row per term" invariant on
+  arrival. Fixed by merging duplicates (additive union, matching `nom-entries-store.js`'s own
+  upsert semantics) both in the migration script and as a one-time repair of the already-committed
+  shards, then rebuilding both generated userscripts against the corrected data.
+- **Cross-repo parity test**: landed as `book-translator`'s
+  `test_shard_relative_path_matches_zoopdogs_fixture` (`tests/test_reader_annotations.py`), which
+  hand-duplicates this repo's `SHARDING.md` fixture table rather than reading it via a submodule
+  or fetched dependency (`book-translator` has no build-time access to a zoopdog checkout). This
+  test caught a second real bug on first run: `book-translator`'s `_shard_relative_path` was
+  hashing `_normalize_term`'s output — a *richer* key that additionally folds old/new Vietnamese
+  spelling variants (e.g. "lý"/"lí") — instead of matching this repo's plain `normalizeTerm`
+  exactly. "quản lý" and "quản lí" hash to the same shard under `_normalize_term` but this repo's
+  `normalizeTerm` never performs that fold, so the two repositories' writers would have filed the
+  same term into two different shards, silently corrupting the one-row-per-term invariant across
+  repos the first time either side wrote a term with such a spelling variant. Fixed with a
+  dedicated `_shard_key` helper in `nom_sources.py`, used only for shard assignment;
+  `_normalize_term` stays the richer key for matching/merging already-loaded entries. Both bugs
+  were caught by tests that did not exist until this fast-follow — validating the concern the two
+  original open questions raised.

@@ -249,12 +249,16 @@ test('nom-entries-csv round-trips single- and multi-valued entries', () => {
 
 test('nom-entries-csv sorts rows by normalized vi and parses an empty/header-only shard', () => {
   const csv = nomCsv.serializeShardCsv([
-    {vi: 'Việt Nam', nom: ['越南'], explain: []},
-    {vi: 'ăn xong', nom: ['咹歱'], explain: []}
+    {vi: 'ăn xong', nom: ['咹歱'], explain: []},
+    {vi: 'bạn bè', nom: ['伴陛'], explain: []}
   ]);
   const lines = csv.trim().split('\n');
   assert.equal(lines[0], 'vi,nom,explain');
-  assert.ok(lines[1].startsWith('ăn xong'), 'ăn xong sorts before Việt Nam');
+  // Plain codepoint order, not locale-aware collation -- see nom-entries-csv.js's
+  // `compareNormalized` for why: it must be the same order in every environment, not the
+  // linguistically "correct" one. "ăn xong" (U+0103) sorts after plain-ASCII "bạn bè" (U+0062)
+  // for exactly that reason.
+  assert.ok(lines[1].startsWith('bạn bè'), 'plain-ASCII-leading term sorts before a diacritic one');
   assert.deepEqual(nomCsv.parseShardCsv('vi,nom,explain\n'), []);
   assert.deepEqual(nomCsv.parseShardCsv(''), []);
 });

@@ -21,10 +21,22 @@ file       = str(shard % 16).zfill(2)        # "00".."15"
 path       = f"{folder}/{file}.csv"
 ```
 
-`normalizeTerm` is the same normalization already shared between the two repos for dictionary
-lookups (`scripts/lib/text.js` here; `_normalize_term` in `book-translator`'s
-`scripts/reader/nom_sources.py`). SHA-256 matches the hash already used elsewhere in this repo for
-file integrity (`scripts/add-chu-nom/fsutil.js`'s `hashFile`).
+`normalizeTerm` here means *this repo's* `scripts/lib/text.js` `normalizeTerm` exactly: NFC,
+`toLocaleLowerCase('vi-VN')`, whitespace-collapsed -- nothing more. SHA-256 matches the hash
+already used elsewhere in this repo for file integrity (`scripts/add-chu-nom/fsutil.js`'s
+`hashFile`).
+
+**book-translator must NOT hash its own `_normalize_term`'s output.** `book-translator`'s
+`scripts/reader/nom_sources.py` has a *richer* term key, `_normalize_term`, that additionally
+canonicalizes old-vs-new Vietnamese spelling (`_canonicalize_vietnamese_word` -- e.g. folding
+"lý"/"lí"), which this repo's `normalizeTerm` does not do. Hashing `_normalize_term`'s output for
+shard assignment was a real bug during this store's introduction: "quản lý" hashes to a different
+shard than "quản lí" under `_normalize_term`, but JS's plain `normalizeTerm` treats "quản lý" as
+one unchanged string -- so the two repositories' writers filed the same term into two different
+shards, silently. `book-translator` fixed this with a separate `_shard_key` helper that mirrors
+this repo's `normalizeTerm` bit-for-bit and is used *only* for shard assignment; `_normalize_term`
+stays the richer key for everything else (matching/merging already-loaded entries). The fixture
+table below is what caught this — keep both repos' tests running against it.
 
 ## CSV row format
 
