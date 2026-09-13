@@ -9,6 +9,7 @@ const userEntries = require('../scripts/user-nom-entries');
 const shardPath = require('../scripts/lib/shard-path');
 const nomStore = require('../scripts/lib/nom-entries-store');
 const cli = require('../scripts/add-chu-nom');
+const {makeRealBuildCopy} = require('./helpers/real-build-copy');
 const repoRoot = path.resolve(__dirname, '..');
 
 const USER_NOM_ENTRIES_RELATIVE = 'zd-extension/db_src/user_nom_entries';
@@ -187,33 +188,31 @@ test('user entry module exposes the existing normalization helpers for reuse', (
   assert.equal(userEntries.normalizeTerm('  Quản   Lý  '), 'quản lý');
 });
 
-test('shared helper refactor keeps both generated userscripts byte-identical', () => {
-  const targets = [
-    path.join(repoRoot, 'zoopdog-nom-ruby.user.js'),
-    path.join(repoRoot, 'zoopdog-popupdict.user.js')
-  ];
-  const before = targets.map((target) => fs.readFileSync(target));
+test('shared helper refactor keeps both generated userscripts byte-identical', (t) => {
+  const relativeTargets = ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js'];
+  const before = relativeTargets.map((relative) => fs.readFileSync(path.join(repoRoot, relative)));
 
-  try {
-    execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {
-      cwd: repoRoot,
-      stdio: 'pipe'
-    });
-    execFileSync(process.execPath, ['scripts/build-popupdict-userscript.js'], {
-      cwd: repoRoot,
-      stdio: 'pipe'
-    });
+  const dir = makeRealBuildCopy(t, repoRoot);
+  // The build only bumps a userscript's version when content changes (writeVersionedUserscript
+  // reads whatever is already at the target path to decide) -- seeding these as real copies,
+  // not symlinks, means the isolated rebuild reproduces the exact byte-identical file a real
+  // in-place rebuild would when nothing actually changed, without ever touching the original.
+  relativeTargets.forEach((relative, index) => {
+    fs.writeFileSync(path.join(dir, relative), before[index]);
+  });
 
-    targets.forEach((target, index) => {
-      assert.deepEqual(fs.readFileSync(target), before[index]);
-    });
-  } finally {
-    targets.forEach((target, index) => {
-      if (!fs.readFileSync(target).equals(before[index])) {
-        fs.writeFileSync(target, before[index]);
-      }
-    });
-  }
+  execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {
+    cwd: dir,
+    stdio: 'pipe'
+  });
+  execFileSync(process.execPath, ['scripts/build-popupdict-userscript.js'], {
+    cwd: dir,
+    stdio: 'pipe'
+  });
+
+  relativeTargets.forEach((relative, index) => {
+    assert.deepEqual(fs.readFileSync(path.join(dir, relative)), before[index]);
+  });
 });
 
 test('CLI module exposes an importable main function and stable exit codes', () => {

@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 
+const {makeRealBuildCopy} = require('./helpers/real-build-copy');
 const repoRoot = path.resolve(__dirname, '..');
 const scriptsDir = path.join(repoRoot, 'scripts');
 
@@ -141,18 +142,20 @@ test('runtime placeholders must be replaced exactly once', () => {
 });
 
 test('an edit to a runtime source reaches the generated userscript', (t) => {
-  const runtimePath = path.join(scriptsDir, 'userscript/nom-ruby.runtime.js');
-  const targetPath = path.join(repoRoot, 'zoopdog-nom-ruby.user.js');
-  const originalRuntime = fs.readFileSync(runtimePath);
-  const originalTarget = fs.readFileSync(targetPath);
-  t.after(() => {
-    fs.writeFileSync(runtimePath, originalRuntime);
-    fs.writeFileSync(targetPath, originalTarget);
-  });
+  const originalRuntime = fs.readFileSync(path.join(scriptsDir, 'userscript/nom-ruby.runtime.js'));
+  const originalTarget = fs.readFileSync(path.join(repoRoot, 'zoopdog-nom-ruby.user.js'));
+
+  const dir = makeRealBuildCopy(t, repoRoot);
+  const runtimePath = path.join(dir, 'scripts/userscript/nom-ruby.runtime.js');
+  const targetPath = path.join(dir, 'zoopdog-nom-ruby.user.js');
+  // Seeded with the real current file so writeVersionedUserscript's version-continuity check
+  // (it reads whatever is already at the target path) behaves exactly as a real in-place
+  // rebuild would, without ever touching the original.
+  fs.writeFileSync(targetPath, originalTarget);
 
   const marker = '// zoopdog-runtime-edit-probe';
   fs.writeFileSync(runtimePath, `${marker}\n${originalRuntime.toString('utf8')}`);
-  execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {cwd: repoRoot, stdio: 'pipe'});
+  execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {cwd: dir, stdio: 'pipe'});
 
   const {readUserscriptVersion, setUserscriptVersion, PENDING_VERSION, compareVersions} =
     require('../scripts/lib/userscript');
@@ -226,24 +229,24 @@ test('the -local userscripts carry local-mode grants and update from their own f
 });
 
 test('both generated userscripts rebuild byte-identically', (t) => {
-  const targets = [
-    path.join(repoRoot, 'zoopdog-nom-ruby.user.js'),
-    path.join(repoRoot, 'zoopdog-popupdict.user.js')
-  ];
-  const before = targets.map((target) => fs.readFileSync(target));
-  t.after(() => targets.forEach((target, index) => {
-    if (!fs.readFileSync(target).equals(before[index])) {
-      fs.writeFileSync(target, before[index]);
-    }
-  }));
+  const relativeTargets = ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js'];
+  const before = relativeTargets.map((relative) => fs.readFileSync(path.join(repoRoot, relative)));
+
+  const dir = makeRealBuildCopy(t, repoRoot);
+  // Seeded with the real current files so writeVersionedUserscript's version-continuity check
+  // (it reads whatever is already at the target path) behaves exactly as a real in-place
+  // rebuild would, without ever touching the originals.
+  relativeTargets.forEach((relative, index) => {
+    fs.writeFileSync(path.join(dir, relative), before[index]);
+  });
 
   for (const builder of ['scripts/build-nom-userscript.js', 'scripts/build-popupdict-userscript.js']) {
-    execFileSync(process.execPath, [builder], {cwd: repoRoot, stdio: 'pipe'});
+    execFileSync(process.execPath, [builder], {cwd: dir, stdio: 'pipe'});
   }
 
-  targets.forEach((target, index) => {
-    assert.ok(fs.readFileSync(target).equals(before[index]),
-      `${path.basename(target)} changed`);
+  relativeTargets.forEach((relative, index) => {
+    assert.ok(fs.readFileSync(path.join(dir, relative)).equals(before[index]),
+      `${relative} changed`);
   });
 });
 
