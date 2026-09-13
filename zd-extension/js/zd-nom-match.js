@@ -61,6 +61,120 @@ function zdNomHasVietnameseContext(text, start, end) {
   return ZD_NOM_VIETNAMESE_SIGNAL_PATTERN.test(text.substring(contextStart, contextEnd));
 }
 
+// The word spans of the maximal run starting exactly at `start` (which must itself be a word
+// start) that are joined only by spaces -- a comma, line break, or any other non-space gap ends
+// the run. Mirrors reader.nom's `_split_runs` in the book-translator project's Python engine,
+// and is the word-level counterpart to the character-level trie transitions matchAt already
+// relies on: the two engines segment the same class of text the same way, even though one walks
+// characters and the other walks pre-tokenized words.
+function zdNomRunWords(text, start) {
+  var words = [];
+  var i = start;
+  var len = text.length;
+  while (i < len && zdNomIsWordChar(text.charAt(i))) {
+    var wordStart = i;
+    while (i < len && zdNomIsWordChar(text.charAt(i))) {
+      i++;
+    }
+    words.push({start: wordStart, end: i});
+    var gapStart = i;
+    while (i < len && zdNomIsWhitespace(text.charAt(i))) {
+      i++;
+    }
+    if (i >= len || !zdNomIsWordChar(text.charAt(i)) || text.substring(gapStart, i).replace(/ /g, '').length) {
+      break;
+    }
+  }
+  return words;
+}
+
+// Every dictionary match starting at `words[index]`, shortest first -- unlike the old
+// single-longest matchAt walk, this keeps every intermediate hit so zdNomBestSegmentation can
+// weigh a shorter match against a longer one starting at the very same word instead of the trie
+// walk silently picking whichever happens to be longest. See the "duyên"/"có duyên" regression
+// this exists to fix: two genuine dictionary phrases can overlap on a shared word, and only
+// comparing the whole run's total cost, not just what is longest at one position, tells which
+// one should give way.
+function zdNomWordMatchesAt(trie, text, words, index, annotateAsciiTerms) {
+  var node = trie;
+  var matches = [];
+  for (var offset = index; offset < words.length; offset++) {
+    if (offset > index) {
+      if (!node.children || !node.children[' ']) {
+        break;
+      }
+      node = node.children[' '];
+    }
+    var word = words[offset];
+    var ok = true;
+    for (var i = word.start; i < word.end; i++) {
+      var ch = text.charAt(i).toLowerCase();
+      if (!node.children || !node.children[ch]) {
+        ok = false;
+        break;
+      }
+      node = node.children[ch];
+    }
+    if (!ok) {
+      break;
+    }
+    if (node.value && zdNomShouldAnnotateMatch(text, words[index].start, word.end, annotateAsciiTerms)) {
+      matches.push({length: offset - index + 1, value: node.value});
+    }
+  }
+  return matches;
+}
+
+// The lowest-total-ambiguity way to cover `words` with trie matches, as an ordered list of
+// {index, length, value}. Same cost model as reader.nom's `_best_segmentation` in the
+// book-translator project: a multi-word phrase match costs 0 (a deliberately curated entry,
+// trusted outright); a single-word match costs `candidateCount - 1` (the raw, unranked
+// candidate list a lone word carries -- worth absorbing into a neighbouring phrase instead of
+// exposing its first, arbitrary-source-order candidate); a word with no entry at all costs
+// nothing and is simply skipped. Ties are broken toward the longest match at the earliest
+// position, reproducing the old greedy-matchAt result whenever no real overlap exists.
+function zdNomBestSegmentation(trie, text, words, annotateAsciiTerms) {
+  var n = words.length;
+  var dp = new Array(n + 1);
+  var choice = new Array(n);
+  dp[n] = 0;
+  for (var i = n - 1; i >= 0; i--) {
+    var matches = zdNomWordMatchesAt(trie, text, words, i, annotateAsciiTerms);
+    if (!matches.length) {
+      dp[i] = dp[i + 1];
+      choice[i] = null;
+      continue;
+    }
+    matches.sort(function(a, b) { return b.length - a.length; });
+    var bestCost = null;
+    var best = null;
+    for (var m = 0; m < matches.length; m++) {
+      var candidateCount = matches[m].value.split(' / ').length;
+      var wordCost = matches[m].length > 1 ? 0 : Math.max(0, candidateCount - 1);
+      var total = wordCost + dp[i + matches[m].length];
+      if (bestCost === null || total < bestCost) {
+        bestCost = total;
+        best = matches[m];
+      }
+    }
+    dp[i] = bestCost;
+    choice[i] = best;
+  }
+
+  var segments = [];
+  var idx = 0;
+  while (idx < n) {
+    var picked = choice[idx];
+    if (!picked) {
+      idx++;
+      continue;
+    }
+    segments.push({index: idx, length: picked.length, value: picked.value});
+    idx += picked.length;
+  }
+  return segments;
+}
+
 // Chu Nom (non-ASCII) matches always annotate. An ASCII-only match annotates only when
 // `annotateAsciiTerms` says so: `true` always, `false` never, and `'safe'` (the default)
 // annotates longer words (3+ letters, skipping a small blocklist of common short English
@@ -95,41 +209,25 @@ function zdCreateNomMatcher(nomMap, options) {
     : 'safe';
   var trie = zdNomBuildTrie(nomMap, annotateAsciiTerms);
 
-  // Walks the trie from `start`, tracking the longest prefix of `text` that both exists in
-  // the map and passes zdNomShouldAnnotateMatch -- a later, longer match wins over an earlier,
-  // shorter one only because the walk keeps going and keeps overwriting `best`.
+  // Finds the word run starting exactly at `start` and segments it via zdNomBestSegmentation,
+  // returning that segmentation's first step as the match -- see zdNomBestSegmentation for why
+  // this can differ from simply walking the trie for the single longest match starting here
+  // (two real dictionary phrases can overlap on a shared word). Because DP subproblems have no
+  // dependency on what came before a given word, recomputing the run fresh from each new
+  // `start` findNomMatch calls with (after splicing the previous match out) always agrees with
+  // what a single whole-run computation would have chosen for that suffix.
   function matchAt(text, start) {
-    var node = trie;
-    var i = start;
-    var best = null;
-
-    while (i < text.length) {
-      var ch = text.charAt(i);
-
-      if (zdNomIsWhitespace(ch)) {
-        if (!node.children || !node.children[' ']) {
-          break;
-        }
-        while (i < text.length && zdNomIsWhitespace(text.charAt(i))) {
-          i++;
-        }
-        node = node.children[' '];
-      } else {
-        ch = ch.toLowerCase();
-        if (!node.children || !node.children[ch]) {
-          break;
-        }
-        node = node.children[ch];
-        i++;
-      }
-
-      if (node.value && !zdNomIsWordChar(text.charAt(i)) &&
-          zdNomShouldAnnotateMatch(text, start, i, annotateAsciiTerms)) {
-        best = {index: start, length: i - start, nom: node.value};
-      }
+    var words = zdNomRunWords(text, start);
+    if (!words.length) {
+      return null;
     }
-
-    return best;
+    var segments = zdNomBestSegmentation(trie, text, words, annotateAsciiTerms);
+    if (!segments.length || segments[0].index !== 0) {
+      return null;
+    }
+    var first = segments[0];
+    var word = words[first.length - 1];
+    return {index: start, length: word.end - start, nom: first.value};
   }
 
   function findNomMatch(text, offset) {
@@ -165,6 +263,9 @@ if (typeof module !== 'undefined' && module.exports) {
     zdNomBuildTrie: zdNomBuildTrie,
     zdNomHasVietnameseContext: zdNomHasVietnameseContext,
     zdNomShouldAnnotateMatch: zdNomShouldAnnotateMatch,
+    zdNomRunWords: zdNomRunWords,
+    zdNomWordMatchesAt: zdNomWordMatchesAt,
+    zdNomBestSegmentation: zdNomBestSegmentation,
     zdCreateNomMatcher: zdCreateNomMatcher
   };
 }

@@ -1,5 +1,28 @@
 # Validating Chu Nom results locally
 
+## Rule: never troubleshoot with `grep` alone
+
+The dictionary is layered (`vnedict2.json` -> `mdx_nom.json` -> hand-maintained
+`user_nom_entries/` shards -> `user_nom_order.jsonc` display-order overrides) and a term's
+final rendering depends on which of possibly several genuine, independently-curated entries the
+matching/segmentation algorithm actually picks -- `grep` can show a row exists, never which row
+wins or why. This has cost real debugging time twice now:
+
+- The missing-word-character-class bug this file's intro describes (`ý` could never start a
+  match) -- only found by grepping three separate sources by hand.
+- A "mới có duyên" mis-rendering (`買固沿` instead of `買固緣`) that looked like a single
+  ambiguous word picking the wrong candidate. `grep`-ing `user_nom_entries/*.csv` for the
+  phrase found nothing, because the shards are nested (`user_nom_entries/05/00.csv`, not a flat
+  glob) -- the real cause was **two separate, equally legitimate, hand-curated entries**
+  (`mới có,買固,NEW` and `có duyên,固緣,predestined`) whose word ranges overlap, and only
+  running the actual matcher (`node scripts/nom-inspect.js annotate "mới có duyên"`) surfaced
+  both rows and which one the walk was choosing.
+
+Always reach for `scripts/nom-inspect.js` (or `buildFullNomMap()`/`zdCreateNomMatcher`
+programmatically, per "Programmatic use" below) instead of grepping dictionary sources -- it is
+the same code the real userscript runs, so its answer can never drift from reality the way a
+manual read of raw JSON/CSV can.
+
 Before this tool existed, checking whether a word would get a Chu Nom ruby annotation, or
 what the popup dictionary would show for it, meant `grep`-ing dictionary sources and guessing
 at the matcher's behaviour by hand. That approach missed real bugs: a single precomposed

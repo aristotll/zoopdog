@@ -5,7 +5,11 @@ const test = require('node:test');
 
 const {
   zdNomIsWordChar,
-  zdCreateNomMatcher
+  zdNomBuildTrie,
+  zdCreateNomMatcher,
+  zdNomRunWords,
+  zdNomWordMatchesAt,
+  zdNomBestSegmentation
 } = require('../zd-extension/js/zd-nom-match');
 
 test('every accented Vietnamese letter the dictionary can key on counts as a word character', () => {
@@ -69,4 +73,65 @@ test('the default "safe" mode skips a blocklisted short ASCII word with no Vietn
 test('the default "safe" mode annotates a short ASCII word next to Vietnamese diacritics', () => {
   const matcher = zdCreateNomMatcher({xe: '車'});
   assert.deepEqual(matcher.findNomMatch('chạy xe', 5), {index: 5, length: 2, nom: '車'});
+});
+
+test('zdNomRunWords stops a run at a comma, not at extra spaces', () => {
+  const text = 'một, hai   ba';
+  const words = zdNomRunWords(text, 0);
+  assert.deepEqual(words.map(function(w) { return text.substring(w.start, w.end); }), ['một']);
+
+  const secondRun = zdNomRunWords(text, text.indexOf('hai'));
+  assert.deepEqual(secondRun.map(function(w) { return text.substring(w.start, w.end); }), ['hai', 'ba']);
+});
+
+test('zdNomWordMatchesAt returns every match length at a position, shortest first', () => {
+  const trie = zdNomBuildTrie({'mới có': '買固', 'mới': '買 / 貝', 'có': '固'});
+  const text = 'mới có duyên';
+  const words = zdNomRunWords(text, 0);
+
+  const matches = zdNomWordMatchesAt(trie, text, words, 0, 'safe');
+
+  assert.deepEqual(matches, [
+    {length: 1, value: '買 / 貝'},
+    {length: 2, value: '買固'}
+  ]);
+});
+
+test('zdNomBestSegmentation prefers absorbing the more ambiguous word', () => {
+  // Same shape as the real "mới có" / "có duyên" bug: two real phrases
+  // overlap on "có". "duyên" alone has 3 raw candidates; "mới" alone has
+  // only 1. The DP must leave "mới" bare and use the "có duyên" phrase.
+  const trie = zdNomBuildTrie({
+    'mới có': '買固',
+    'mới': '買',
+    'có': '固 / 𣎏 / 箇',
+    'có duyên': '固緣',
+    'duyên': '沿 / 緣 / 椽'
+  });
+  const text = 'mới có duyên';
+  const words = zdNomRunWords(text, 0);
+
+  const segments = zdNomBestSegmentation(trie, text, words, 'safe');
+
+  assert.deepEqual(segments, [
+    {index: 0, length: 1, value: '買'},
+    {index: 1, length: 2, value: '固緣'}
+  ]);
+});
+
+test('the nom-ruby matcher resolves mới có duyên via the phrase that covers duyên', () => {
+  const matcher = zdCreateNomMatcher({
+    'mới có': '買固',
+    'mới': '買',
+    'có': '固 / 𣎏 / 箇',
+    'có duyên': '固緣',
+    'duyên': '沿 / 緣 / 椽'
+  });
+  const text = 'mới có duyên';
+
+  const first = matcher.findNomMatch(text, 0);
+  const second = matcher.findNomMatch(text, first.index + first.length);
+
+  assert.deepEqual(first, {index: 0, length: 3, nom: '買'});
+  assert.deepEqual(second, {index: 4, length: 8, nom: '固緣'});
 });
