@@ -164,8 +164,8 @@
     if (!datalist) return;
     var values = (candidates || []).map(String);
     datalist._containingCandidates = values;
-    if (datalist.dataset.containingPicker === 'true') {
-      zooRenderContainingPicker(datalist, values, datalist._containingInput.value);
+    if (datalist.dataset.containingDatalist === 'true') {
+      zooRenderContainingDatalist(datalist, values, datalist._containingInput.value);
       return;
     }
     datalist.textContent = '';
@@ -185,53 +185,26 @@
     });
   }
 
-  function zooRenderContainingPicker(picker, candidates, query) {
+  function zooRenderContainingDatalist(datalist, candidates, query) {
+    var needle = String(query || '');
     var matches = zooFilterContainingSuggestions(candidates, query);
-    picker.textContent = '';
+    datalist.textContent = '';
     matches.forEach(function(value) {
-      var option = document.createElement('button');
-      option.type = 'button';
+      var option = document.createElement('option');
       option.value = value;
-      option.className = 'zd-containing-suggestion';
-      option.textContent = value;
-      option.addEventListener('mousedown', function(event) {
-        event.preventDefault();
-        picker._containingInput.value = value;
-        if (typeof picker._containingInput.dispatchEvent === 'function') {
-          picker._containingInput.dispatchEvent(new Event('input', { bubbles: true }));
-        } else {
-          picker._containingInput.dispatch('input');
-        }
-        picker._containingOpen = false;
-        picker.hidden = true;
-      });
-      picker.appendChild(option);
+      if (needle && value.indexOf(needle) !== 0) option.label = needle;
+      datalist.appendChild(option);
     });
-    picker.hidden = !picker._containingOpen || matches.length === 0;
   }
 
-  function zooWireContainingSuggestionPicker(input, picker) {
-    picker.dataset.containingPicker = 'true';
-    picker._containingInput = input;
-    picker._containingOpen = false;
+  function zooWireContainingDatalist(input, datalist) {
+    datalist.dataset.containingDatalist = 'true';
+    datalist._containingInput = input;
     input.addEventListener('focus', function() {
-      picker._containingOpen = true;
-      zooRenderContainingPicker(picker, picker._containingCandidates || [], input.value);
+      zooRenderContainingDatalist(datalist, datalist._containingCandidates || [], input.value);
     });
     input.addEventListener('input', function() {
-      picker._containingOpen = true;
-      zooRenderContainingPicker(picker, picker._containingCandidates || [], input.value);
-    });
-    input.addEventListener('blur', function() {
-      setTimeout(function() {
-        picker._containingOpen = false;
-        picker.hidden = true;
-      }, 0);
-    });
-    input.addEventListener('keydown', function(event) {
-      if (event.key !== 'Escape') return;
-      picker._containingOpen = false;
-      picker.hidden = true;
+      zooRenderContainingDatalist(datalist, datalist._containingCandidates || [], input.value);
     });
   }
 
@@ -850,7 +823,7 @@
     var stateFlags = { isUpdate: false };
 
     zooWireDatalistAutoClear(nomInput, function() { return nomEdits.edited; });
-    zooWireContainingSuggestionPicker(nomInput, document.getElementById(ids.suggestions));
+    zooWireContainingDatalist(nomInput, document.getElementById(ids.suggestions));
 
     function resetPreview() {
       document.getElementById(ids.diffPreview).hidden = true;
@@ -1226,9 +1199,9 @@
       '<h2 id="', nomIds.title, '">Add Ch\u1EEF N\u00F4m entry</h2>',
       '<p id="', nomIds.existingInfo, '" class="zd-modal-hint" hidden></p>',
       '<label>Vietnamese term<input id="', nomIds.vi, '" type="text" required></label>',
-      '<label class="zd-containing-picker">Ch\u1EEF N\u00F4m',
-      '<input id="', nomIds.nom, '" type="text" required>',
-      '<div id="', nomIds.suggestions, '" class="zd-containing-suggestions" role="listbox" aria-label="Ch\u1EEF N\u00F4m suggestions" hidden></div>',
+      '<label>Ch\u1EEF N\u00F4m',
+      '<input id="', nomIds.nom, '" type="text" required list="', nomIds.suggestions, '">',
+      '<datalist id="', nomIds.suggestions, '"></datalist>',
       '</label>',
       '<label id="', nomIds.replaceRow, '" class="zd-modal-checkbox-row" hidden>',
       '<input id="', nomIds.replace, '" type="checkbox">',

@@ -84,23 +84,17 @@ test('local Chữ Nôm suggestions match characters anywhere in a rendering', ()
   );
 });
 
-test('local containing picker stays collapsed until the original input is used', () => {
+test('local containing filter keeps native datalist option values', () => {
   const harness = createHarness(() => {});
   const input = harness.add('input');
-  const picker = harness.add('picker');
-  picker.hidden = true;
-  harness.context.zooWireContainingSuggestionPicker(input, picker);
+  const datalist = harness.add('picker');
+  harness.context.zooWireContainingDatalist(input, datalist);
   harness.context.zooFillDatalist('picker', ['𥪝𠊛', '𥪝人']);
 
-  assert.equal(picker.hidden, true);
-  input.dispatch('focus');
-  assert.equal(picker.hidden, false);
   input.value = '𠊛';
   input.dispatch('input');
-  assert.deepEqual(picker.children.map((node) => node.textContent), ['𥪝𠊛']);
-  picker.children[0].dispatch('mousedown');
-  assert.equal(input.value, '𥪝𠊛');
-  assert.equal(picker.hidden, true);
+  assert.deepEqual(datalist.children.map((node) => node.value), ['𥪝𠊛']);
+  assert.equal(datalist.children[0].label, '𠊛');
 });
 
 test('opening or editing a term clears generated Nôm state before the request settles', () => {
