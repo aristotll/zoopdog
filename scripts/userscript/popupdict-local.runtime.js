@@ -162,11 +162,76 @@
   function zooFillDatalist(id, candidates) {
     var datalist = document.getElementById(id);
     if (!datalist) return;
+    var values = (candidates || []).map(String);
+    datalist._containingCandidates = values;
+    if (datalist.dataset.containingPicker === 'true') {
+      zooRenderContainingPicker(datalist, values, datalist._containingInput.value);
+      return;
+    }
     datalist.textContent = '';
-    (candidates || []).forEach(function(value) {
+    values.forEach(function(value) {
       var option = document.createElement('option');
       option.value = value;
       datalist.appendChild(option);
+    });
+  }
+
+  // Browser datalists match prefixes only. The authoring picker instead
+  // matches anywhere in each Chữ Nôm rendering, so 𠊛 finds 𥪝𠊛.
+  function zooFilterContainingSuggestions(candidates, query) {
+    var needle = String(query || '');
+    return (candidates || []).map(String).filter(function(candidate) {
+      return !needle || candidate.indexOf(needle) !== -1;
+    });
+  }
+
+  function zooRenderContainingPicker(picker, candidates, query) {
+    var matches = zooFilterContainingSuggestions(candidates, query);
+    picker.textContent = '';
+    matches.forEach(function(value) {
+      var option = document.createElement('button');
+      option.type = 'button';
+      option.value = value;
+      option.className = 'zd-containing-suggestion';
+      option.textContent = value;
+      option.addEventListener('mousedown', function(event) {
+        event.preventDefault();
+        picker._containingInput.value = value;
+        if (typeof picker._containingInput.dispatchEvent === 'function') {
+          picker._containingInput.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+          picker._containingInput.dispatch('input');
+        }
+        picker._containingOpen = false;
+        picker.hidden = true;
+      });
+      picker.appendChild(option);
+    });
+    picker.hidden = !picker._containingOpen || matches.length === 0;
+  }
+
+  function zooWireContainingSuggestionPicker(input, picker) {
+    picker.dataset.containingPicker = 'true';
+    picker._containingInput = input;
+    picker._containingOpen = false;
+    input.addEventListener('focus', function() {
+      picker._containingOpen = true;
+      zooRenderContainingPicker(picker, picker._containingCandidates || [], input.value);
+    });
+    input.addEventListener('input', function() {
+      picker._containingOpen = true;
+      zooRenderContainingPicker(picker, picker._containingCandidates || [], input.value);
+    });
+    input.addEventListener('blur', function() {
+      setTimeout(function() {
+        picker._containingOpen = false;
+        picker.hidden = true;
+      }, 0);
+    });
+    input.addEventListener('keydown', function(event) {
+      if (event.key !== 'Escape') return;
+      picker._containingOpen = false;
+      picker.hidden = true;
     });
   }
 
@@ -785,6 +850,7 @@
     var stateFlags = { isUpdate: false };
 
     zooWireDatalistAutoClear(nomInput, function() { return nomEdits.edited; });
+    zooWireContainingSuggestionPicker(nomInput, document.getElementById(ids.suggestions));
 
     function resetPreview() {
       document.getElementById(ids.diffPreview).hidden = true;
@@ -1160,9 +1226,9 @@
       '<h2 id="', nomIds.title, '">Add Ch\u1EEF N\u00F4m entry</h2>',
       '<p id="', nomIds.existingInfo, '" class="zd-modal-hint" hidden></p>',
       '<label>Vietnamese term<input id="', nomIds.vi, '" type="text" required></label>',
-      '<label>Ch\u1EEF N\u00F4m',
-      '<input id="', nomIds.nom, '" type="text" required list="', nomIds.suggestions, '">',
-      '<datalist id="', nomIds.suggestions, '"></datalist>',
+      '<label class="zd-containing-picker">Ch\u1EEF N\u00F4m',
+      '<input id="', nomIds.nom, '" type="text" required>',
+      '<div id="', nomIds.suggestions, '" class="zd-containing-suggestions" role="listbox" aria-label="Ch\u1EEF N\u00F4m suggestions" hidden></div>',
       '</label>',
       '<label id="', nomIds.replaceRow, '" class="zd-modal-checkbox-row" hidden>',
       '<input id="', nomIds.replace, '" type="checkbox">',

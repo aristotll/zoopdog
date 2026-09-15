@@ -72,6 +72,37 @@ test('local request resolves on success, rejects startup exceptions, and ignores
   await assert.rejects(broken.context.zooGetJSON('/healthz'), /startup failed/);
 });
 
+test('local Chữ Nôm suggestions match characters anywhere in a rendering', () => {
+  const {context} = createHarness(() => {});
+  assert.deepEqual(
+    Array.from(context.zooFilterContainingSuggestions(['𥪝𠊛', '𥪝人', '中人'], '𠊛')),
+    ['𥪝𠊛'],
+  );
+  assert.deepEqual(
+    Array.from(context.zooFilterContainingSuggestions(['𥪝𠊛', '𥪝人', '中人'], '𥪝')),
+    ['𥪝𠊛', '𥪝人'],
+  );
+});
+
+test('local containing picker stays collapsed until the original input is used', () => {
+  const harness = createHarness(() => {});
+  const input = harness.add('input');
+  const picker = harness.add('picker');
+  picker.hidden = true;
+  harness.context.zooWireContainingSuggestionPicker(input, picker);
+  harness.context.zooFillDatalist('picker', ['𥪝𠊛', '𥪝人']);
+
+  assert.equal(picker.hidden, true);
+  input.dispatch('focus');
+  assert.equal(picker.hidden, false);
+  input.value = '𠊛';
+  input.dispatch('input');
+  assert.deepEqual(picker.children.map((node) => node.textContent), ['𥪝𠊛']);
+  picker.children[0].dispatch('mousedown');
+  assert.equal(input.value, '𥪝𠊛');
+  assert.equal(picker.hidden, true);
+});
+
 test('opening or editing a term clears generated Nôm state before the request settles', () => {
   const harness = createHarness((options) => options.onload({status: 200, responseText: '{}'}));
   const ids = harness.context.ZOO_MODAL_IDS.nom;
