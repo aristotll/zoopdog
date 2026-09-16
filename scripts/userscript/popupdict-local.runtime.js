@@ -397,11 +397,61 @@
   var zooToastTimer = null;
   var zooToastFadeTimer = null;
 
+  // A short list of common two-label public suffixes (co.uk, com.au, ...) so
+  // subdomains of the same site (www./m./old.example.com) share one saved
+  // position instead of each getting their own. Not a full public-suffix
+  // list -- good enough for grouping, not for security decisions.
+  var ZOO_MULTI_LABEL_TLDS = [
+    'co.uk', 'org.uk', 'gov.uk', 'ac.uk', 'me.uk',
+    'co.jp', 'ne.jp', 'or.jp',
+    'co.kr', 'co.in', 'co.nz', 'co.za',
+    'com.au', 'net.au', 'org.au',
+    'com.cn', 'net.cn', 'org.cn',
+    'com.hk', 'com.tw', 'com.sg',
+    'com.br', 'com.mx', 'com.ar'
+  ];
+
+  function zooRegistrableDomain(hostname) {
+    if (!hostname || hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) return hostname;
+    var labels = hostname.split('.');
+    if (labels.length <= 2) return hostname;
+    var lastTwo = labels.slice(-2).join('.');
+    var lastThree = labels.slice(-3).join('.');
+    return ZOO_MULTI_LABEL_TLDS.indexOf(lastTwo) !== -1 ? lastThree : lastTwo;
+  }
+
+  function zooModalPositionKey(modalId) {
+    return 'zd-modal-pos:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
+  }
+
+  function zooSaveModalPosition(modalId, left, top) {
+    if (typeof GM_setValue !== 'function') return;
+    GM_setValue(zooModalPositionKey(modalId), JSON.stringify({ left: left, top: top }));
+  }
+
+  // Applied on every open so a modal dragged once on a site keeps reopening
+  // there, instead of the anchoring wherever its markup happens to land.
+  function zooRestoreModalPosition(modalId, panel) {
+    if (!panel || typeof GM_getValue !== 'function') return;
+    var raw = GM_getValue(zooModalPositionKey(modalId), null);
+    if (!raw) return;
+    var pos;
+    try { pos = JSON.parse(raw); } catch (e) { return; }
+    if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return;
+    var maxLeft = Math.max(window.innerWidth - panel.offsetWidth, 0);
+    var maxTop = Math.max(window.innerHeight - panel.offsetHeight, 0);
+    panel.style.position = 'fixed';
+    panel.style.margin = '0';
+    panel.style.left = Math.min(Math.max(pos.left, 0), maxLeft) + 'px';
+    panel.style.top = Math.min(Math.max(pos.top, 0), maxTop) + 'px';
+  }
+
   function zooOpenModal(id) {
     var backdrop = document.getElementById(id);
     backdrop.hidden = false;
     var panel = backdrop.querySelector('.zd-modal');
     if (panel) panel.scrollTop = 0;
+    zooRestoreModalPosition(id, panel);
   }
 
   function zooCloseModal(id) {
@@ -482,6 +532,7 @@
       if (handle.releasePointerCapture) handle.releasePointerCapture(event.pointerId);
       handle.classList.remove('zd-dragging');
       drag = null;
+      zooSaveModalPosition(modalId, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0);
     }
     handle.addEventListener('pointerup', endDrag);
     handle.addEventListener('pointercancel', endDrag);
@@ -502,6 +553,7 @@
       replace: 'zoopdog-nom-replace',
       explain: 'zoopdog-nom-explain',
       notesRefresh: 'zoopdog-nom-notes-refresh',
+      notesClear: 'zoopdog-nom-notes-clear',
       diffPreview: 'zoopdog-nom-diff-preview',
       status: 'zoopdog-nom-form-status',
       saveBtn: 'zoopdog-nom-save-btn',
@@ -864,6 +916,13 @@
       });
     });
 
+    document.getElementById(ids.notesClear).addEventListener('click', function() {
+      explainInput.value = '';
+      explainEdits.mark();
+      resetPreview();
+      explainInput.focus();
+    });
+
     function refreshSuggestions(vi) {
       var isCurrent = guard.begin();
       document.getElementById(ids.title).textContent = 'Add Ch\u1EEF N\u00F4m entry';
@@ -1211,6 +1270,7 @@
       '<span class="zd-field-row">',
       '<input id="', nomIds.explain, '" type="text">',
       '<button type="button" id="', nomIds.notesRefresh, '" class="zd-field-button" title="Re-translate -- each click asks the next engine in turn">\u21BB</button>',
+      '<button type="button" id="', nomIds.notesClear, '" class="zd-field-button" title="Clear notes">\u2715</button>',
       '</span>',
       '</label>',
       '<ul id="', nomIds.diffPreview, '" class="zd-entry-diff-list" hidden></ul>',

@@ -133,6 +133,8 @@ function readRuntimeSources(localMode) {
 
 const LOCAL_GRANT_LINES = '\n' + [
   '// @grant       GM_xmlhttpRequest',
+  '// @grant       GM_setValue',
+  '// @grant       GM_getValue',
   '// @connect     127.0.0.1',
   '// @connect     localhost'
 ].join('\n');
