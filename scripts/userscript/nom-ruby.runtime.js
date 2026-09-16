@@ -41,6 +41,31 @@
   // and dropped before the rewritten node is annotated again.
   var injections = new WeakMap();
   var nomMatcher = zdCreateNomMatcher(NOM_MAP, SETTINGS);
+  // A video-caption or translation-overlay widget (Eudict/欧路翻译, Immersive Translate) renders
+  // its actual on-screen text inside its own *open* shadow root, to keep the host page's CSS
+  // from leaking in. That content is real, painted DOM, but it is not part of any element's
+  // childNodes and a MutationObserver rooted at document.body never sees mutations inside it --
+  // both the initial scan and the observer have to be told about each shadow root separately.
+  // Declared here (not inside main()) so scanTextNodes and the attachShadow patch below can
+  // both reach the same observer instance.
+  var observer;
+  var observedShadowRoots = new WeakSet();
+  var rubyCss = [
+    '@font-face {',
+    "  font-family: 'Zoopdog Nom Na Tong';",
+    "  src: __ZOOPDOG_NOM_FONT_SRC__;",
+    '  font-display: swap;',
+    '}',
+    'ruby.zoopdog-nom-ruby { ruby-position: over; }',
+    'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt {',
+    '  color: #B6638F;',
+    "  font-family: 'Zoopdog Nom Na Tong', sans-serif;",
+    '  font-size: 0.65em;',
+    '  font-weight: 600;',
+    '  line-height: 1;',
+    '  user-select: none;',
+    '}'
+  ].join('\n');
 
   function mutationHandler(mutationList) {
     mutationList.forEach(function(mutationRecord) {
@@ -80,7 +105,10 @@
   }
 
   function scanTextNodes(node) {
-    if (!node || (node !== doc.body && !node.parentNode) || !doc.body.contains(node)) {
+    // `isConnected` is true for a node reachable from the document either directly or through
+    // an attached shadow tree, unlike `doc.body.contains(node)` -- which a ShadowRoot always
+    // fails, since a shadow tree is a separate root, not a descendant in the light-DOM sense.
+    if (!node || !node.isConnected) {
       return;
     }
 
@@ -108,6 +136,9 @@
         return;
       }
       Array.from(node.childNodes).forEach(scanTextNodes);
+      if (node.shadowRoot) {
+        watchShadowRoot(node.shadowRoot);
+      }
       return;
 
     case Node.DOCUMENT_FRAGMENT_NODE:
@@ -117,6 +148,42 @@
     case Node.TEXT_NODE:
       annotateTextNode(node);
     }
+  }
+
+  // A ShadowRoot is itself a DocumentFragment, so scanTextNodes already knows how to walk its
+  // childNodes once handed one -- what it does not get for free is future observation, which
+  // needs its own explicit observe() call per shadow root (see the comment on `observer` above).
+  function watchShadowRoot(root) {
+    if (observedShadowRoots.has(root)) {
+      return;
+    }
+    observedShadowRoots.add(root);
+    addStyleToRoot(root, rubyCss);
+    if (observer) {
+      observer.observe(root, {characterData: true, childList: true, subtree: true});
+    }
+    scanTextNodes(root);
+  }
+
+  // Catches a shadow root the moment it is created, for the host element this script has not
+  // walked past yet (a widget that attaches its shadow root only once the video/track it
+  // depends on is ready, well after this script's own initial scan). `watchShadowRoot` above
+  // handles a shadow root that already existed when its host was scanned; this handles one that
+  // does not exist yet. Every open shadow root gets watched, from any script or extension on
+  // the page -- not only known caption widgets -- since there is no reliable way to tell in
+  // advance which ones will carry annotatable text.
+  function patchAttachShadow() {
+    if (typeof Element === 'undefined' || !Element.prototype.attachShadow) {
+      return;
+    }
+    var original = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function(init) {
+      var root = original.call(this, init);
+      if (root.mode === 'open') {
+        watchShadowRoot(root);
+      }
+      return root;
+    };
   }
 
   function annotateTextNode(textNode) {
@@ -191,33 +258,35 @@
     head.appendChild(style);
   }
 
+  // Shadow DOM's whole point is that a page's own <style> (however it got there, GM_addStyle
+  // included) does not reach inside it -- so the ruby/rt rules that make an annotation visible
+  // have to be appended a second time, directly into each shadow root this script watches, or
+  // the annotation renders with no font/color/positioning at all despite being present in the
+  // DOM (correct markup, invisible paint -- see docs/build.md).
+  function addStyleToRoot(root, css) {
+    var style = doc.createElement('style');
+    style.textContent = css;
+    root.appendChild(style);
+  }
+
   function main() {
     if (!doc.body) {
       window.setTimeout(main, 50);
       return;
     }
 
-    addStyle([
-      '@font-face {',
-      "  font-family: 'Zoopdog Nom Na Tong';",
-      "  src: url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype');",
-      '  font-display: swap;',
-      '}',
-      'ruby.zoopdog-nom-ruby { ruby-position: over; }',
-      'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt {',
-      '  color: #B6638F;',
-      "  font-family: 'Zoopdog Nom Na Tong', sans-serif;",
-      '  font-size: 0.65em;',
-      '  font-weight: 600;',
-      '  line-height: 1;',
-      '  user-select: none;',
-      '}'
-    ].join('\n'));
+    // The font src in rubyCss is a github raw-styled URL in the committed build (small file,
+    // but blocked by font-src CSP on sites like YouTube -- document.fonts then reports this
+    // family as "error" and every rare Nom glyph silently falls back to invisible tofu in
+    // sans-serif) and a `data:` URI embedding the whole font in the -local build (large file,
+    // but immune to font-src since there is no network fetch to block). See docs/build.md.
+    addStyle(rubyCss);
 
     newNodes.add(doc.body);
 
-    var observer = new MutationObserver(mutationHandler);
+    observer = new MutationObserver(mutationHandler);
     observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
+    patchAttachShadow();
 
     function rescanTextNodes() {
       mutationHandler(observer.takeRecords());

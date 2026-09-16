@@ -68,6 +68,15 @@ function zdTextNodeAtPoint(root, x, y) {
         return;
       }
     }
+    // A caption or translation overlay widget (Eudict, Immersive Translate) renders its actual
+    // text inside its own open shadow root to keep the host page's CSS out -- real, painted
+    // content that childNodes never includes, so a plain tree walk finds nothing there at all.
+    if (node.shadowRoot) {
+      visit(node.shadowRoot);
+      if (found) {
+        return;
+      }
+    }
     const children = node.childNodes;
     if (!children) {
       return;
@@ -105,7 +114,23 @@ function zdRecoverTextNode(container, x, y) {
     }
     node = node.parentElement;
   }
-  return null;
+  return zdRecoverTextNodeFromWholePage(x, y);
+}
+
+// The climb above assumes the overlay and the real text share a close-enough ancestor -- true
+// for a search result's click-target row, false for a video-caption translation widget (Eudict,
+// Immersive Translate, Dualsub) that injects its own empty overlay element as an unrelated
+// sibling subtree, positioned on top of the player rather than wrapping it. Climbing that
+// overlay's own ancestors never reaches the caption text, because it was never inside them.
+// document.body is a shared ancestor of everything on the page, so searching from there finds
+// the real text regardless of which subtree the overlay lives in; zdTextNodeAtPoint's own
+// bounding-box pruning (skip a subtree whose box excludes the point) keeps this a bounded walk
+// of the handful of elements actually painted at that pixel, not the whole DOM.
+function zdRecoverTextNodeFromWholePage(x, y) {
+  if (typeof document === 'undefined' || !document.body) {
+    return null;
+  }
+  return zdTextNodeAtPoint(document.body, x, y);
 }
 
 // Point resolution differs per engine and per caller. The extension passes client coordinates

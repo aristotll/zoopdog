@@ -68,6 +68,41 @@ this machine instead — for `zoopdog-popupdict-local.user.js` that also means i
 build carrying the local Chữ Nôm add/edit ability (see
 [local-mode.md](local-mode.md)). See `.gitignore` for the `-local` filenames.
 
+## Known site compatibility limitations
+
+- **Trusted Types CSP (fixed).** Sites that enforce a Trusted Types Content Security Policy
+  (YouTube among them) throw an uncaught `TypeError: ... requires 'TrustedHTML' assignment` on a
+  plain `element.innerHTML = string` assignment. That exception used to abort
+  `mainListener` in `popupdict.runtime.js` before `popup.show()` ran, so the popup looked
+  "impossible to show" on those sites even though word/context detection worked fine. Fixed via
+  the `zooSetHTML()` helper (feature-detects `window.trustedTypes` and wraps the string through a
+  policy), applied everywhere both `popupdict.runtime.js` and `popupdict-local.runtime.js` used
+  to assign `innerHTML` directly.
+- **Chữ Nôm ruby glyphs invisible on some sites (fixed for -local, open for the committed
+  build).** `nom-ruby.runtime.js` builds its `<ruby>`/`<rt>` annotations with
+  `createElement`/`textContent`, so it is unaffected by Trusted Types. But its `@font-face` for
+  "Zoopdog Nom Na Tong" loads from a GitHub Releases URL, and on a site whose CSP restricts
+  `font-src` (e.g. YouTube) that fetch fails (`document.fonts` reports `status: "error"` for it).
+  The browser then falls back to `sans-serif`, which has no glyphs for most of the rare CJK
+  Extension B/C code points Nom readings use, so the annotation exists in the DOM (confirmed
+  correct `<rt>` markup and CSS) but paints as nothing. The committed build still loads from
+  GitHub (keeping it small); the `-local` build instead embeds the whole font as a `data:` URI,
+  which no `font-src` directive can block since there is no network fetch to intercept. Place the
+  font at `zd-extension/db_src/fonts/NomNaTong-Regular.otf` (gitignored, ~10MB) before running
+  `make rebuild-nom-userscript --local-only` -- `nomFontSrcFor()` in
+  `scripts/build-nom-userscript.js` falls back to the GitHub URL if that file is absent, so
+  forgetting it degrades gracefully rather than breaking the build.
+- **A foreign overlay can block hover word-detection entirely (fixed).** A video-caption
+  translation widget (Eudict/欧路翻译, Immersive Translate, Dualsub) injects its own overlay
+  element over the player. When it has no text of its own and sits far enough from the real
+  caption text in the DOM (a sibling subtree under a shared ancestor more than
+  `ZD_TEXT_SEARCH_MAX_LEVELS` away, not a close wrapper), `elementFromPoint`/`caretRangeFromPoint`
+  name the empty overlay and climbing its ancestors never reaches the real text, so
+  `getWordAndContext` reported no word at all under the pointer. Fixed in `zd-words.js` by
+  falling back to a `document.body`-wide search (a guaranteed shared ancestor) once the ancestor
+  climb is exhausted; `zdTextNodeAtPoint`'s own bounding-box pruning keeps this bounded to what is
+  actually painted at that pixel rather than walking the whole page.
+
 ## Rebuilding the browser runtime dictionary
 
 ```sh

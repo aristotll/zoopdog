@@ -56,6 +56,32 @@ __ZOOPDOG_RUNTIME_SOURCES__
     head.appendChild(style);
   }
 
+  // Sites that opt into a Trusted Types CSP (YouTube among them) throw
+  // "Failed to set the 'innerHTML' property ... requires 'TrustedHTML'
+  // assignment" on a plain string assignment, which aborted mainListener
+  // before popup.show() ever ran -- the popup looked "impossible to show"
+  // on those sites when the actual failure was this uncaught exception.
+  // Every caller here already builds its HTML through escapeHtml, so the
+  // policy is a pass-through, not a sanitizer.
+  var zooTrustedTypesPolicy;
+
+  function zooSetHTML(el, html) {
+    if (typeof zooTrustedTypesPolicy === 'undefined') {
+      zooTrustedTypesPolicy = null;
+      if (typeof window.trustedTypes !== 'undefined' && window.trustedTypes.createPolicy) {
+        try {
+          zooTrustedTypesPolicy = window.trustedTypes.createPolicy('zoopdog-userscript', {
+            createHTML: function(value) { return value; }
+          });
+        } catch (error) {
+          zooTrustedTypesPolicy = null;
+        }
+      }
+    }
+
+    el.innerHTML = zooTrustedTypesPolicy ? zooTrustedTypesPolicy.createHTML(html) : html;
+  }
+
   function normalizeLookup(value) {
     return String(value || '')
       .replace(/[Đ\u00D0]/gu, 'đ')
@@ -92,11 +118,26 @@ __ZOOPDOG_RUNTIME_SOURCES__
     return null;
   }
 
+  // Element.contains() never crosses an open shadow boundary -- a video-caption or
+  // translation-overlay widget (Eudict/欧路翻译, Immersive Translate) renders its actual text
+  // inside one (see docs/build.md), so a plain contains() call from outside always answers
+  // false for it even when the node is genuinely part of that widget's rendered tree. Walking
+  // through `.host` wherever `.parentNode` runs out is the same climb Node.isConnected does
+  // internally to cross that boundary.
+  function zdContains(ancestor, node) {
+    for (var current = node; current; current = current.parentNode || current.host) {
+      if (current === ancestor) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function elementContainsTextNode(element, textNode) {
     if (!element || !textNode || !textNode.parentNode) {
       return false;
     }
-    return element === textNode.parentNode || element.contains(textNode.parentNode);
+    return zdContains(element, textNode.parentNode);
   }
 
   function isExcludedTarget(target) {
@@ -291,7 +332,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
   }
 
   ResultPopup.prototype.populate = function(results) {
-    this.body.innerHTML = results.map(renderDefinition).join('');
+    zooSetHTML(this.body, results.map(renderDefinition).join(''));
     drawTonesAndGradients();
   };
 
@@ -559,7 +600,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     window.addEventListener('scroll', function(event) {
       var target = event.target;
       if (target && target !== document && target !== window && target !== document.documentElement &&
-          highlighter.node && !(typeof target.contains === 'function' && target.contains(highlighter.node))) {
+          highlighter.node && !zdContains(target, highlighter.node)) {
         return;
       }
       clearActiveResult();

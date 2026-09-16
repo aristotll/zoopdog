@@ -268,6 +268,46 @@ test('a caret naming an overlay finds the text under the pointer outside it', ()
   assert.equal(result.atPoint, true, 'found by containment, so callers can skip the elementFromPoint check');
 });
 
+// A video-caption translation widget (Eudict, Immersive Translate, Dualsub) injects its own
+// empty overlay element as a *sibling subtree* of the player's caption container -- not a
+// nearby wrapper the way a search card's click-target overlay is. Climbing the overlay's own
+// ancestors, capped at ZD_TEXT_SEARCH_MAX_LEVELS, never reaches the shared ancestor (5 levels
+// up here) that also holds the caption text, so the ancestor climb alone reports nothing;
+// only falling back to a whole-document search (a shared ancestor of everything) finds it.
+test('an overlay too far from the real text to reach by climbing is still found via the page', () => {
+  const word = textNode('người');
+  const captionBranch = {nodeType: 1, childNodes: [word]};
+  // Four ancestors between the overlay and the player -- exactly ZD_TEXT_SEARCH_MAX_LEVELS --
+  // so the climb (overlay, p1, p2, p3, p4: five tested nodes) never reaches `player` or `body`.
+  const overlay = {nodeType: 1, childNodes: []};
+  const p1 = {nodeType: 1, childNodes: [overlay]};
+  const p2 = {nodeType: 1, childNodes: [p1]};
+  const p3 = {nodeType: 1, childNodes: [p2]};
+  const p4 = {nodeType: 1, childNodes: [p3]};
+  const player = {nodeType: 1, childNodes: [p4]};
+  const body = {nodeType: 1, childNodes: [player, captionBranch]};
+
+  overlay.parentElement = p1;
+  p1.parentElement = p2;
+  p2.parentElement = p3;
+  p3.parentElement = p4;
+  p4.parentElement = player;
+  player.parentElement = body;
+
+  const rectsByNode = new Map([[word, [{left: 202, right: 239, top: 390, bottom: 406}]]]);
+
+  const result = withDocument(
+    withRects(rectsByNode, {
+      body,
+      caretRangeFromPoint: () => ({startContainer: overlay, startOffset: 0})
+    }),
+    () => words.getWordAndContext({x: 221, y: 398})
+  );
+
+  assert.equal(result.word, 'người');
+  assert.equal(result.node, word);
+});
+
 // The flicker guard: answering with the nearest word for a point that is on no word at all made
 // the popup appear for something the pointer was not over, then vanish on the next move.
 test('a point inside no word at all reports no word, however close one is', () => {

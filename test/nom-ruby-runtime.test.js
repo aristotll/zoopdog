@@ -20,13 +20,19 @@ const DOCUMENT_FRAGMENT_NODE = 11;
 
 function createDom() {
   const records = [];
-  let observedRoot = null;
+  // A real MutationObserver can watch several targets at once (the runtime observes
+  // document.body plus a separate call per shadow root it finds -- see watchShadowRoot in
+  // nom-ruby.runtime.js), so this is a set, not a single slot.
+  const observedRoots = new Set();
 
-  // A browser records a mutation only when its target is inside the observed subtree, so a
-  // ruby assembled off-document produces no records until it is inserted.
+  // A browser records a mutation only when its target is inside one of the observed subtrees,
+  // so a ruby assembled off-document produces no records until it is inserted.
   function record(entry) {
-    if (observedRoot && observedRoot.contains(entry.target)) {
-      records.push(entry);
+    for (const root of observedRoots) {
+      if (root.contains(entry.target)) {
+        records.push(entry);
+        return;
+      }
     }
   }
 
@@ -43,6 +49,18 @@ function createDom() {
       }
       const index = this.parentNode.childNodes.indexOf(this);
       return index > 0 ? this.parentNode.childNodes[index - 1] : null;
+    }
+
+    // The runtime's own connectedness check walks through an attached shadow root (via
+    // `.host`, since a ShadowRoot has no `.parentNode`) the same way a real browser's
+    // `Node.isConnected` does, so this mirrors that rather than reimplementing `contains()`.
+    get isConnected() {
+      for (let current = this; current; current = current.parentNode || current.host) {
+        if (current === body) {
+          return true;
+        }
+      }
+      return false;
     }
 
     contains(node) {
@@ -107,6 +125,17 @@ function createDom() {
     }
   }
 
+  // Real DOM: a ShadowRoot is a DocumentFragment with a `.host` back-reference and no
+  // `.parentNode` of its own -- scanTextNodes' isConnected check and zd-words.js's point
+  // search both rely on exactly this shape to walk through an attached shadow root.
+  class MiniShadowRoot extends MiniNode {
+    constructor(host, mode) {
+      super(DOCUMENT_FRAGMENT_NODE);
+      this.host = host;
+      this.mode = mode;
+    }
+  }
+
   class MiniElement extends MiniNode {
     constructor(tagName) {
       super(ELEMENT_NODE);
@@ -114,6 +143,7 @@ function createDom() {
       this.className = '';
       this.title = '';
       this.isContentEditable = false;
+      this.shadowRoot = null;
     }
 
     get textContent() {
@@ -124,6 +154,16 @@ function createDom() {
     set textContent(value) {
       this.childNodes.slice().forEach((child) => this.removeChild(child));
       this.appendChild(new MiniText(value));
+    }
+
+    // A closed root is real but unreachable from outside (`.shadowRoot` stays null), matching
+    // the one property that actually distinguishes 'open' from 'closed' in a real browser.
+    attachShadow(init) {
+      const root = new MiniShadowRoot(this, init && init.mode);
+      if (root.mode === 'open') {
+        this.shadowRoot = root;
+      }
+      return root;
     }
   }
 
@@ -142,7 +182,7 @@ function createDom() {
     body,
     MiniText,
     observe: (root) => {
-      observedRoot = root;
+      observedRoots.add(root);
     },
     appendSilently: (parent, node) => {
       parent.childNodes.push(node);
@@ -161,6 +201,8 @@ function runRuntime(nomMap) {
     '__ZOOPDOG_NAME_SUFFIX__': '',
     '__ZOOPDOG_UPDATE_URL__': 'about:blank',
     '__ZOOPDOG_DOWNLOAD_URL__': 'about:blank',
+    '__ZOOPDOG_NOM_FONT_SRC__':
+      "url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype')",
     '__ZOOPDOG_VERSION__': '0.0.0-test'
   });
 
@@ -223,6 +265,39 @@ test('annotates text present when the script starts', () => {
 
   assert.equal(visibleText(paragraph), 'của bạn');
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
+});
+
+// A video-caption or translation-overlay widget (Eudict/欧路翻译, Immersive Translate) renders
+// its actual on-screen text inside its own open shadow root. That content is real DOM, but it
+// is not part of the host element's childNodes, so a scan or observer that never looks at
+// `.shadowRoot` finds nothing there -- the annotation lands on the page's own (often hidden)
+// native caption markup instead, and the text the viewer actually sees stays unannotated.
+test('a widget that renders through an open shadow root still gets annotated', () => {
+  const dom = runRuntime(NOM_MAP);
+  const host = dom.document.createElement('app-video-captions');
+  dom.body.appendChild(host);
+
+  const shadow = host.attachShadow({mode: 'open'});
+  const line = dom.document.createElement('span');
+  line.appendChild(dom.document.createTextNode('của bạn'));
+  shadow.appendChild(line);
+
+  dom.tick();
+
+  assert.equal(visibleText(line), 'của bạn');
+  assert.deepEqual(rubyAnnotations(line), ['𧵑', '伴']);
+});
+
+// A closed shadow root's content is real but genuinely unreachable from outside -- `.shadowRoot`
+// stays null on the host, same as in a real browser -- so this documents the one case that
+// really cannot be annotated, rather than leaving it looking like an oversight.
+test('a closed shadow root is left alone rather than throwing', () => {
+  const dom = runRuntime(NOM_MAP);
+  const host = dom.document.createElement('app-video-captions');
+  dom.body.appendChild(host);
+  host.attachShadow({mode: 'closed'});
+
+  assert.doesNotThrow(() => dom.tick());
 });
 
 test('injects the Nom Na Tong webfont for Chu Nom ruby text', () => {

@@ -13,6 +13,7 @@ const relative = Object.freeze({
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
   userNomEntries: 'zd-extension/db_src/user_nom_entries',
   userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',
+  nomFontLocal: 'zd-extension/db_src/fonts/NomNaTong-Regular.otf',
   nomUserscript: 'zoopdog-nom-ruby.user.js',
   popupUserscript: 'zoopdog-popupdict.user.js',
   nomLocalUserscript: 'zoopdog-nom-ruby-local.user.js',

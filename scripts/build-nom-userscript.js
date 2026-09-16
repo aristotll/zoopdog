@@ -23,6 +23,8 @@ const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
 const nomMatchEnginePath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-nom-match.js');
+const nomFontRemoteUrl = "url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype')";
+const nomFontLocalPath = repoPaths.absolute.nomFontLocal;
 
 // The -local variant is identical in every way except its update contract: it points at its
 // own file on this machine (for Violentmonkey's "track local file") instead of the github raw
@@ -93,6 +95,21 @@ function mergeExtractedNomMap(nomMap, extractedPayload) {
   }
 }
 
+// The committed build keeps loading the font from github (small userscript, but the fetch is
+// blocked by font-src CSP on sites like YouTube -- see docs/build.md). The -local build embeds
+// the whole font as a data: URI instead, which no font-src directive can block since it is
+// never a network fetch; that trades a few-MB-larger file for the annotation actually
+// rendering. Falls back to the github URL if the font file hasn't been placed in
+// zd-extension/db_src/fonts/ (gitignored -- see .gitignore) on this machine.
+function nomFontSrcFor(variant) {
+  if (variant.targetKey !== 'nomLocalUserscript' || !fs.existsSync(nomFontLocalPath)) {
+    return nomFontRemoteUrl;
+  }
+
+  const base64 = fs.readFileSync(nomFontLocalPath).toString('base64');
+  return `url('data:font/otf;base64,${base64}') format('opentype')`;
+}
+
 function buildUserscript(nomMap, variant) {
   const updateUrl = variant.targetKey === 'nomLocalUserscript'
     ? repoPaths.localFileUrl(variant.targetKey)
@@ -105,6 +122,7 @@ function buildUserscript(nomMap, variant) {
     '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
     '__ZOOPDOG_UPDATE_URL__': updateUrl,
     '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,
+    '__ZOOPDOG_NOM_FONT_SRC__': nomFontSrcFor(variant),
     // The real stamp is decided on write, by comparing this draft with the committed file.
     '__ZOOPDOG_VERSION__': PENDING_VERSION
   });

@@ -345,30 +345,30 @@
     var from = String(change.from || '');
     var to = String(change.to || '');
     var split = from && to ? zooEntryDiffSplit(from, to) : null;
-    item.innerHTML =
+    zooSetHTML(item,
       '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(change.field)) + zooEntryDiffBadge(change) + '</div>' +
       (from ? zooEntryDiffLineHtml('old', '\u2212', from, split, 'old') : '') +
-      zooEntryDiffLineHtml('new', '+', to, split, 'new');
+      zooEntryDiffLineHtml('new', '+', to, split, 'new'));
     return item;
   }
 
   function zooEntryDiffKeyRow(key) {
     var item = document.createElement('li');
     item.className = 'zd-entry-diff-row zd-entry-diff-key';
-    item.innerHTML =
+    zooSetHTML(item,
       '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(key.field)) + '<span class="zd-entry-diff-badge">entry</span></div>' +
       '<div class="zd-entry-diff-line"><span class="zd-entry-diff-mark" aria-hidden="true">\u00B7</span>' +
-      '<span class="zd-entry-diff-keyterm">' + escapeHtml(key.value) + '</span></div>';
+      '<span class="zd-entry-diff-keyterm">' + escapeHtml(key.value) + '</span></div>');
     return item;
   }
 
   function zooEntryDiffContextRow(entry) {
     var item = document.createElement('li');
     item.className = 'zd-entry-diff-row zd-entry-diff-context';
-    item.innerHTML =
+    zooSetHTML(item,
       '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(entry.field)) + '<span class="zd-entry-diff-badge">unchanged</span></div>' +
       '<div class="zd-entry-diff-line"><span class="zd-entry-diff-mark" aria-hidden="true">\u00B7</span>' +
-      '<span>' + (entry.value ? escapeHtml(entry.value) : '<span class="zd-entry-diff-empty">(empty)</span>') + '</span></div>';
+      '<span>' + (entry.value ? escapeHtml(entry.value) : '<span class="zd-entry-diff-empty">(empty)</span>') + '</span></div>');
     return item;
   }
 
@@ -640,10 +640,10 @@
 
   function zooShowSelectionBar(rect, text) {
     var bar = zooEnsureSelectionBar();
-    bar.innerHTML = [
+    zooSetHTML(bar, [
       '<button type="button" class="zd-local-btn" data-zd-action="add-nom">+ Add Chữ Nôm</button>',
       '<button type="button" class="zd-local-btn" data-zd-action="set-order">Set order</button>'
-    ].join('');
+    ].join(''));
     Array.prototype.forEach.call(bar.querySelectorAll('[data-zd-action]'), function(button) {
       button.addEventListener('click', function(event) {
         event.preventDefault();
@@ -1253,7 +1253,7 @@
 
     var container = document.createElement('div');
     container.id = 'zoopdog-userscript-modals';
-    container.innerHTML = nomHtml + orderHtml + toastHtml;
+    zooSetHTML(container, nomHtml + orderHtml + toastHtml);
     document.body.appendChild(container);
     container.addEventListener('mousedown', function(event) { event.stopPropagation(); });
 
