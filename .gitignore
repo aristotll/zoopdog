@@ -14,3 +14,7 @@ gen
 # Violentmonkey's "track local file", never from github, so they are never committed.
 /zoopdog-nom-ruby-local.user.js
 /zoopdog-popupdict-local.user.js
+
+# Source font for the -local nom-ruby build's embedded @font-face (docs/build.md, "Known site
+# compatibility limitations"). ~10MB; the committed build keeps loading it from github instead.
+/zd-extension/db_src/fonts/
