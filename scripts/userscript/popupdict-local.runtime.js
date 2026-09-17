@@ -1173,6 +1173,13 @@
           document.getElementById(ids.existingInfo).textContent = 'Already recorded: ' + order.stored.join(', ');
           document.getElementById(ids.existingInfo).hidden = false;
           nomInput.value = order.stored[0] || '';
+        } else if (order.variants.length > 1) {
+          // No order recorded yet: default the pick to the *second*
+          // rendering, not the first -- variants[0] is already what is on
+          // screen right now (the "Currently shown as ruby" hint), so
+          // re-offering it as the suggested pick would be a no-op. Mirrors
+          // book-translator's reader_nom_order.js default (same reasoning).
+          nomInput.value = order.variants[1];
         }
         resetPreview();
       }, function(error) {
