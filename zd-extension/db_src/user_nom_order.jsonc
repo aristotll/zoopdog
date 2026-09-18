@@ -15,6 +15,13 @@
 // upserts: one row per term. Usually authored from the book-translator reader's
 // "Set Chu Nom order" action; hand edits and these comments are preserved by that writer.
 //
+// Add `"caseSensitive": true` to a row (e.g. a surname like "Đỗ", read differently in Hán
+// Việt from the ordinary lowercase word "đỗ") to have it apply only to that exact spelling
+// instead of the normalized term -- otherwise "Đỗ" and "đỗ" are the same key and would share
+// one preference. Only the nom-ruby userscript's live annotation applies this per occurrence;
+// the popup dictionary and browser-extension builds have no per-occurrence spelling to check
+// it against, so such a row simply never reorders their shared, casefolded entry for the word.
+//
 // Consumed by scripts/build-nom-userscript.js, scripts/build-popupdict-userscript.js,
 // scripts/build-extension-vnedict-json.js and the reader's scripts/reader/nom_order.py.
 [
@@ -233,5 +240,6 @@
   {"vi": "kể", "nom": ["𠸥"]},
   {"vi": "áo", "nom": ["襖"]},
   {"vi": "chân", "nom": ["蹎"]},
-  {"vi": "tuyển", "nom": ["選"]}
+  {"vi": "tuyển", "nom": ["選"]},
+  {"vi": "lan", "nom": ["瀾"]}
 ]
