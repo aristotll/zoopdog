@@ -135,3 +135,60 @@ test('the nom-ruby matcher resolves mới có duyên via the phrase that covers 
   assert.deepEqual(first, {index: 0, length: 3, nom: '買'});
   assert.deepEqual(second, {index: 4, length: 8, nom: '固緣'});
 });
+
+// -- the caseSensitive option ("Đỗ" the surname vs "đỗ" the word) --------
+
+test('a case-sensitive map overrides only the occurrence with its exact spelling', () => {
+  const matcher = zdCreateNomMatcher({'đỗ': '逗 / 度 / 杜'}, {}, {'Đỗ': '杜 / 逗 / 度'});
+
+  const lower = matcher.findNomMatch('đỗ đây', 0);
+  assert.deepEqual(lower, {index: 0, length: 2, nom: '逗 / 度 / 杜'});
+
+  const upper = matcher.findNomMatch('Đỗ đây', 0);
+  assert.deepEqual(upper, {index: 0, length: 2, nom: '杜 / 逗 / 度'});
+});
+
+test('a term with no caseSensitiveMap argument behaves exactly as before', () => {
+  const matcher = zdCreateNomMatcher({'đỗ': '逗 / 度'});
+  assert.deepEqual(matcher.findNomMatch('Đỗ đây', 0), {index: 0, length: 2, nom: '逗 / 度'});
+});
+
+test('a caseSensitiveMap with no entry for the matched text changes nothing', () => {
+  const matcher = zdCreateNomMatcher({'đỗ': '逗 / 度'}, {}, {'Khác': '別'});
+  assert.deepEqual(matcher.findNomMatch('đỗ đây', 0), {index: 0, length: 2, nom: '逗 / 度'});
+});
+
+// Regression: "Đại tá Đỗ Ngọc Minh" kept annotating "Đỗ" as 逗 even after a
+// caseSensitive row was added, because the row's `vi` was typed as "đỗ" (the
+// lowercase word) instead of "Đỗ" (the surname) -- see the identical guard
+// in book-translator's tests/test_reader_nom_order.py, which this mirrors so
+// the two annotate engines can never quietly drift apart on this again.
+test('a case-sensitive override still applies to a name embedded in a longer phrase', () => {
+  const matcher = zdCreateNomMatcher(
+    {'đại tá': '大佐', 'đỗ': '逗 / 度', 'ngọc': '玉', 'minh': '明'},
+    {},
+    {'Đỗ': '杜 / 逗 / 度'}
+  );
+  const text = 'Đại tá Đỗ Ngọc Minh';
+
+  const first = matcher.findNomMatch(text, 0);
+  const second = matcher.findNomMatch(text, first.index + first.length);
+
+  assert.deepEqual(first, {index: 0, length: 'Đại tá'.length, nom: '大佐'});
+  assert.deepEqual(second, {index: text.indexOf('Đỗ'), length: 'Đỗ'.length, nom: '杜 / 逗 / 度'});
+});
+
+test('a row typed with the wrong case does not silently apply to the capitalized name', () => {
+  // The mistake the regression above guards against: authoring the surname's
+  // row with the lowercase spelling. It must not affect the capitalized name.
+  const matcher = zdCreateNomMatcher(
+    {'đỗ': '逗 / 度', 'ngọc': '玉', 'minh': '明'},
+    {},
+    {'đỗ': '杜 / 逗 / 度'}
+  );
+  const text = 'Đỗ Ngọc Minh';
+
+  const match = matcher.findNomMatch(text, 0);
+
+  assert.deepEqual(match, {index: 0, length: 'Đỗ'.length, nom: '逗 / 度'});
+});

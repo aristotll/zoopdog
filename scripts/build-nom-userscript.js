@@ -6,7 +6,12 @@ const {
   readUserNomEntries,
   mergeUserNomEntriesIntoNomMap
 } = require('./user-nom-entries');
-const {readUserNomOrder, applyUserNomOrderToNomMap} = require('./user-nom-order');
+const {
+  readUserNomOrder,
+  applyUserNomOrderToNomMap,
+  pinCaseSensitiveVariantsIntoNomMap,
+  buildCaseSensitiveNomMap
+} = require('./user-nom-order');
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {extractNomCandidates, isEmbeddableTerm} = require('./lib/cjk');
 const {mdxEntries, readJson} = require('./lib/sources');
@@ -110,7 +115,7 @@ function nomFontSrcFor(variant) {
   return `url('data:font/otf;base64,${base64}') format('opentype')`;
 }
 
-function buildUserscript(nomMap, variant) {
+function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
   const updateUrl = variant.targetKey === 'nomLocalUserscript'
     ? repoPaths.localFileUrl(variant.targetKey)
     : repoPaths.rawUrl(variant.targetKey);
@@ -118,6 +123,7 @@ function buildUserscript(nomMap, variant) {
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
+    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
     '__ZOOPDOG_UPDATE_URL__': updateUrl,
@@ -147,8 +153,13 @@ function buildFullNomMap() {
   // produced, and the userscript renders candidate 0 as the ruby.
   const userNomOrder = readUserNomOrder(userNomOrderPath);
   applyUserNomOrderToNomMap(nomMap, userNomOrder);
+  // `caseSensitive` rows never reach the hoist above (see user-nom-order.js). Their variants
+  // are still pinned into the shared entry so the exact spelling stays matchable, and the
+  // exact-spelling override map is built from the result -- see zd-nom-match.js.
+  pinCaseSensitiveVariantsIntoNomMap(nomMap, userNomOrder);
+  const caseSensitiveNomMap = buildCaseSensitiveNomMap(nomMap, userNomOrder);
 
-  return {nomMap, userNomEntries, userNomOrder};
+  return {nomMap, caseSensitiveNomMap, userNomEntries, userNomOrder};
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -156,11 +167,14 @@ function main(argv = process.argv.slice(2)) {
   const variants = localOnly
     ? VARIANTS.filter((variant) => variant.targetKey === 'nomLocalUserscript')
     : VARIANTS;
-  const {nomMap, userNomEntries, userNomOrder} = buildFullNomMap();
+  const {nomMap, caseSensitiveNomMap, userNomEntries, userNomOrder} = buildFullNomMap();
 
   for (const variant of variants) {
     const targetPath = repoPaths.absolute[variant.targetKey];
-    const {version, changed} = writeVersionedUserscript(targetPath, buildUserscript(nomMap, variant));
+    const {version, changed} = writeVersionedUserscript(
+      targetPath,
+      buildUserscript(nomMap, caseSensitiveNomMap, variant)
+    );
 
     console.log(`Wrote ${targetPath}`);
     console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
@@ -175,6 +189,9 @@ function main(argv = process.argv.slice(2)) {
   }
   if (userNomOrder.length) {
     console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
+  }
+  if (Object.keys(caseSensitiveNomMap).length) {
+    console.log(`Embedded ${Object.keys(caseSensitiveNomMap).length} case-sensitive display-order overrides`);
   }
 }
 

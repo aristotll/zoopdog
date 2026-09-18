@@ -203,7 +203,18 @@ function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms) {
 // Builds a matcher bound to one term -> Chu Nom map. `options.annotateAsciiTerms` mirrors the
 // userscript's SETTINGS.annotateAsciiTerms and defaults to 'safe' (see
 // zdNomShouldAnnotateMatch above).
-function zdCreateNomMatcher(nomMap, options) {
+//
+// `caseSensitiveMap` (optional) is exact spelling -> its own fully-hoisted candidate string,
+// built by scripts/user-nom-order.js's `buildCaseSensitiveNomMap` from `user_nom_order.jsonc`
+// rows marked `"caseSensitive": true` (e.g. the surname "Đỗ", read differently from the
+// ordinary word "đỗ" that `nomMap` and the trie above -- both case-insensitive by construction
+// -- cannot tell apart on their own). Checked here, once a match is already found, by the
+// *exact* substring actually matched: this never changes which span matches or how long it is,
+// only which candidate string that span reports, so it costs nothing on every occurrence that
+// isn't an exact hit and never touches zdNomBestSegmentation's cost model. Mirrors
+// `reader.nom.NomAnnotator.annotate`'s identical per-occurrence check in the book-translator
+// project's Python engine.
+function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   var annotateAsciiTerms = options && 'annotateAsciiTerms' in options
     ? options.annotateAsciiTerms
     : 'safe';
@@ -227,7 +238,15 @@ function zdCreateNomMatcher(nomMap, options) {
     }
     var first = segments[0];
     var word = words[first.length - 1];
-    return {index: start, length: word.end - start, nom: first.value};
+    var length = word.end - start;
+    var nom = first.value;
+    if (caseSensitiveMap) {
+      var exact = caseSensitiveMap[text.substring(start, start + length)];
+      if (exact) {
+        nom = exact;
+      }
+    }
+    return {index: start, length: length, nom: nom};
   }
 
   function findNomMatch(text, offset) {

@@ -17,6 +17,14 @@ function normalizeTerm(value, options = {}) {
     .replace(/\s+/g, ' ');
 }
 
+// Same as `normalizeTerm` minus the lowercasing -- the key a `caseSensitive`
+// `user_nom_order.jsonc` row (see scripts/user-nom-order.js) is read and
+// written under, so "Đỗ" and "đỗ" can each carry their own row without
+// `normalizeTerm`'s casefold making them collide.
+function exactKey(value, options = {}) {
+  return cleanText(value, options).replace(/\s+/g, ' ');
+}
+
 // Accent folding is only ever used for matching no-diacritic or mistyped input against
 // local dictionary keys. It must never produce a stored `vi` value.
 function foldAccents(value) {
@@ -34,6 +42,7 @@ function stableUnique(values) {
 module.exports = {
   cleanText,
   normalizeTerm,
+  exactKey,
   foldAccents,
   stableUnique
 };

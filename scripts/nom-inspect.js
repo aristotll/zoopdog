@@ -24,11 +24,11 @@ const DEFAULT_ANNOTATE_ASCII_TERMS = 'safe';
 // each carrying every known Chu Nom candidate in the order the userscript would render them
 // (candidate 0 is the ruby text; the rest only ever show in its title attribute).
 function annotate(text, options = {}) {
-  const {nomMap} = buildFullNomMap();
+  const {nomMap, caseSensitiveNomMap} = buildFullNomMap();
   const annotateAsciiTerms = 'annotateAsciiTerms' in options
     ? options.annotateAsciiTerms
     : DEFAULT_ANNOTATE_ASCII_TERMS;
-  const matcher = zdCreateNomMatcher(nomMap, {annotateAsciiTerms});
+  const matcher = zdCreateNomMatcher(nomMap, {annotateAsciiTerms}, caseSensitiveNomMap);
   const normalized = String(text).normalize('NFC');
 
   const spans = [];

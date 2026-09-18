@@ -241,5 +241,6 @@
   {"vi": "áo", "nom": ["襖"]},
   {"vi": "chân", "nom": ["蹎"]},
   {"vi": "tuyển", "nom": ["選"]},
-  {"vi": "lan", "nom": ["瀾"]}
+  {"vi": "lan", "nom": ["瀾"]},
+  {"vi": "Đỗ", "nom": ["杜"], "caseSensitive": true}
 ]

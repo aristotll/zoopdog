@@ -23,6 +23,11 @@
   // Dictionary entries embedded: __ZOOPDOG_ENTRY_COUNT__
   var NOM_MAP = {"__ZOOPDOG_NOM_MAP__": true};
 
+  // Exact spelling -> its own display order, from user_nom_order.jsonc rows marked
+  // `"caseSensitive": true` (e.g. the surname "Đỗ", read differently from the ordinary word
+  // "đỗ"). See zd-nom-match.js's zdCreateNomMatcher for where this is checked.
+  var CASE_SENSITIVE_NOM_MAP = {"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true};
+
   var SETTINGS = {
     // "safe" annotates longer ASCII-only Vietnamese words while still skipping
     // short/common English words such as "an", "to", or "no".
@@ -40,7 +45,7 @@
   // inserted next to such a node still hold the previous text, so they are remembered here
   // and dropped before the rewritten node is annotated again.
   var injections = new WeakMap();
-  var nomMatcher = zdCreateNomMatcher(NOM_MAP, SETTINGS);
+  var nomMatcher = zdCreateNomMatcher(NOM_MAP, SETTINGS, CASE_SENSITIVE_NOM_MAP);
   // A video-caption or translation-overlay widget (Eudict/欧路翻译, Immersive Translate) renders
   // its actual on-screen text inside its own *open* shadow root, to keep the host page's CSS
   // from leaking in. That content is real, painted DOM, but it is not part of any element's

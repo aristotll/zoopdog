@@ -30,8 +30,8 @@ test('reads a JSONC order file, comments and all', () => {
   const entries = withTempFile(source, (file) => order.readUserNomOrder(file));
 
   assert.deepEqual(entries, [
-    {vi: 'Ba', key: 'ba', nom: ['𠀧']},
-    {vi: 'quán đỉnh', key: 'quán đỉnh', nom: ['灌頂', '冠䟓']}
+    {vi: 'Ba', key: 'ba', exact: 'Ba', nom: ['𠀧'], caseSensitive: false},
+    {vi: 'quán đỉnh', key: 'quán đỉnh', exact: 'quán đỉnh', nom: ['灌頂', '冠䟓'], caseSensitive: false}
   ]);
 });
 
@@ -51,6 +51,51 @@ test('the index upserts: a later row for the same term replaces the earlier one'
   ]);
   assert.deepEqual(index.get('ba'), ['𠀧']);
   assert.equal(index.size, 1);
+});
+
+// -- the caseSensitive option ("Đỗ" the surname vs "đỗ" the word) --------
+
+test('a caseSensitive row is excluded from the casefolded index', () => {
+  const index = order.buildNomOrderIndex([
+    {vi: 'Đỗ', key: 'đỗ', exact: 'Đỗ', nom: ['杜'], caseSensitive: true},
+    {vi: 'đỗ', key: 'đỗ', exact: 'đỗ', nom: ['逗'], caseSensitive: false}
+  ]);
+  assert.deepEqual(index.get('đỗ'), ['逗']);
+});
+
+test('the caseSensitive index is keyed by exact spelling, never folded with the plain one', () => {
+  const index = order.buildCaseSensitiveNomOrderIndex([
+    {vi: 'Đỗ', key: 'đỗ', exact: 'Đỗ', nom: ['杜'], caseSensitive: true},
+    {vi: 'đỗ', key: 'đỗ', exact: 'đỗ', nom: ['逗'], caseSensitive: false}
+  ]);
+  assert.deepEqual(index.get('Đỗ'), ['杜']);
+  assert.equal(index.has('đỗ'), false);
+});
+
+test('pinning appends a missing variant to the shared entry without hoisting it', () => {
+  const nomMap = {đỗ: '逗 / 度'};
+  order.pinCaseSensitiveVariantsIntoNomMap(nomMap, [
+    {vi: 'Đỗ', key: 'đỗ', exact: 'Đỗ', nom: ['杜'], caseSensitive: true}
+  ]);
+  assert.equal(nomMap.đỗ, '逗 / 度 / 杜');
+});
+
+test('pinning a term the dictionaries never had still creates it', () => {
+  const nomMap = {};
+  order.pinCaseSensitiveVariantsIntoNomMap(nomMap, [
+    {vi: 'Đỗ', key: 'đỗ', exact: 'Đỗ', nom: ['杜'], caseSensitive: true}
+  ]);
+  assert.equal(nomMap.đỗ, '杜');
+});
+
+test('the case-sensitive nom map hoists against the pinned shared entry, keyed exactly', () => {
+  const nomMap = {đỗ: '逗 / 度'};
+  const entries = [{vi: 'Đỗ', key: 'đỗ', exact: 'Đỗ', nom: ['杜'], caseSensitive: true}];
+  order.pinCaseSensitiveVariantsIntoNomMap(nomMap, entries);
+  const caseSensitiveNomMap = order.buildCaseSensitiveNomMap(nomMap, entries);
+  assert.deepEqual(caseSensitiveNomMap, {Đỗ: '杜 / 逗 / 度'});
+  // The shared entry itself was only appended to, never reordered.
+  assert.equal(nomMap.đỗ, '逗 / 度 / 杜');
 });
 
 test('hoists preferred variants to the front of a nom map entry', () => {

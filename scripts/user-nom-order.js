@@ -14,9 +14,27 @@
 // `vi` is the upsert key, normalized exactly like every other term in this repository
 // (`normalizeTerm`). The same file is read by the book-translator reader
 // (`scripts/reader/nom_order.py`), which is where rows are usually authored.
+//
+// A row may also carry `"caseSensitive": true` -- for a surname like "Đỗ" (read 杜 in
+// Hán Việt), whose lowercase spelling "đỗ" is an ordinary, unrelated word (read 逗).
+// `normalizeTerm` casefolds, so a plain row for one would otherwise apply to the other too.
+// Such a row is excluded from `buildNomOrderIndex` (the casefolded table every other row
+// feeds) and kept in a second table instead, keyed by its *exact* spelling
+// (`buildCaseSensitiveNomOrderIndex`) -- consumed only by the nom-ruby matching engine
+// (`zd-extension/js/zd-nom-match.js`), which checks it per occurrence, after a match is
+// already found, exactly the way `reader.nom.NomAnnotator.annotate` does. Its variants are
+// still pinned into the shared candidate list (`pinCaseSensitiveVariantsIntoNomMap`) so the
+// exact spelling stays matchable/creatable -- appended, never hoisted, since hoisting here
+// would apply the surname's preference to every case of the word.
+//
+// The popup-dictionary and browser-extension builds have no per-occurrence text to check a
+// casing against (their dictionaries are static, keyed only by the casefolded term), so a
+// `caseSensitive` row's only effect there is exclusion from the casefolded hoist -- it is
+// never allowed to reorder those consumers' shared entry for the word, but its own reordering
+// does not reach them either.
 
 const fs = require('fs');
-const {cleanText, normalizeTerm} = require('./lib/text');
+const {cleanText, normalizeTerm, exactKey} = require('./lib/text');
 const {extractNomCandidates} = require('./lib/cjk');
 const {stripJsonComments} = require('./lib/jsonc-strip');
 
@@ -54,7 +72,7 @@ function parseUserNomOrder(source, sourcePath) {
       throw new Error(`${sourcePath} entry ${index + 1} is missing nom`);
     }
 
-    return {vi, key: normalizeTerm(vi), nom};
+    return {vi, key: normalizeTerm(vi), exact: exactKey(vi), nom, caseSensitive: Boolean(entry.caseSensitive)};
   });
 }
 
@@ -67,13 +85,62 @@ function readUserNomOrder(sourcePath) {
 }
 
 // Last row wins, matching the reader's own upsert writer: re-ordering a term twice must
-// leave one opinion on file, not two that disagree.
+// leave one opinion on file, not two that disagree. Excludes `caseSensitive` rows -- see the
+// module docstring for why those must never reach the casefolded consumers this feeds.
 function buildNomOrderIndex(entries) {
   const index = new Map();
   for (const entry of entries) {
+    if (entry.caseSensitive) {
+      continue;
+    }
     index.set(entry.key, entry.nom);
   }
   return index;
+}
+
+// The `caseSensitive` counterpart: exact spelling -> preferred variants, last row wins for
+// the same exact spelling. Never merged with `buildNomOrderIndex`'s table.
+function buildCaseSensitiveNomOrderIndex(entries) {
+  const index = new Map();
+  for (const entry of entries) {
+    if (!entry.caseSensitive) {
+      continue;
+    }
+    index.set(entry.exact, entry.nom);
+  }
+  return index;
+}
+
+// Every `caseSensitive` row's variants, appended (never hoisted) onto `nomMap`'s shared entry
+// for the word -- the "pin, don't ignore" half of the rule, kept separate from hoisting so a
+// surname's preference can never reorder the shared entry that every other case of the word
+// also renders from. Call before `buildCaseSensitiveNomMap`, which hoists against the result.
+function pinCaseSensitiveVariantsIntoNomMap(nomMap, entries) {
+  for (const [exact, preferred] of buildCaseSensitiveNomOrderIndex(entries)) {
+    const key = normalizeTerm(exact);
+    const existing = splitCandidateText(nomMap[key]);
+    const missing = preferred.filter((value) => !existing.includes(value));
+    if (missing.length) {
+      nomMap[key] = [...existing, ...missing].join(CANDIDATE_SEPARATOR);
+    }
+  }
+}
+
+// Exact spelling -> its own fully-hoisted candidate string -- embedded into the nom-ruby
+// userscript alongside `NOM_MAP` and checked by `zdCreateNomMatcher` once per occurrence,
+// after a match is already found (see zd-nom-match.js). Reads `nomMap` rather than mutating
+// it: call `pinCaseSensitiveVariantsIntoNomMap` first so a variant no dictionary ever listed
+// is still in the group this hoists.
+function buildCaseSensitiveNomMap(nomMap, entries) {
+  const result = {};
+  for (const [exact, preferred] of buildCaseSensitiveNomOrderIndex(entries)) {
+    const key = normalizeTerm(exact);
+    const hoisted = orderPreferredFirst(splitCandidateText(nomMap[key]), preferred, (value) => value);
+    if (hoisted.length) {
+      result[exact] = hoisted.join(CANDIDATE_SEPARATOR);
+    }
+  }
+  return result;
 }
 
 // The one hoist rule, shared by every consumer. Stable: rows the preference list says
@@ -163,6 +230,9 @@ module.exports = {
   parseUserNomOrder,
   readUserNomOrder,
   buildNomOrderIndex,
+  buildCaseSensitiveNomOrderIndex,
+  pinCaseSensitiveVariantsIntoNomMap,
+  buildCaseSensitiveNomMap,
   orderPreferredFirst,
   hoistPreferredRows,
   applyUserNomOrderToNomMap,

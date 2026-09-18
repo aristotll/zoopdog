@@ -192,11 +192,12 @@ function createDom() {
   };
 }
 
-function runRuntime(nomMap) {
+function runRuntime(nomMap, caseSensitiveNomMap = {}) {
   const dom = createDom();
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
+    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': '',
     '__ZOOPDOG_UPDATE_URL__': 'about:blank',

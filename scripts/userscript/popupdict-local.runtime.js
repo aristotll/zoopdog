@@ -569,6 +569,7 @@
       nom: 'zoopdog-nom-order-nom',
       suggestions: 'zoopdog-nom-order-suggestions',
       current: 'zoopdog-nom-order-current',
+      caseSensitive: 'zoopdog-nom-order-case-sensitive',
       diffPreview: 'zoopdog-nom-order-diff-preview',
       status: 'zoopdog-nom-order-form-status',
       saveBtn: 'zoopdog-nom-order-save-btn',
@@ -1094,6 +1095,10 @@
 
     function term() { return viInput.value.trim(); }
     function isUpdate() { return order.stored !== null; }
+    // Names which of the two on-file rows for this term (see
+    // reader/nom_order.py's caseSensitive option) the modal is viewing or
+    // editing -- mirrors book-translator's reader_nom_order.js.
+    function isCaseSensitive() { return document.getElementById(ids.caseSensitive).checked; }
 
     function resetPreview() {
       document.getElementById(ids.diffPreview).hidden = true;
@@ -1163,7 +1168,9 @@
 
       if (!vi) return;
 
-      zooGetJSON('/v1/nom/order', { vi: vi, scope: 'global' }).then(function(payload) {
+      var lookupQuery = { vi: vi, scope: 'global' };
+      if (isCaseSensitive()) lookupQuery.caseSensitive = '1';
+      zooGetJSON('/v1/nom/order', lookupQuery).then(function(payload) {
         if (myToken !== token) return;
         order.variants = payload.variants || [];
         order.stored = payload.exists ? (payload.order || []) : null;
@@ -1201,8 +1208,14 @@
       zooSetModalStatus(ids.status, '', false);
     });
 
+    document.getElementById(ids.caseSensitive).addEventListener('change', function() {
+      refresh();
+    });
+
     function query() {
-      return { vi: term(), nom: nomInput.value.trim(), scope: 'global' };
+      var q = { vi: term(), nom: nomInput.value.trim(), scope: 'global' };
+      if (isCaseSensitive()) q.caseSensitive = '1';
+      return q;
     }
 
     document.getElementById(ids.form).addEventListener('submit', function(event) {
@@ -1251,6 +1264,9 @@
     var selection = zooTrimSelectionPunctuation(vi);
     zooOrderState.setWords(selection.split(/\s+/).filter(Boolean));
     document.getElementById(ids.vi).value = selection;
+    // Always starts unchecked -- a deliberate per-save choice, not something
+    // remembered from an earlier one (mirrors reader_nom_order.js).
+    document.getElementById(ids.caseSensitive).checked = false;
     zooOpenModal(ids.backdrop);
     zooOrderState.refresh();
   }
@@ -1305,6 +1321,10 @@
       '<datalist id="', orderIds.suggestions, '"></datalist>',
       '</label>',
       '<p id="', orderIds.current, '" class="zd-modal-hint" hidden></p>',
+      '<label class="zd-modal-checkbox-row">',
+      '<input id="', orderIds.caseSensitive, '" type="checkbox">',
+      'Only for this exact capitalization (e.g. a name)',
+      '</label>',
       '<ul id="', orderIds.diffPreview, '" class="zd-entry-diff-list" hidden></ul>',
       '<p id="', orderIds.status, '" class="zd-modal-status" hidden></p>',
       '<div class="zd-modal-actions">',
