@@ -219,7 +219,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       var data = curNode.data;
       var i;
       for (i = curBegin; i < data.length; i++) {
-        if (data[i] === ' ') {
+        if (/\s/.test(data[i])) {
           if (prevChar && zdIsWordChar(prevChar)) {
             words++;
           }
@@ -239,7 +239,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       }
 
       var rangeBegin = curBegin;
-      if (data[rangeBegin] === ' ') {
+      if (/\s/.test(data[rangeBegin])) {
         rangeBegin++;
       }
       if (rangeBegin < i) {

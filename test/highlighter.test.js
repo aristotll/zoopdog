@@ -133,3 +133,29 @@ test('a match that stops mid-node never crosses into the next <ruby>', () => {
 
   assert.deepEqual(highlighter.highlights, [{left: 0, top: 0, width: 30, height: 20}]);
 });
+
+// Video-caption overlays (Eudict) put an empty text node after each word and separate words with
+// &nbsp;, not an ASCII space. Either one used to end the walk right after the first word, so the
+// popup found "chế độ" while the highlight covered only "chế".
+test('a match still spans two words split by an empty text node and a no-break space', () => {
+  const che = rubyWord('chế', '制');
+  const doWord = rubyWord('độ', '度');
+  linkChildren(elementNode('DIV'), [
+    che.ruby, textNode(''), textNode(' '), doWord.ruby
+  ]);
+
+  rectsByNode = new Map([
+    [che.wordText, [{left: 0, top: 0, width: 30, height: 20}]],
+    [doWord.wordText, [{left: 40, top: 0, width: 28, height: 20}]]
+  ]);
+
+  const highlighter = withComputedStyle(rubyPageStyle, () => newHighlighter());
+  withComputedStyle(rubyPageStyle, () => {
+    highlighter.on(che.wordText, 0, 2);
+  });
+
+  assert.deepEqual(highlighter.highlights, [
+    {left: 0, top: 0, width: 30, height: 20},
+    {left: 40, top: 0, width: 28, height: 20}
+  ]);
+});

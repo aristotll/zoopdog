@@ -41,7 +41,7 @@ class Highlighter {
       var data = curNode.data
       var i
       for (i = curBegin; i < data.length; i++) {
-        if (data[i] === " ") {
+        if (/\s/.test(data[i])) {
           if (prevChar && zdIsWordChar(prevChar)) words++
         } else if (!zdIsWordChar(data[i])) { // break on punctuation
           break
@@ -54,7 +54,7 @@ class Highlighter {
 
       if (i === curBegin) break
       var rangeBegin = curBegin
-      if (data[rangeBegin] === " ") rangeBegin++
+      if (/\s/.test(data[rangeBegin])) rangeBegin++
       if (rangeBegin < i) {
         var range = new Range()
         range.setStart(curNode, rangeBegin)

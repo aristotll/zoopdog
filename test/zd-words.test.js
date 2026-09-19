@@ -480,3 +480,61 @@ test('the cross-node walk does not cross into a different paragraph', () => {
   assert.equal(result.context, 'một câu',
     'the walk stops at the end of the paragraph instead of reading into the next one');
 });
+
+// Regression coverage for video-caption overlays (Eudict's <app-video-captions>): the line is a
+// flex row whose every item is a `display: block` span holding one word, so the word's nearest
+// non-inline ancestor is that one-word wrapper. Treating it as a paragraph boundary stopped the
+// context at a single word -- the popup could only ever look up syllable by syllable.
+test('the context walk continues across the items of a flex row of one-word wrappers', () => {
+  const styleFor = (el) => {
+    if (el.tagName === 'RUBY' || el.tagName === 'RT') return 'ruby';
+    if (el.tagName === 'DIV') return 'flex';
+    if (el.tagName === 'SPAN' && el.role === 'item') return 'block';
+    return 'inline';
+  };
+  const item = (word) => {
+    const w = rubyWord(word, '空');
+    const wrapper = linkChildren(elementNode('SPAN', {role: 'item'}), [
+      linkChildren(elementNode('SPAN'), [w.ruby]),
+      // Angular leaves an empty text node behind its bindings; it is not punctuation.
+      textNode(''),
+      linkChildren(elementNode('SPAN'), [textNode(' ')])
+    ]);
+    return {wrapper, wordText: w.wordText};
+  };
+  const items = [item('thực'), item('ra'), item('là')];
+  linkChildren(elementNode('DIV'), items.map((i) => i.wrapper));
+
+  const result = withComputedStyle(styleFor, () => withDocument(
+    {caretRangeFromPoint: () => ({startContainer: items[0].wordText, startOffset: 0})},
+    () => words.getWordAndContext({x: 1, y: 1})
+  ));
+
+  assert.equal(result.word, 'thực');
+  assert.deepEqual(result.context.split(/\s+/), ['thực', 'ra', 'là'],
+    'sibling flex items are one line of text, not separate paragraphs');
+});
+
+test('a column flex container still bounds the walk at each item', () => {
+  const styleFor = (el) => (el.tagName === 'DIV' ? 'flex' : el.tagName === 'RUBY' ? 'ruby' : 'block');
+  const a = rubyWord('một');
+  const b = rubyWord('câu');
+  const itemA = linkChildren(elementNode('P'), [a.ruby]);
+  const itemB = linkChildren(elementNode('P'), [b.ruby]);
+  linkChildren(elementNode('DIV'), [itemA, itemB]);
+
+  const result = withComputedStyle(styleFor, () => {
+    const origin = global.getComputedStyle;
+    global.getComputedStyle = (el) => ({display: styleFor(el), flexDirection: 'column'});
+    try {
+      return withDocument(
+        {caretRangeFromPoint: () => ({startContainer: a.wordText, startOffset: 0})},
+        () => words.getWordAndContext({x: 1, y: 1})
+      );
+    } finally {
+      global.getComputedStyle = origin;
+    }
+  });
+
+  assert.equal(result.context, 'một', 'stacked items are separate lines, so the walk does not join them');
+});

@@ -28,6 +28,7 @@ const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
 const nomMatchEnginePath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-nom-match.js');
+const wordsPath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-words.js');
 const nomFontRemoteUrl = "url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype')";
 const nomFontLocalPath = repoPaths.absolute.nomFontLocal;
 
@@ -122,6 +123,7 @@ function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
 
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
+    '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,

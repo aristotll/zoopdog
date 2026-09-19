@@ -13,6 +13,7 @@ const vm = require('node:vm');
 const {readRuntime, renderRuntime} = require('../scripts/lib/userscript');
 
 const nomMatchEnginePath = path.join(__dirname, '..', 'zd-extension/js/zd-nom-match.js');
+const wordsPath = path.join(__dirname, '..', 'zd-extension/js/zd-words.js');
 
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
@@ -41,6 +42,22 @@ function createDom() {
       this.nodeType = nodeType;
       this.parentNode = null;
       this.childNodes = [];
+    }
+
+    get parentElement() {
+      return this.parentNode && this.parentNode.nodeType === ELEMENT_NODE ? this.parentNode : null;
+    }
+
+    get firstChild() {
+      return this.childNodes[0] || null;
+    }
+
+    get nextSibling() {
+      if (!this.parentNode) {
+        return null;
+      }
+      const index = this.parentNode.childNodes.indexOf(this);
+      return this.parentNode.childNodes[index + 1] || null;
     }
 
     get previousSibling() {
@@ -192,10 +209,21 @@ function createDom() {
   };
 }
 
+// What a browser reports for the fixtures below: caption rows are flex, their per-word wrappers
+// block, ruby its own display, everything else inline.
+function displayOf(el) {
+  if (el.tagName === 'RUBY' || el.tagName === 'RT') return {display: 'ruby'};
+  if (el.tagName === 'BODY' || el.tagName === 'P') return {display: 'block'};
+  if (el.className === 'row') return {display: 'flex', flexDirection: 'row'};
+  if (el.className === 'item') return {display: 'block'};
+  return {display: 'inline'};
+}
+
 function runRuntime(nomMap, caseSensitiveNomMap = {}) {
   const dom = createDom();
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
+    '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
@@ -210,6 +238,7 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}) {
   const intervals = [];
   const context = {
     document: dom.document,
+    getComputedStyle: displayOf,
     Node: {ELEMENT_NODE, TEXT_NODE, DOCUMENT_FRAGMENT_NODE},
     NodeList: {prototype: {forEach: Array.prototype.forEach}},
     MutationObserver: class {
@@ -416,4 +445,52 @@ test('re-scanning unchanged content does not duplicate annotations', () => {
 
   assert.equal(visibleText(paragraph), 'của bạn');
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
+});
+
+// Video-caption widgets (Eudict) give every word its own block wrapper -- one text node per word
+// inside a flex row, an empty text node and a no-break-space span after it -- so a dictionary
+// entry of several words never sits in one text node. Matching only inside a text node
+// annotated "chỉ" and "trích" separately (or not at all) instead of the entry "chỉ trích".
+test('a multi-word entry split across per-word wrappers is annotated word by word', () => {
+  const dom = runRuntime(Object.assign({}, NOM_MAP, {'chỉ trích': '指責'}));
+  const row = dom.document.createElement('div');
+  row.className = 'row';
+  ['chỉ', 'trích', 'bạn'].forEach((word) => {
+    const item = dom.document.createElement('span');
+    item.className = 'item';
+    const inner = dom.document.createElement('span');
+    inner.appendChild(dom.document.createTextNode(word));
+    item.appendChild(inner);
+    item.appendChild(dom.document.createTextNode(''));
+    const gap = dom.document.createElement('span');
+    gap.appendChild(dom.document.createTextNode('\u00a0'));
+    item.appendChild(gap);
+    row.appendChild(item);
+  });
+  dom.body.appendChild(row);
+
+  dom.tick();
+
+  assert.equal(visibleText(row), 'chỉ\u00a0trích\u00a0bạn\u00a0');
+  assert.deepEqual(rubyAnnotations(row), ['指', '責', '伴'],
+    'the two characters of the entry are split one per word; the next word keeps its own');
+});
+
+test('punctuation between per-word wrappers keeps an entry from spanning them', () => {
+  const dom = runRuntime(Object.assign({}, NOM_MAP, {'chỉ trích': '指責'}));
+  const row = dom.document.createElement('div');
+  row.className = 'row';
+  ['chỉ,', 'trích'].forEach((word) => {
+    const item = dom.document.createElement('span');
+    item.className = 'item';
+    const inner = dom.document.createElement('span');
+    inner.appendChild(dom.document.createTextNode(word));
+    item.appendChild(inner);
+    row.appendChild(item);
+  });
+  dom.body.appendChild(row);
+
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(row), [], 'neither "chỉ" nor "trích" is an entry by itself here');
 });

@@ -213,7 +213,9 @@ function zdNextNode(node, boundary) {
 // past) and blind to <rt> subtrees.
 function zdNextTextNode(node, boundary) {
   let cur = zdNextNode(node, boundary);
-  while (cur && cur.nodeType !== 3) {
+  // An empty text node (frameworks such as Angular leave them behind bindings) carries no
+  // characters, so it is skipped rather than mistaken for the end of the word run.
+  while (cur && (cur.nodeType !== 3 || cur.data.length === 0)) {
     cur = zdNextNode(cur, boundary);
   }
   return cur;
@@ -235,6 +237,22 @@ const ZD_INLINE_DISPLAY_VALUES = new Set([
 // unstructured markup falls back to `document.body` quickly.
 const ZD_CONTAINER_SEARCH_MAX_LEVELS = 8;
 
+// A video-caption overlay (Eudict) lays a line out as a flex row whose every item is a
+// `display: block` wrapper around one word. Each wrapper is a flex item, not a paragraph: the
+// row is the line. Returns that row when `el` is an item of a row-direction flex container, so
+// the walk can read on into the next word's wrapper; a column container stacks its items as
+// separate lines and keeps `el` as the boundary.
+function zdFlexRowContainer(el) {
+  const parent = el.parentElement;
+  if (!parent || typeof getComputedStyle !== 'function') {
+    return null;
+  }
+  const style = getComputedStyle(parent);
+  const isFlex = style && (style.display === 'flex' || style.display === 'inline-flex');
+  const direction = (style && style.flexDirection) || 'row';
+  return isFlex && direction.indexOf('row') === 0 ? parent : null;
+}
+
 // The nearest ancestor of `node` whose own box breaks the inline flow (typically the paragraph
 // or line the word sits in), so a forward context walk stops at the end of that text instead of
 // wandering into whatever comes after it just because the last visible character happened to be
@@ -246,7 +264,7 @@ function zdContainerBoundary(node) {
     const style = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
     const display = style && style.display;
     if (!display || !ZD_INLINE_DISPLAY_VALUES.has(display)) {
-      return el;
+      return zdFlexRowContainer(el) || el;
     }
     el = el.parentElement;
     level++;

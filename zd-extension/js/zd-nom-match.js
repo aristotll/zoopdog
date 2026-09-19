@@ -264,7 +264,34 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
     return null;
   }
 
-  return {trie: trie, matchAt: matchAt, findNomMatch: findNomMatch};
+  // Whether `text` ends partway through a dictionary entry: some run of its trailing words is a
+  // prefix of an entry that has more words after it. A caller whose text is split over several
+  // DOM nodes asks this before paying to read the following nodes -- nearly every text node ends
+  // in a word that no entry continues, and those never need the lookahead.
+  function canContinuePast(text) {
+    var starts = [];
+    for (var i = 0; i < text.length; i++) {
+      if (zdNomIsWordChar(text.charAt(i)) && !zdNomIsWordChar(text.charAt(i - 1))) {
+        starts.push(i);
+      }
+    }
+    for (var s = Math.max(0, starts.length - 16); s < starts.length; s++) {
+      var node = trie;
+      var ok = true;
+      for (var j = starts[s]; j < text.length && ok; j++) {
+        var ch = text.charAt(j);
+        ch = zdNomIsWhitespace(ch) ? ' ' : ch.toLowerCase();
+        node = node.children && node.children[ch];
+        ok = !!node;
+      }
+      if (ok && node.children && (zdNomIsWhitespace(text.charAt(text.length - 1)) || node.children[' '])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  return {trie: trie, matchAt: matchAt, findNomMatch: findNomMatch, canContinuePast: canContinuePast};
 }
 
 // Present only under Node, so the engine is unit-testable and CLI-callable without a browser.
