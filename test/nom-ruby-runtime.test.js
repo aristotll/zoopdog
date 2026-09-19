@@ -494,3 +494,23 @@ test('punctuation between per-word wrappers keeps an entry from spanning them', 
 
   assert.deepEqual(rubyAnnotations(row), [], 'neither "chỉ" nor "trích" is an entry by itself here');
 });
+
+// An annotated caption row is taller than a plain one, and Eudict caps its rows with
+// `max-height` + `overflow: hidden`, which clipped the lower lines and pushed them over the row
+// above. The override has to reach the overlay's own shadow root, since a page style cannot.
+test('the styles injected into a caption shadow root lift the overlay row height cap', () => {
+  const dom = runRuntime(NOM_MAP);
+  const host = dom.document.createElement('app-video-captions');
+  dom.body.appendChild(host);
+  const shadow = host.attachShadow({mode: 'open'});
+  shadow.appendChild(dom.document.createElement('span'));
+
+  dom.tick();
+
+  const css = shadow.childNodes
+    .filter((node) => node.tagName === 'STYLE')
+    .map((node) => node.textContent)
+    .join('\n');
+  assert.match(css, /\.eudic-chrome-extension-video-dest[\s\S]*max-height:\s*none\s*!important/);
+  assert.match(css, /overflow:\s*visible\s*!important/);
+});

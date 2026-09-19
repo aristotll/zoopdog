@@ -166,3 +166,40 @@ test('empty candidates stay empty while failures show recovery guidance and re-e
   assert.equal(harness.elements.get(ids.notesRefresh).disabled, false);
   assert.match(harness.elements.get(ids.status).textContent, /Reload the page/i);
 });
+
+test('selection rect falls back to composed ranges only for shadow-root text', () => {
+  const {context} = createHarness(() => {});
+  const shadowRect = {width: 40, height: 10, left: 5, top: 6};
+  context.document.createRange = () => ({
+    setStart() {}, setEnd() {}, getBoundingClientRect() { return shadowRect; },
+    cloneContents() { return 'fragment'; }
+  });
+  context.document.createElement = () => {
+    const removed = [];
+    return {
+      appendChild() {},
+      querySelectorAll() { return [{parentNode: {removeChild(n) { removed.push(n); }}}]; },
+      get textContent() { return removed.length ? 'T\u1EEB g\u00F3c' : 'T\u1EEB\u81EA g\u00F3c'; }
+    };
+  };
+  const shadowRoot = {nodeType: 11, children: []};
+  const host = {nodeType: 1, shadowRoot, children: []};
+  const container = {nodeType: 1, children: [host]};
+  const seen = [];
+  const selection = {
+    getComposedRanges(options) {
+      seen.push(options.shadowRoots);
+      return [{startContainer: {}, startOffset: 0, endContainer: {}, endOffset: 1}];
+    }
+  };
+  const composed = context.zooComposedSelection(selection, container);
+  assert.equal(composed.rect, shadowRect);
+  assert.equal(composed.text, 'T\u1EEB g\u00F3c');
+  assert.equal(seen[0].length, 1);
+  assert.equal(seen[0][0], shadowRoot);
+  // No shadow roots: never asks the browser.
+  assert.equal(context.zooComposedSelection(selection, {nodeType: 1, children: []}), null);
+  assert.equal(seen.length, 1);
+  // Browser without getComposedRanges keeps the old behaviour.
+  assert.equal(context.zooComposedSelection({}, container), null);
+});

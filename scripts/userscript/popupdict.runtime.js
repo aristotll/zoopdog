@@ -21,7 +21,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
   var ZOO_MAX_WORDS = __ZOOPDOG_MAX_WORDS__;
 
   var ZOO_SETTINGS = {
-    dialect: 'hanoi',
     cjkDefinitionLineLength: 18,
     oldWordResetMs: 500
   };
@@ -386,7 +385,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
 
   ResultPopup.prototype.populate = function(results) {
     zooSetHTML(this.body, results.map(renderDefinition).join(''));
-    drawTonesAndGradients();
   };
 
   ResultPopup.prototype.show = function(rect) {
@@ -437,12 +435,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
   function renderDefinition(entry) {
     var vn = entry[0];
     var definitions = entry[1];
-    var pronunciation = renderPronunciation(vn);
 
     return [
       '<div class="zd-definition">',
       '<h1>', escapeHtml(vn), '</h1>',
-      '<div class="zd-pronunciation">', pronunciation, '</div>',
       '<ul>',
       renderDefinitionItems(definitions),
       '</ul>',
@@ -523,16 +519,6 @@ __ZOOPDOG_RUNTIME_SOURCES__
       return '<li><span class="zoopdog-pos">' + pos + '</span> ' + definition + '</li>';
     }
     return '<li>' + definition + '</li>';
-  }
-
-  function renderPronunciation(word) {
-    try {
-      var byDialect = pronunciationGuide(word);
-      var result = byDialect[ZOO_SETTINGS.dialect] || byDialect.hanoi;
-      return result && result.zd ? result.zd : escapeHtml(word);
-    } catch (error) {
-      return escapeHtml(word);
-    }
   }
 
   function main() {

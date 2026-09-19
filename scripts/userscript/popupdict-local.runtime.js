@@ -721,6 +721,56 @@
     }
   }
 
+  var ZOO_SHADOW_SCAN_LIMIT = 5000;
+
+  // Open shadow roots under `node`, nested ones included, bounded so a huge
+  // page cannot stall the selection handler.
+  function zooCollectOpenShadowRoots(node) {
+    var roots = [];
+    if (!node) return roots;
+    var start = node.nodeType === 1 ? node : node.parentElement;
+    if (!start) return roots;
+    var queue = [start];
+    var scanned = 0;
+    while (queue.length && scanned < ZOO_SHADOW_SCAN_LIMIT) {
+      var current = queue.pop();
+      scanned++;
+      if (current.shadowRoot) {
+        roots.push(current.shadowRoot);
+        queue.push(current.shadowRoot);
+      }
+      var children = current.children || [];
+      for (var i = 0; i < children.length; i++) queue.push(children[i]);
+    }
+    return roots;
+  }
+
+  // Bounding rect and annotation-free text of a selection that lives inside a
+  // shadow root, or null when there is none or the browser lacks
+  // Selection.getComposedRanges.
+  function zooComposedSelection(selection, container) {
+    if (typeof selection.getComposedRanges !== 'function') return null;
+    try {
+      var roots = zooCollectOpenShadowRoots(container);
+      if (!roots.length) return null;
+      var composed = selection.getComposedRanges({shadowRoots: roots});
+      if (!composed || !composed.length) return null;
+      var range = document.createRange();
+      range.setStart(composed[0].startContainer, composed[0].startOffset);
+      range.setEnd(composed[0].endContainer, composed[0].endOffset);
+      var rect = range.getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) return null;
+      var holder = document.createElement('div');
+      holder.appendChild(range.cloneContents());
+      Array.prototype.forEach.call(holder.querySelectorAll('rt, rp'), function(node) {
+        node.parentNode.removeChild(node);
+      });
+      return {rect: rect, text: holder.textContent};
+    } catch (error) {
+      return null;
+    }
+  }
+
   function zooHandleSelectionChange() {
     // Defensive: this runs on arbitrary third-party pages that may carry
     // other userscripts/extensions mutating the DOM around the same
@@ -730,7 +780,11 @@
     try {
       if (!ZOO_LOCAL_AVAILABLE) return;
       var selection = window.getSelection ? window.getSelection() : null;
-      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      // Text inside a shadow root reports isCollapsed=true (the range is
+      // collapsed on the host) while toString() still holds the selection, so
+      // only an empty toString() counts as "nothing selected".
+      if (!selection || selection.rangeCount === 0 ||
+          (selection.isCollapsed && !selection.toString())) {
         zooHideSelectionBar();
         return;
       }
@@ -747,11 +801,28 @@
       }
       var range = selection.getRangeAt(0);
       var rect = range.getBoundingClientRect();
+      var anchorContainer = range.commonAncestorContainer;
       if (!rect || (!rect.width && !rect.height)) {
-        zooHideSelectionBar();
-        return;
+        // Text inside an open shadow root (e.g. Bilibili's <bili-comments>)
+        // reports a range collapsed on the host with an empty rect. Only in
+        // that empty-rect case ask for the composed range; every page that
+        // already had a usable rect keeps the exact path above.
+        var composed = zooComposedSelection(selection, anchorContainer);
+        if (!composed) {
+          zooHideSelectionBar();
+          return;
+        }
+        rect = composed.rect;
+        // toString() of a shadow-root selection also carries the <rt> Chu Nom
+        // annotations (the page-level user-select:none rule does not reach
+        // most shadow roots), so the term comes from the range minus those.
+        text = zooTrimSelectionPunctuation(composed.text);
+        if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
+          zooHideSelectionBar();
+          return;
+        }
       }
-      zooSelectionAnchorNode = range.commonAncestorContainer;
+      zooSelectionAnchorNode = anchorContainer;
       zooShowSelectionBar(rect, text);
     } catch (error) {
       zooHideSelectionBar();

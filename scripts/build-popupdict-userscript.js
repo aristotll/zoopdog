@@ -24,12 +24,9 @@ const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
 
 const sourceFiles = [
-  'zd-extension/js/lib/chroma.min.js',
-  // Shared word primitives, inlined ahead of the runtime that calls them.
-  'zd-extension/js/zd-words.js',
-  'zd-extension/js/zd-pron-data.js',
-  'zd-extension/js/zd-pron-functions.js',
-  'zd-extension/js/zd-pron-drawtones.js'
+  // Shared word primitives, inlined ahead of the runtime that calls them. The popup shows no
+  // auto-generated pronunciation, so the pron/chroma code is deliberately not embedded.
+  'zd-extension/js/zd-words.js'
 ];
 
 // The -local variant adds the "add/edit Chu Nom entries" ability (docs/local-mode.md) by

@@ -75,6 +75,19 @@
     '}'
   ].join('\n');
 
+  // Eudict's caption overlay caps each language row at a few lines' height (`max-height: 3.6em`,
+  // `overflow: hidden`). A ruby line is taller than a plain one, so an annotated row no longer
+  // fits: its lower lines are clipped, and because the row centres its content the overflow
+  // spills upward over the row above. Only the overlay's own rows are lifted, and only inside
+  // shadow roots -- the overlay's box is anchored at the bottom, so it simply grows upward.
+  var captionCss = [
+    '.eudic-chrome-extension-video-src,',
+    '.eudic-chrome-extension-video-dest {',
+    '  max-height: none !important;',
+    '  overflow: visible !important;',
+    '}'
+  ].join('\n');
+
   function mutationHandler(mutationList) {
     mutationList.forEach(function(mutationRecord) {
       if (mutationRecord.type === 'characterData') {
@@ -170,7 +183,7 @@
       return;
     }
     observedShadowRoots.add(root);
-    addStyleToRoot(root, rubyCss);
+    addStyleToRoot(root, rubyCss + '\n' + captionCss);
     if (observer) {
       observer.observe(root, {characterData: true, childList: true, subtree: true});
     }

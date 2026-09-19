@@ -251,5 +251,10 @@
   {"vi": "bảo", "nom": ["𠸒"]},
   {"vi": "Lý", "nom": ["李"], "caseSensitive": true},
   {"vi": "song", "nom": ["雙"]},
-  {"vi": "quán", "nom": ["館"]}
+  {"vi": "quán", "nom": ["館"]},
+  {"vi": "pha", "nom": ["𢯠"]},
+  {"vi": "Triệu", "nom": ["趙"], "caseSensitive": true},
+  {"vi": "Dương", "nom": ["楊"], "caseSensitive": true},
+  {"vi": "mã", "nom": ["碼"]},
+  {"vi": "Mã", "nom": ["馬"], "caseSensitive": true}
 ]
