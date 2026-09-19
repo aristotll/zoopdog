@@ -32,14 +32,15 @@
 }
 
 #zoopdog-userscript-popup-lock-icon {
-  position: fixed;
+  position: absolute;
   right: 15px;
   top: 12px;
   z-index: 2147483647;
   font-size: 16pt;
   line-height: 1;
   visibility: hidden;
-  pointer-events: none;
+  cursor: move;
+  user-select: none;
 }
 
 #zoopdog-userscript-popup-body {

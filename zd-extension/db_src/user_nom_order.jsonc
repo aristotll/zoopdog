@@ -242,5 +242,14 @@
   {"vi": "chân", "nom": ["蹎"]},
   {"vi": "tuyển", "nom": ["選"]},
   {"vi": "lan", "nom": ["瀾"]},
-  {"vi": "Đỗ", "nom": ["杜"], "caseSensitive": true}
+  {"vi": "Đỗ", "nom": ["杜"], "caseSensitive": true},
+  {"vi": "phổ biến", "nom": ["普遍"]},
+  {"vi": "cánh", "nom": ["𦑃"]},
+  {"vi": "lành", "nom": ["𡅐"]},
+  {"vi": "phủ", "nom": ["撫"]},
+  {"vi": "gả", "nom": ["婭"]},
+  {"vi": "bảo", "nom": ["𠸒"]},
+  {"vi": "Lý", "nom": ["李"], "caseSensitive": true},
+  {"vi": "song", "nom": ["雙"]},
+  {"vi": "quán", "nom": ["館"]}
 ]

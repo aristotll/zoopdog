@@ -329,7 +329,60 @@ __ZOOPDOG_RUNTIME_SOURCES__
     this.container.appendChild(this.body);
     document.body.appendChild(this.container);
     this.locked = false;
+    this.bindDrag();
   }
+
+  var PIN_POSITION_KEY = 'zoopdog-popup-pin-position';
+
+  function readPinPosition() {
+    try {
+      var raw = typeof GM_getValue === 'function'
+        ? GM_getValue(PIN_POSITION_KEY, null)
+        : window.localStorage.getItem(PIN_POSITION_KEY);
+      var pos = raw ? JSON.parse(raw) : null;
+      if (pos && isFinite(pos.left) && isFinite(pos.top)) return pos;
+    } catch (error) { /* no stored position */ }
+    return null;
+  }
+
+  function writePinPosition(pos) {
+    var raw = JSON.stringify(pos);
+    try {
+      if (typeof GM_setValue === 'function') GM_setValue(PIN_POSITION_KEY, raw);
+      else window.localStorage.setItem(PIN_POSITION_KEY, raw);
+    } catch (error) { /* position just is not remembered */ }
+  }
+
+  ResultPopup.prototype.moveTo = function(left, top) {
+    var box = this.container.getBoundingClientRect();
+    var style = this.container.style;
+    style.left = Math.max(0, Math.min(left, window.innerWidth - box.width)) + 'px';
+    style.top = Math.max(0, Math.min(top, window.innerHeight - box.height)) + 'px';
+    style.bottom = 'auto';
+  };
+
+  // The pin icon is the drag handle while the popup is locked; the spot is remembered.
+  ResultPopup.prototype.bindDrag = function() {
+    var popup = this;
+    this.lockIcon.addEventListener('mousedown', function(event) {
+      if (!popup.locked || event.button !== 0) return;
+      event.preventDefault();
+      var box = popup.container.getBoundingClientRect();
+      var dx = event.clientX - box.left;
+      var dy = event.clientY - box.top;
+      function onMove(moveEvent) {
+        popup.moveTo(moveEvent.clientX - dx, moveEvent.clientY - dy);
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove, true);
+        document.removeEventListener('mouseup', onUp, true);
+        var end = popup.container.getBoundingClientRect();
+        writePinPosition({left: end.left, top: end.top});
+      }
+      document.addEventListener('mousemove', onMove, true);
+      document.addEventListener('mouseup', onUp, true);
+    });
+  };
 
   ResultPopup.prototype.populate = function(results) {
     zooSetHTML(this.body, results.map(renderDefinition).join(''));
@@ -376,6 +429,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
     } else if (this.container.style.visibility === 'visible') {
       this.locked = true;
       this.lockIcon.style.visibility = 'visible';
+      var pos = readPinPosition();
+      if (pos) this.moveTo(pos.left, pos.top);
     }
   };
 

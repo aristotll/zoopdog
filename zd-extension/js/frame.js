@@ -46,6 +46,23 @@ function handleParentMessage(message) {
   }
 }
 
+// The pin icon is the drag handle while locked; the parent moves the iframe by these deltas.
+const lockIcon = document.getElementById('zoopdog-popup-lock-icon');
+lockIcon.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  lockIcon.setPointerCapture(event.pointerId);
+});
+lockIcon.addEventListener('pointermove', (event) => {
+  if (!lockIcon.hasPointerCapture(event.pointerId)) return;
+  postToParent({type: 'drag', dx: event.movementX, dy: event.movementY});
+});
+lockIcon.addEventListener('pointerup', (event) => {
+  if (!lockIcon.hasPointerCapture(event.pointerId)) return;
+  lockIcon.releasePointerCapture(event.pointerId);
+  postToParent({type: 'drag-end'});
+});
+
 const frameBinding = zdPopupProtocol.bindFramePort(window, window.parent, handleParentMessage);
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Shift' || event.which === 16) {

@@ -58,8 +58,13 @@ function isDimension(value) {
 
 function validateFrameMessage(message) {
   if (!message || message.version !== PROTOCOL_VERSION) return false;
-  if (message.type === 'toggle-lock') {
+  if (message.type === 'toggle-lock' || message.type === 'drag-end') {
     return hasOnlyKeys(message, ['type', 'version']);
+  }
+  if (message.type === 'drag') {
+    return hasOnlyKeys(message, ['dx', 'dy', 'type', 'version'])
+      && Number.isFinite(message.dx)
+      && Number.isFinite(message.dy);
   }
   if (message.type !== 'resize'
       || !hasOnlyKeys(message, ['dimensions', 'type', 'version'])

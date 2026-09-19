@@ -1,5 +1,7 @@
 'use strict';
 
+const PIN_POSITION_KEY = 'zoopdogPopupPinPosition';
+
 class ResultFrame {
   constructor(srcUrl) {
     this.container = document.createElement('iframe');
@@ -15,6 +17,8 @@ class ResultFrame {
     this.port = null;
     this.dialect = 'hanoi';
     this.onToggleLock = null;
+    this.pinPosition = null;
+    this.loadPinPosition();
   }
 
   initializeChannel() {
@@ -36,7 +40,40 @@ class ResultFrame {
       this.resize(message.dimensions);
     } else if (message.type === 'toggle-lock' && typeof this.onToggleLock === 'function') {
       this.onToggleLock();
+    } else if (message.type === 'drag' && this.locked) {
+      const box = this.container.getBoundingClientRect();
+      this.moveTo(box.left + message.dx, box.top + message.dy);
+    } else if (message.type === 'drag-end' && this.locked) {
+      this.savePinPosition();
     }
+  }
+
+  moveTo(left, top) {
+    const box = this.container.getBoundingClientRect();
+    const style = this.container.style;
+    style.left = `${Math.max(0, Math.min(left, window.innerWidth - box.width))}px`;
+    style.top = `${Math.max(0, Math.min(top, window.innerHeight - box.height))}px`;
+    style.bottom = 'auto';
+  }
+
+  savePinPosition() {
+    const box = this.container.getBoundingClientRect();
+    this.pinPosition = {left: box.left, top: box.top};
+    try {
+      chrome.storage.local.set({[PIN_POSITION_KEY]: this.pinPosition});
+    } catch (error) { /* position just is not remembered */ }
+  }
+
+  loadPinPosition() {
+    try {
+      chrome.storage.local.get(PIN_POSITION_KEY, (items) => {
+        const pos = items && items[PIN_POSITION_KEY];
+        if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+          this.pinPosition = pos;
+          if (this.locked) this.moveTo(pos.left, pos.top);
+        }
+      });
+    } catch (error) { /* no stored position */ }
   }
 
   closeChannel() {
@@ -108,6 +145,7 @@ class ResultFrame {
     } else if (this.container.style.visibility === 'visible') {
       this.locked = true;
       this.send({type: 'lock'});
+      if (this.pinPosition) this.moveTo(this.pinPosition.left, this.pinPosition.top);
     }
   }
 
