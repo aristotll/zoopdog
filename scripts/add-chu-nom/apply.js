@@ -11,7 +11,7 @@ const {
   snapshotFiles
 } = require('./fsutil');
 const {cleanupInputContent} = require('./input');
-const {readJsonValueEnd} = require('./jsonc');
+const {readJsonStringEnd, readJsonValueEnd} = require('./jsonc');
 const {validateManifest} = require('./manifest');
 const {isEmbeddableTerm} = require('../lib/cjk');
 const repoPaths = require('../lib/paths');
@@ -43,6 +43,13 @@ function extractAssignedJson(source, variableName) {
   if (markerIndex < 0) throw new WorkflowError('generated_variable_missing', `Missing generated ${variableName}.`);
   let start = markerIndex + marker.length;
   while (start < source.length && /\s/.test(source[start])) start++;
+  // Generated userscripts embed their maps as `JSON.parse("<escaped json>")` (see
+  // jsonParseLiteral in scripts/lib/userscript.js); a plain object literal is still accepted.
+  const wrapper = 'JSON.parse(';
+  if (source.startsWith(wrapper, start)) {
+    const stringStart = start + wrapper.length;
+    return JSON.parse(JSON.parse(source.slice(stringStart, readJsonStringEnd(source, stringStart))));
+  }
   const end = readJsonValueEnd(source, start);
   return JSON.parse(source.slice(start, end));
 }

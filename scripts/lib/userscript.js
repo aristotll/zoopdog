@@ -30,6 +30,14 @@ function renderRuntime(source, replacements) {
   return output;
 }
 
+// Emits `value` as `JSON.parse("...")` source. V8 parses a JSON string markedly faster than the
+// same data written as an object literal (measured ~2x on the 5 MB popup dictionary), and the
+// literal is at once a valid JS string and a valid JSON string, so `extractAssignedJson` in
+// scripts/add-chu-nom/apply.js can read it back with the JSON primitives it already has.
+function jsonParseLiteral(value) {
+  return `JSON.parse(${JSON.stringify(JSON.stringify(value))})`;
+}
+
 // --- versioning ------------------------------------------------------------
 
 // Tampermonkey installs an update only when the served @version compares greater than the
@@ -112,6 +120,7 @@ module.exports = {
   runtimeDir,
   readRuntime,
   renderRuntime,
+  jsonParseLiteral,
   VERSION_PLACEHOLDER,
   PENDING_VERSION,
   readUserscriptVersion,

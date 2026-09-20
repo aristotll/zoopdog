@@ -68,6 +68,22 @@ this machine instead — for `zoopdog-popupdict-local.user.js` that also means i
 build carrying the local Chữ Nôm add/edit ability (see
 [local-mode.md](local-mode.md)). See `.gitignore` for the `-local` filenames.
 
+### Embedded data format and load cost
+
+The builders embed `NOM_MAP`, `CASE_SENSITIVE_NOM_MAP` and `ZOO_DICTIONARY` as
+`JSON.parse("...")` string literals (`jsonParseLiteral` in `scripts/lib/userscript.js`), not object
+literals: V8 parses the same data about twice as fast that way (≈140 ms vs ≈275 ms for the popup
+dictionary). The runtime templates keep their `{"__ZOOPDOG_*__": true}` placeholders, so a test can
+still render one with a plain object. `scripts/add-chu-nom/apply.js` reads the maps back through
+`extractAssignedJson`, which understands both forms — never grep the generated file for a raw
+`"term":"value"` pair, the quotes are escaped.
+
+`node scripts/bench-nom.js` prints the load and scan timings for the committed userscripts (map
+evaluation, matcher build, scan speed). It is not part of `make verify` because timings depend on
+the machine; run it before and after a performance change. `test/nom-match-equivalence.test.js`
+keeps the matcher honest by running it against a frozen copy of the previous character-trie
+engine (`test/support/reference-nom-match.js`) — leave that copy alone.
+
 ## Known site compatibility limitations
 
 - **Trusted Types CSP (fixed).** Sites that enforce a Trusted Types Content Security Policy

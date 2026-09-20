@@ -94,6 +94,15 @@ function createDom() {
     }
 
     insertBefore(node, reference) {
+      // A DocumentFragment hands over its children, in order, in a single childList record.
+      if (node instanceof MiniFragment) {
+        const moved = node.childNodes.splice(0, node.childNodes.length);
+        const at = reference ? this.childNodes.indexOf(reference) : this.childNodes.length;
+        this.childNodes.splice(at, 0, ...moved);
+        moved.forEach((child) => { child.parentNode = this; });
+        record({type: 'childList', target: this, addedNodes: moved});
+        return node;
+      }
       if (node.parentNode) {
         node.parentNode.removeChild(node);
       }
@@ -153,6 +162,12 @@ function createDom() {
     }
   }
 
+  class MiniFragment extends MiniNode {
+    constructor() {
+      super(DOCUMENT_FRAGMENT_NODE);
+    }
+  }
+
   class MiniElement extends MiniNode {
     constructor(tagName) {
       super(ELEMENT_NODE);
@@ -191,6 +206,7 @@ function createDom() {
     body,
     createElement: (tagName) => new MiniElement(tagName),
     createTextNode: (data) => new MiniText(data),
+    createDocumentFragment: () => new MiniFragment(),
     getElementsByTagName: (tagName) => (tagName === 'head' ? [head] : [])
   };
 
@@ -513,4 +529,117 @@ test('the styles injected into a caption shadow root lift the overlay row height
     .join('\n');
   assert.match(css, /\.eudic-chrome-extension-video-dest[\s\S]*max-height:\s*none\s*!important/);
   assert.match(css, /overflow:\s*visible\s*!important/);
+});
+
+function shape(node) {
+  return node.childNodes.map((child) =>
+    child.nodeType === TEXT_NODE ? `T:${child.nodeValue}` : `R:${visibleText(child)}`);
+}
+
+test('several matches in one text node become alternating ruby and text, keeping the node itself', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  const original = dom.document.createTextNode('xin của bạn, tình cảm');
+  paragraph.appendChild(original);
+  dom.body.appendChild(paragraph);
+
+  dom.tick();
+
+  assert.deepEqual(shape(paragraph), ['T:xin ', 'R:của', 'T: ', 'R:bạn', 'T:, ', 'R:tình cảm', 'T:']);
+  assert.equal(paragraph.childNodes[0], original, 'the page still holds the node that keeps the head text');
+  assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴', '情感']);
+});
+
+test('the non-breaking spaces of a matched node survive annotation', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn tình cảm'));
+  dom.body.appendChild(paragraph);
+
+  dom.tick();
+
+  assert.equal(visibleText(paragraph), 'của bạn tình cảm');
+});
+
+test('text with no word character is left exactly as it is', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  const node = dom.document.createTextNode('  —— 。、 !? ');
+  paragraph.appendChild(node);
+  dom.body.appendChild(paragraph);
+
+  dom.tick();
+
+  assert.equal(paragraph.childNodes.length, 1);
+  assert.equal(paragraph.childNodes[0], node);
+  assert.equal(node.nodeValue, '  —— 。、 !? ');
+});
+
+test('annotating leaves no records queued for a second pass over the same nodes', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(paragraph);
+
+  dom.tick();
+
+  assert.deepEqual(dom.takeRecords(), [], 'the script\'s own writes are not fed back to itself');
+  const before = shape(paragraph);
+  dom.tick();
+  assert.deepEqual(shape(paragraph), before);
+});
+
+test('the text after a match that spans two wrappers is annotated in the same pass', () => {
+  const dom = runRuntime(NOM_MAP);
+  const row = dom.document.createElement('div');
+  row.className = 'row';
+  ['tình ', 'cảm của bạn'].forEach((words) => {
+    const item = dom.document.createElement('span');
+    item.className = 'item';
+    item.appendChild(dom.document.createTextNode(words));
+    row.appendChild(item);
+  });
+  dom.body.appendChild(row);
+
+  dom.tick();
+
+  assert.equal(visibleText(row), 'tình cảm của bạn');
+  assert.deepEqual(rubyAnnotations(row), ['情', '感', '𧵑', '伴']);
+});
+
+test('a page mutating an annotated node still gets the new text annotated once', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  const node = dom.document.createTextNode('của');
+  paragraph.appendChild(node);
+  dom.body.appendChild(paragraph);
+  dom.tick();
+
+  node.nodeValue = 'bạn';
+  dom.tick();
+
+  assert.equal(visibleText(paragraph), 'bạn');
+  assert.deepEqual(rubyAnnotations(paragraph), ['伴']);
+});
+
+// The scan that finds a match spanning two wrappers may be the only one that ever reaches the
+// second wrapper's text (here the second row was added without any mutation record), so the
+// text left after its wrapped word has to be picked up from the match itself, not from a
+// follow-up record.
+test('the tail of a following wrapper is annotated even when nothing else queues it', () => {
+  const dom = runRuntime(NOM_MAP);
+  const first = dom.document.createElement('div');
+  const second = dom.document.createElement('div');
+  const lead = dom.document.createTextNode('');
+  first.appendChild(lead);
+  second.appendChild(dom.document.createTextNode('cảm của bạn'));
+  dom.appendSilently(dom.body, first);
+  dom.appendSilently(dom.body, second);
+
+  lead.nodeValue = 'tình ';
+  dom.tick();
+  dom.tick();
+
+  assert.equal(visibleText(dom.body), 'tình cảm của bạn');
+  assert.deepEqual(rubyAnnotations(dom.body), ['情', '感', '𧵑', '伴']);
 });

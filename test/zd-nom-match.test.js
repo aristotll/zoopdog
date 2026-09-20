@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const {
   zdNomIsWordChar,
-  zdNomBuildTrie,
+  zdNomBuildIndex,
   zdCreateNomMatcher,
   zdNomRunWords,
   zdNomWordMatchesAt,
@@ -85,11 +85,11 @@ test('zdNomRunWords stops a run at a comma, not at extra spaces', () => {
 });
 
 test('zdNomWordMatchesAt returns every match length at a position, shortest first', () => {
-  const trie = zdNomBuildTrie({'mới có': '買固', 'mới': '買 / 貝', 'có': '固'});
+  const termIndex = zdNomBuildIndex({'mới có': '買固', 'mới': '買 / 貝', 'có': '固'});
   const text = 'mới có duyên';
   const words = zdNomRunWords(text, 0);
 
-  const matches = zdNomWordMatchesAt(trie, text, words, 0, 'safe');
+  const matches = zdNomWordMatchesAt(termIndex, text, words, 0, 'safe');
 
   assert.deepEqual(matches, [
     {length: 1, value: '買 / 貝'},
@@ -101,7 +101,7 @@ test('zdNomBestSegmentation prefers absorbing the more ambiguous word', () => {
   // Same shape as the real "mới có" / "có duyên" bug: two real phrases
   // overlap on "có". "duyên" alone has 3 raw candidates; "mới" alone has
   // only 1. The DP must leave "mới" bare and use the "có duyên" phrase.
-  const trie = zdNomBuildTrie({
+  const termIndex = zdNomBuildIndex({
     'mới có': '買固',
     'mới': '買',
     'có': '固 / 𣎏 / 箇',
@@ -111,7 +111,7 @@ test('zdNomBestSegmentation prefers absorbing the more ambiguous word', () => {
   const text = 'mới có duyên';
   const words = zdNomRunWords(text, 0);
 
-  const segments = zdNomBestSegmentation(trie, text, words, 'safe');
+  const segments = zdNomBestSegmentation(termIndex, text, words, 'safe');
 
   assert.deepEqual(segments, [
     {index: 0, length: 1, value: '買'},
@@ -191,4 +191,50 @@ test('a row typed with the wrong case does not silently apply to the capitalized
   const match = matcher.findNomMatch(text, 0);
 
   assert.deepEqual(match, {index: 0, length: 'Đỗ'.length, nom: '逗 / 度'});
+});
+
+test('zdNomBuildIndex answers term and word-prefix questions', () => {
+  const index = zdNomBuildIndex({'hà nội': '河內', 'hà': '河', 'a b c': '三', 'constructor': '構造'});
+
+  assert.equal(index.get('hà nội'), '河內');
+  assert.ok(index.has('hà'));
+  assert.ok(index.hasPrefix('hà'), 'a proper word-prefix of "hà nội"');
+  assert.ok(index.hasPrefix('a'));
+  assert.ok(index.hasPrefix('a b'));
+  assert.ok(!index.hasPrefix('a b c'), 'a whole entry is a term, not a prefix of a longer one');
+  assert.ok(!index.hasPrefix('hà n'), 'prefixes end on a word boundary');
+  assert.ok(!index.has('a b'));
+});
+
+test('zdNomBuildIndex never mistakes an Object.prototype name for a term', () => {
+  const index = zdNomBuildIndex({'xe': '車'});
+
+  for (const name of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) {
+    assert.equal(index.has(name), false, name);
+    assert.equal(index.get(name), undefined, name);
+  }
+});
+
+test('zdNomBuildIndex drops ASCII-only terms, and their prefixes, when annotateAsciiTerms is false', () => {
+  const index = zdNomBuildIndex({'xe ôm': '車𠶢', 'the end': 'x'}, false);
+
+  assert.ok(index.has('xe ôm'));
+  assert.ok(index.hasPrefix('xe'));
+  assert.ok(!index.has('the end'));
+  assert.ok(!index.hasPrefix('the'));
+});
+
+test('canContinuePast is true only when the text ends inside a longer entry', () => {
+  const matcher = zdCreateNomMatcher({'chỉ trích': '指責', 'chỉ': '指', 'a b c': '三'});
+
+  assert.equal(matcher.canContinuePast('lời chỉ'), true, 'ends on the first word of an entry');
+  assert.equal(matcher.canContinuePast('lời chỉ '), true, 'a trailing space still continues it');
+  assert.equal(matcher.canContinuePast('lời chỉ  '), false, 'two trailing spaces do not');
+  assert.equal(matcher.canContinuePast('lời chỉ trích'), false, 'the entry is already complete');
+  assert.equal(matcher.canContinuePast('lời chỉ, '), false, 'a comma ends the run');
+  assert.equal(matcher.canContinuePast('a b'), true);
+  assert.equal(matcher.canContinuePast('CHỈ'), true, 'case-insensitive');
+  assert.equal(matcher.canContinuePast('lời chỉ '), true, 'a non-breaking space counts as whitespace');
+  assert.equal(matcher.canContinuePast(''), false);
+  assert.equal(matcher.canContinuePast('...'), false);
 });

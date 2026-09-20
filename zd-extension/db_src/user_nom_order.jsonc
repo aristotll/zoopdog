@@ -257,5 +257,7 @@
   {"vi": "Dương", "nom": ["楊"], "caseSensitive": true},
   {"vi": "mã", "nom": ["碼"]},
   {"vi": "Mã", "nom": ["馬"], "caseSensitive": true},
-  {"vi": "cớ", "nom": ["㨿"]}
+  {"vi": "cớ", "nom": ["㨿"]},
+  {"vi": "bạc", "nom": ["鉑"]},
+  {"vi": "giáp", "nom": ["夾"]}
 ]

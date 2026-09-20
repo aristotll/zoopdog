@@ -1155,14 +1155,15 @@ test('isolated end-to-end apply runs the real repository builders', (t) => {
   });
 
   assert.deepEqual(result.updated, ['sao vàng']);
-  assert.match(
-    fs.readFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'), 'utf8'),
-    /"sao vàng":"𣋀黃"/
-  );
-  assert.match(
-    fs.readFileSync(path.join(fixture.root, 'zoopdog-popupdict.user.js'), 'utf8'),
-    /"sao vàng"/
-  );
+  // The generated maps are embedded as JSON.parse("...") literals, so read them back the way the
+  // apply step does instead of pattern-matching the raw, escaped text.
+  const {extractAssignedJson} = require('../scripts/add-chu-nom/apply');
+  const nomMap = extractAssignedJson(
+    fs.readFileSync(path.join(fixture.root, 'zoopdog-nom-ruby.user.js'), 'utf8'), 'NOM_MAP');
+  assert.equal(nomMap['sao vàng'], '𣋀黃');
+  const popupMap = extractAssignedJson(
+    fs.readFileSync(path.join(fixture.root, 'zoopdog-popupdict.user.js'), 'utf8'), 'ZOO_DICTIONARY');
+  assert.ok(Object.hasOwn(popupMap, 'sao vàng'));
 });
 
 test('Codex command contains the canonical Node.js review workflow', () => {

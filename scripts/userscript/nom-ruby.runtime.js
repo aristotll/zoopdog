@@ -125,6 +125,30 @@
     newNodes.add(node);
   }
 
+  var MAX_RESCAN_PASSES = 8;
+
+  // Drops every queued node that an also-queued ancestor's scan would reach anyway. A node under
+  // an excluded element is kept: scanning the ancestor stops at the exclusion, so only a direct
+  // scan of the node itself ever looks at it.
+  function outermostNodes(nodes) {
+    if (nodes.length < 2) {
+      return nodes;
+    }
+
+    var queued = new Set(nodes);
+    return nodes.filter(function(node) {
+      for (var el = node.parentNode; el; el = el.parentNode) {
+        if (el.nodeType === Node.ELEMENT_NODE && isExcludedElement(el)) {
+          return true;
+        }
+        if (queued.has(el)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
   var EXCLUDED_TAGS = {
     ruby: true,
     rt: true,
@@ -160,18 +184,31 @@
       if (isExcludedElement(node)) {
         return;
       }
-      Array.from(node.childNodes).forEach(scanTextNodes);
+      scanChildren(node);
       if (node.shadowRoot) {
         watchShadowRoot(node.shadowRoot);
       }
       return;
 
     case Node.DOCUMENT_FRAGMENT_NODE:
-      Array.from(node.childNodes).forEach(scanTextNodes);
+      scanChildren(node);
       return;
 
     case Node.TEXT_NODE:
       annotateTextNode(node);
+    }
+  }
+
+  // Walks `parent`'s children by sibling link rather than copying them into an array first. The
+  // next sibling is read *before* a child is handled, because handling a text node inserts its
+  // ruby and remaining text right after it and those are this script's own output, not
+  // something to visit again in this pass.
+  function scanChildren(parent) {
+    var child = parent.firstChild;
+    while (child) {
+      var next = child.nextSibling;
+      scanTextNodes(child);
+      child = next;
     }
   }
 
@@ -305,13 +342,20 @@
       textNode.nodeValue = normalized;
     }
 
+    // Whitespace, punctuation and non-Latin scripts (a CJK page is all of them) hold no word
+    // character, so nothing can match and there is nothing to read ahead. The NFC rewrite above
+    // still happens first, so a page sees the same normalisation as before.
+    if (!ZD_NOM_WORD_CHAR_PATTERN.test(normalized)) {
+      return;
+    }
+
     // Matching walks the original, un-split text so a short ASCII-only word (e.g. "xe")
     // keeps the Vietnamese diacritics around it in view for shouldAnnotateMatch, even after
     // an earlier match in the same sentence has been spliced out into its own ruby node.
     var ownText = textNode.nodeValue;
     var ahead = readAhead(textNode, ownText);
-    var inserted = [];
-    var node = textNode;
+    var matches = [];
+    var crossing = null;
     var offset = 0;
     var match;
 
@@ -319,33 +363,35 @@
     // text read ahead belongs to the node it starts in.
     while ((match = nomMatcher.findNomMatch(ahead.text, offset)) && match.index < ownText.length) {
       if (match.index + match.length > ownText.length) {
-        annotateAcrossNodes(match, ahead, node, offset, inserted);
+        crossing = match;
         break;
       }
 
-      var tail = wrapPiece(node, match.index - offset, match.index - offset + match.length,
-        rubyText(match.nom), match.nom);
-      inserted.push(tail.previousSibling, tail);
-      node = tail;
+      matches.push(match);
       offset = match.index + match.length;
     }
 
-    if (inserted.length) {
-      injections.set(textNode, {nodes: inserted, text: textNode.nodeValue});
+    if (!matches.length && !crossing) {
+      return;
     }
+
+    var inserted = [];
+    var node = textNode;
+    if (matches.length) {
+      node = wrapMatches(textNode, ownText, matches, inserted);
+    }
+    if (crossing) {
+      annotateAcrossNodes(crossing, ahead, node, offset, inserted);
+    }
+
+    injections.set(textNode, {nodes: inserted, text: textNode.nodeValue});
   }
 
   function rubyText(nom) {
     return SETTINGS.showAllVariants ? nom : nom.split(' / ')[0];
   }
 
-  // Splits `node` around [start, end), moves that text into a <ruby> carrying `reading`, and
-  // returns the node holding whatever followed it.
-  function wrapPiece(node, start, end, reading, nom) {
-    var after = node.splitText(start);
-    var matchedText = after.nodeValue.substring(0, end - start);
-    after.nodeValue = after.nodeValue.substring(end - start);
-
+  function createRuby(matchedText, reading, nom) {
     var ruby = doc.createElement('ruby');
     ruby.className = 'zoopdog-nom-ruby';
     ruby.title = 'Chu Nom: ' + nom;
@@ -355,8 +401,42 @@
     rt.className = 'zoopdog-nom-rt';
     rt.textContent = reading;
     ruby.appendChild(rt);
+    return ruby;
+  }
 
-    after.parentNode.insertBefore(ruby, after);
+  // Applies every match found inside `textNode` (all of which start and end within `ownText`)
+  // in one insertion. The node keeps the text before the first match -- exactly what splitText
+  // leaves behind, which the page's own reference to the node and the `injections` bookkeeping
+  // rely on -- and one fragment carries, in order, each ruby and the text after it. Pushes the
+  // inserted nodes onto `inserted` and returns the node holding the text after the last match.
+  function wrapMatches(textNode, ownText, matches, inserted) {
+    var fragment = doc.createDocumentFragment();
+    var last = null;
+
+    for (var i = 0; i < matches.length; i++) {
+      var current = matches[i];
+      var end = current.index + current.length;
+      var nextStart = i + 1 < matches.length ? matches[i + 1].index : ownText.length;
+      var ruby = createRuby(ownText.substring(current.index, end), rubyText(current.nom), current.nom);
+      last = doc.createTextNode(ownText.substring(end, nextStart));
+      fragment.appendChild(ruby);
+      fragment.appendChild(last);
+      inserted.push(ruby, last);
+    }
+
+    textNode.nodeValue = ownText.substring(0, matches[0].index);
+    textNode.parentNode.insertBefore(fragment, textNode.nextSibling);
+    return last;
+  }
+
+  // Splits `node` around [start, end), moves that text into a <ruby> carrying `reading`, and
+  // returns the node holding whatever followed it.
+  function wrapPiece(node, start, end, reading, nom) {
+    var after = node.splitText(start);
+    var matchedText = after.nodeValue.substring(0, end - start);
+    after.nodeValue = after.nodeValue.substring(end - start);
+
+    after.parentNode.insertBefore(createRuby(matchedText, reading, nom), after);
     return after;
   }
 
@@ -424,6 +504,15 @@
       tails.set(piece.segment, {node: after, base: piece.end});
       if (isOwn) {
         inserted.push(after.previousSibling, after);
+      }
+    });
+
+    // The text left after the last wrapped word of a following node is a new node no scan has
+    // seen. It used to reach the next pass through the mutation records this script's own writes
+    // produced; those are now discarded (see rescanTextNodes), so it is queued explicitly.
+    tails.forEach(function(tail, segment) {
+      if (segment !== ahead.segments[0] && tail.node !== segment.node) {
+        newNodes.add(tail.node);
       }
     });
   }
@@ -505,13 +594,19 @@
         changed.forEach(refreshChangedNode);
       }
 
-      if (!newNodes.size) {
-        return;
+      // A pass can queue more work itself (the tail of a following node after a match that
+      // spans nodes), so drain until it settles -- bounded, leftovers wait for the next tick.
+      for (var pass = 0; newNodes.size && pass < MAX_RESCAN_PASSES; pass++) {
+        var nodes = outermostNodes(Array.from(newNodes));
+        newNodes.clear();
+        nodes.forEach(scanTextNodes);
       }
 
-      var nodes = Array.from(newNodes);
-      newNodes.clear();
-      nodes.forEach(scanTextNodes);
+      // Everything queued on the observer since the records were taken above is this script's
+      // own annotation work (page code cannot run in between), and nothing in it needs another
+      // look: rescanning the parent of every ruby just inserted only re-verified text the pass
+      // had already exhausted.
+      observer.takeRecords();
     }
 
     rescanTextNodes();

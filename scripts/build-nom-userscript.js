@@ -19,6 +19,7 @@ const repoPaths = require('./lib/paths');
 const {
   readRuntime,
   renderRuntime,
+  jsonParseLiteral,
   PENDING_VERSION,
   writeVersionedUserscript
 } = require('./lib/userscript');
@@ -124,8 +125,8 @@ function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
-    '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
-    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
+    '{"__ZOOPDOG_NOM_MAP__": true}': jsonParseLiteral(nomMap),
+    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': jsonParseLiteral(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,
     '__ZOOPDOG_UPDATE_URL__': updateUrl,

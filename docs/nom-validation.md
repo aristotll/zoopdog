@@ -38,7 +38,7 @@ local answer can never drift from what installing a rebuilt userscript in a brow
 
 ## What it reuses, not reimplements
 
-- `zd-extension/js/zd-nom-match.js` -- the Chu Nom trie/matching engine. It is the single
+- `zd-extension/js/zd-nom-match.js` -- the Chu Nom word-level matching engine. It is the single
   source of truth: `scripts/build-nom-userscript.js` inlines this file's source ahead of
   `scripts/userscript/nom-ruby.runtime.js` when it builds the userscript (the same pattern
   `zd-extension/js/zd-words.js` already uses for the popup userscript -- see
@@ -111,7 +111,7 @@ popupLookup('ý');
 // => {key: 'ý', vn: 'ý', definitions: [{def, pos}, ...]} or null
 ```
 
-`test/zd-nom-match.test.js` unit-tests the matching engine itself (trie walking, ASCII-term
+`test/zd-nom-match.test.js` unit-tests the matching engine itself (term-index lookups, ASCII-term
 policy, and a regression test for the missing-word-character-class bug above).
 `test/nom-inspect.test.js` exercises the CLI and its formatting against the real repository
 dictionaries, so both files change together whenever the merge pipelines they call change.
