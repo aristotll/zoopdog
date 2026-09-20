@@ -259,5 +259,12 @@
   {"vi": "Mã", "nom": ["馬"], "caseSensitive": true},
   {"vi": "cớ", "nom": ["㨿"]},
   {"vi": "bạc", "nom": ["鉑"]},
-  {"vi": "giáp", "nom": ["夾"]}
+  {"vi": "giáp", "nom": ["夾"]},
+  {"vi": "vô song", "nom": ["无雙"]},
+  {"vi": "Thục", "nom": ["蜀"], "caseSensitive": true},
+  {"vi": "tranh phong", "nom": ["爭鋒"]},
+  {"vi": "thù", "nom": ["讎"]},
+  {"vi": "ngã", "nom": ["𨁟"]},
+  {"vi": "bái", "nom": ["拜"]},
+  {"vi": "duyên", "nom": ["緣"]}
 ]
