@@ -388,27 +388,32 @@ __ZOOPDOG_RUNTIME_SOURCES__
   };
 
   ResultPopup.prototype.show = function(rect) {
-    this.container.style.visibility = 'visible';
-    this.container.style.left = (rect.left - 20) + 'px';
-    this.container.style.top = rect.bottom + 'px';
-    this.container.style.bottom = 'auto';
+    var style = this.container.style;
+    var margin = 8;
+    var viewWidth = document.documentElement.clientWidth || window.innerWidth;
+    var viewHeight = window.innerHeight;
+    var below = viewHeight - rect.bottom - margin;
+    var above = rect.top - margin;
+    var placeAbove = below < 160 && above > below;
+    var room = Math.max(80, placeAbove ? above : below);
 
-    var popupDimensions = this.container.getBoundingClientRect();
-    var rightEdge = popupDimensions.right;
-    if (rightEdge > window.innerWidth) {
-      var xDif = rightEdge - window.innerWidth;
-      this.container.style.left = (parseInt(this.container.style.left, 10) - xDif - 20) + 'px';
-    }
+    // Fit the popup to the viewport: cap its size, then clamp its position.
+    style.maxWidth = Math.min(400, viewWidth - 2 * margin) + 'px';
+    style.maxHeight = Math.min(Math.max(280, viewHeight * 0.5), room) + 'px';
+    style.visibility = 'visible';
 
-    if (rect.top > window.innerHeight / 2) {
-      var yDif = window.innerHeight - rect.top;
-      this.container.style.top = 'auto';
-      this.container.style.bottom = (yDif + 10) + 'px';
-    }
-
-    popupDimensions = this.container.getBoundingClientRect();
-    if (popupDimensions.left < 20) {
-      this.container.style.left = '20px';
+    // A fixed box shrink-wraps to the space right of `left`, so measure its
+    // natural width at the left edge before clamping.
+    style.left = '0px';
+    var box = this.container.getBoundingClientRect();
+    var left = Math.max(margin, Math.min(rect.left - 20, viewWidth - box.width - margin));
+    style.left = left + 'px';
+    if (placeAbove) {
+      style.top = 'auto';
+      style.bottom = (viewHeight - rect.top + 4) + 'px';
+    } else {
+      style.top = rect.bottom + 'px';
+      style.bottom = 'auto';
     }
   };
 

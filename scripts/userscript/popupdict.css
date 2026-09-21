@@ -50,7 +50,8 @@
 #zoopdog-userscript-popup-body h1 {
   color: #5BB1B7;
   margin: 2px 0 2px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-weight: 800;
   font-size: 14pt;
   line-height: 1.2;
@@ -63,7 +64,7 @@
   padding: 2px 0 0 16px;
   line-height: 1.35em;
   min-width: 140px;
-  max-width: 380px;
+  max-width: 100%;
 }
 
 #zoopdog-userscript-popup-body ul li {

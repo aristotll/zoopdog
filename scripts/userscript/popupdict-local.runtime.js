@@ -136,6 +136,109 @@
     });
   }
 
+  // Asks every refresh engine at once (`refresh=all`): one entry per engine,
+  // an engine with no answer carrying an empty candidate list.
+  function zooFetchNotesAll(kind, text) {
+    if (!text) return Promise.resolve([]);
+    return zooGetJSON('/v1/suggest', { kind: kind, text: text, refresh: 'all' }).then(function(data) {
+      return data.translations || [];
+    });
+  }
+
+  // Engines that produced the same text share one row, in first-seen order;
+  // engines with no answer share a single trailing row with empty text.
+  function zooGroupNotesAll(translations) {
+    var rows = [];
+    var byText = {};
+    var failed = null;
+    translations.forEach(function(item) {
+      var text = item.candidates && item.candidates.length ? item.candidates[0] : '';
+      if (!text) {
+        if (!failed) failed = { engines: [], text: '' };
+        failed.engines.push(item.engine);
+        return;
+      }
+      if (!Object.prototype.hasOwnProperty.call(byText, text)) {
+        byText[text] = { engines: [], text: text };
+        rows.push(byText[text]);
+      }
+      byText[text].engines.push(item.engine);
+    });
+    if (failed) rows.push(failed);
+    return rows;
+  }
+
+  // GM_setClipboard first (works on any page), then the async clipboard API,
+  // then a hidden textarea + the legacy copy command for plain-HTTP pages.
+  function zooCopyText(text) {
+    if (typeof GM_setClipboard === 'function') {
+      GM_setClipboard(text);
+      return Promise.resolve();
+    }
+    function legacy() {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      return ok ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(legacy);
+    }
+    return legacy();
+  }
+
+  // Wires a "Refresh all" button: results are listed under the note as
+  // "engines: translation" for reference, each with a Copy button.
+  function zooWireNotesAll(button, list, kind, getText, statusId) {
+    button.addEventListener('click', function() {
+      var text = getText();
+      if (!text) return;
+      button.disabled = true;
+      list.hidden = false;
+      list.textContent = '';
+      var pending = document.createElement('li');
+      pending.textContent = 'Asking every engine...';
+      list.appendChild(pending);
+      zooFetchNotesAll(kind, text).then(function(translations) {
+        var rows = zooGroupNotesAll(translations);
+        if (!rows.length) rows = [{ engines: [], text: '' }];
+        list.textContent = '';
+        rows.forEach(function(row) {
+          var li = document.createElement('li');
+          var label = document.createElement('strong');
+          label.textContent = row.engines.length ? row.engines.join(', ') + ': ' : '';
+          li.appendChild(label);
+          li.appendChild(document.createTextNode(row.text || (row.engines.length ? '(no answer)' : 'No engine answered.')));
+          if (row.text) {
+            var copy = document.createElement('button');
+            copy.type = 'button';
+            copy.className = 'zd-notes-all-copy';
+            copy.title = 'Copy this translation';
+            copy.textContent = 'Copy';
+            copy.addEventListener('click', function() {
+              zooCopyText(row.text).then(function() { copy.textContent = 'Copied'; }, function() { copy.textContent = 'Failed'; });
+              setTimeout(function() { copy.textContent = 'Copy'; }, 1200);
+            });
+            li.appendChild(document.createTextNode(' '));
+            li.appendChild(copy);
+          }
+          list.appendChild(li);
+        });
+      }, function() {
+        list.textContent = '';
+        zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
+      }).then(function() {
+        button.disabled = false;
+      });
+    });
+  }
+
   // Drops punctuation from a machine-translated note. A hyphen or apostrophe
   // between two letters/digits ("don't", "well-known") is part of the word and
   // stays; every other punctuation mark (ASCII or CJK) is removed, and the
@@ -570,6 +673,8 @@
       notesRefresh: 'zoopdog-nom-notes-refresh',
       notesClear: 'zoopdog-nom-notes-clear',
       notesStrip: 'zoopdog-nom-notes-strip',
+      notesAll: 'zoopdog-nom-notes-all',
+      notesAllList: 'zoopdog-nom-notes-all-list',
       diffPreview: 'zoopdog-nom-diff-preview',
       status: 'zoopdog-nom-form-status',
       saveBtn: 'zoopdog-nom-save-btn',
@@ -1011,6 +1116,14 @@
       explainInput.focus();
     });
 
+    zooWireNotesAll(
+      document.getElementById(ids.notesAll),
+      document.getElementById(ids.notesAllList),
+      'nom-notes',
+      function() { return document.getElementById(ids.vi).value.trim(); },
+      ids.status
+    );
+
     document.getElementById(ids.notesClear).addEventListener('click', function() {
       explainInput.value = '';
       explainEdits.mark();
@@ -1391,6 +1504,8 @@
       '<button type="button" id="', nomIds.notesStrip, '" class="zd-field-button" title="Remove punctuation from notes">!?</button>',
       '</span>',
       '</label>',
+      '<button type="button" id="', nomIds.notesAll, '" class="zd-field-button zd-notes-all-button" title="Ask every engine at once, for reference">Refresh all</button>',
+      '<ul id="', nomIds.notesAllList, '" class="zd-notes-all-list" hidden></ul>',
       '<ul id="', nomIds.diffPreview, '" class="zd-entry-diff-list" hidden></ul>',
       '<p id="', nomIds.status, '" class="zd-modal-status" hidden></p>',
       '<div class="zd-modal-actions">',
