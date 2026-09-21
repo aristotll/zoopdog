@@ -16,4 +16,13 @@ function ensureUserscriptsBuilt() {
   }
 }
 
-module.exports = {ensureUserscriptsBuilt};
+// vnedict.json and its sidecar are gitignored build output too (published as release assets).
+function ensureRuntimeDictionaryBuilt() {
+  const targets = ['zd-extension/js/vnedict.json', 'zd-extension/js/vnedict.meta.json'];
+  if (targets.every((name) => fs.existsSync(path.join(repoRoot, name)))) {
+    return;
+  }
+  execFileSync(process.execPath, ['scripts/build-extension-vnedict-json.js'], {cwd: repoRoot, stdio: 'pipe'});
+}
+
+module.exports = {ensureUserscriptsBuilt, ensureRuntimeDictionaryBuilt};

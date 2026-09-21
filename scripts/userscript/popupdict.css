@@ -25,6 +25,8 @@
   font-size: 14px;
   line-height: normal;
   touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 #zoopdog-userscript-popup * {

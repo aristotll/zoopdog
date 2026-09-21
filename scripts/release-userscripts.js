@@ -13,6 +13,9 @@ const repoPaths = require('./lib/paths');
 const {readUserscriptVersion} = require('./lib/userscript');
 
 const KEYS = ['nomUserscript', 'popupUserscript'];
+// Generated, gitignored runtime dictionary: shipped as-is (not minified) so the extension and
+// website can be built from a release instead of from committed 7MB blobs.
+const DICTIONARY_KEYS = ['runtimeDictionary', 'runtimeDictionaryMetadata'];
 
 function releaseTag(now = new Date()) {
   const pad = (value) => String(value).padStart(2, '0');
@@ -31,10 +34,21 @@ function main(argv = process.argv.slice(2)) {
     return {file, version, bytes: fs.statSync(file).size};
   });
 
+  const dictionaryAssets = DICTIONARY_KEYS.map((key) => {
+    const file = repoPaths.absolute[key];
+    if (!fs.existsSync(file)) {
+      throw new Error(`Missing ${file}: run \`make rebuild-extension-vnedict-json\` first`);
+    }
+    return {file, bytes: fs.statSync(file).size};
+  });
+
   const tag = releaseTag();
   const notes = assets.map(({file, version}) => `- ${require('node:path').basename(file)} @version ${version}`).join('\n');
   for (const asset of assets) {
     console.log(`${asset.file}  @version ${asset.version}  ${asset.bytes} bytes`);
+  }
+  for (const asset of dictionaryAssets) {
+    console.log(`${asset.file}  ${asset.bytes} bytes`);
   }
   console.log(`Release tag: ${tag}`);
   if (dryRun) {
@@ -43,7 +57,7 @@ function main(argv = process.argv.slice(2)) {
   }
 
   execFileSync('gh', [
-    'release', 'create', tag, ...assets.map((asset) => asset.file),
+    'release', 'create', tag, ...assets.concat(dictionaryAssets).map((asset) => asset.file),
     '--title', tag, '--notes', notes, '--latest'
   ], {stdio: 'inherit', cwd: repoPaths.rootDir});
 }

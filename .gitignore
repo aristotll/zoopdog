@@ -25,3 +25,8 @@ gen
 /dist/
 /zoopdog-nom-ruby.user.js
 /zoopdog-popupdict.user.js
+
+# The extension's runtime dictionary is generated from db_src/ (make rebuild-extension-vnedict-json)
+# and published as GitHub Release assets alongside the userscripts, not committed (~7MB per edit).
+/zd-extension/js/vnedict.json
+/zd-extension/js/vnedict.meta.json

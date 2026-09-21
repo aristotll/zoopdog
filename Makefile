@@ -76,7 +76,7 @@ minify-userscripts:
 	$(NODE) scripts/minify-userscripts.js
 
 # Publishes the minified builds in dist/; needs `gh`. See docs/build.md.
-release-userscripts: rebuild-userscripts minify-userscripts
+release-userscripts: rebuild-userscripts rebuild-extension-vnedict-json minify-userscripts
 	$(NODE) scripts/release-userscripts.js $(if $(DRY_RUN),--dry-run)
 
 # The (Local) variants are never committed (see .gitignore) and update from their own file on
@@ -115,8 +115,13 @@ check-openspec:
 # literal never was.
 verify: verify-scripts verify-browser
 
+# Generated userscripts and vnedict.json go stale whenever the dictionary sources or runtimes
+# change, and the tests compare against them. A first failure therefore rebuilds them and
+# reruns once; a failure that survives the rebuild is a real one.
 verify-scripts:
-	$(NODE) --test test/*.test.js
+	@$(NODE) --test test/*.test.js || { \
+		echo "Tests failed; rebuilding generated userscripts and vnedict.json, then retrying once..."; \
+		$(MAKE) rebuild-userscripts rebuild-extension-vnedict-json && $(NODE) --test test/*.test.js; }
 	@find scripts -name '*.js' -print0 | xargs -0 -n1 $(NODE) --check
 
 verify-browser:

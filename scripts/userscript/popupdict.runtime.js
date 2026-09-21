@@ -628,6 +628,11 @@ __ZOOPDOG_RUNTIME_SOURCES__
       clearActiveResult();
     });
 
+    function insidePopup(target) {
+      return !!(target && target.nodeType === Node.ELEMENT_NODE &&
+        target.closest('#zoopdog-userscript-popup'));
+    }
+
     var lastTouchTime = 0;
     var touchMoved = false;
     var pointerTouchMoved = false;
@@ -696,6 +701,9 @@ __ZOOPDOG_RUNTIME_SOURCES__
       window.addEventListener('pointermove', function(event) {
         if (event.pointerType === 'touch') {
           lastTouchTime = Date.now();
+          // A finger dragging inside the popup is scrolling the popup's own
+          // content, not the page -- dismissing it would make it unscrollable.
+          if (insidePopup(event.target)) return;
           pointerTouchMoved = true;
           clearActiveResult();
           return;
@@ -726,7 +734,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
         touchMoved = false;
       }, {passive: true});
 
-      window.addEventListener('touchmove', function() {
+      window.addEventListener('touchmove', function(event) {
+        if (insidePopup(event.target)) return;
         touchMoved = true;
         clearActiveResult();
       }, {passive: true, capture: true});

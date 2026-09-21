@@ -139,8 +139,9 @@ make rebuild-extension-vnedict-json
 ```
 
 This writes both `zd-extension/js/vnedict.json` and its deterministic revision sidecar
-`zd-extension/js/vnedict.meta.json`. Commit both generated files together. The extension and
-website compare the sidecar revision with IndexedDB before serving lookups.
+`zd-extension/js/vnedict.meta.json`. Both are gitignored build output (like the userscripts):
+run this once after cloning, before loading the unpacked extension. `make release-userscripts`
+rebuilds them and attaches them to the GitHub Release. The extension and website compare the sidecar revision with IndexedDB before serving lookups.
 
 ## Manual verification
 

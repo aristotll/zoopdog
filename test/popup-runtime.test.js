@@ -149,6 +149,7 @@ test('the extension build applies a hand-maintained override to every duplicate 
 });
 
 test('the repository runtime dictionary carries the hand-maintained entries', () => {
+  require('./helpers/ensure-built').ensureRuntimeDictionaryBuilt();
   const repoPaths = require('../scripts/lib/paths');
   const {readUserNomEntries} = require('../scripts/user-nom-entries');
   const userEntries = readUserNomEntries(repoPaths.absolute.userNomEntries);
@@ -669,7 +670,9 @@ test('runtime dictionary build is wired, documented and uses one atomic writer',
   assert.match(dataDocs, /vnedict\.meta\.json/u);
   assert.match(pathsSource, /runtimeDictionaryMetadata/u);
   assert.equal((scriptFiles.match(/function atomicWrite\s*\(/gu) || []).length, 1);
-  assert.equal(fs.existsSync(path.join(repoRoot, 'zd-extension/js/vnedict.meta.json')), true);
+  const gitignore = fs.readFileSync(path.join(repoRoot, '.gitignore'), 'utf8');
+  assert.match(gitignore, /^\/zd-extension\/js\/vnedict\.json$/mu);
+  assert.match(gitignore, /^\/zd-extension\/js\/vnedict\.meta\.json$/mu);
 });
 
 test('make verify syntax-checks first-party browser modules', () => {
