@@ -136,6 +136,21 @@
     });
   }
 
+  // Drops punctuation from a machine-translated note. A hyphen or apostrophe
+  // between two letters/digits ("don't", "well-known") is part of the word and
+  // stays; every other punctuation mark (ASCII or CJK) is removed, and the
+  // whitespace it leaves behind is collapsed.
+  function zooStripPunctuation(text) {
+    function isWordChar(ch) { return !!ch && /[\p{L}\p{N}]/u.test(ch); }
+    return String(text)
+      .replace(/\p{P}/gu, function(mark, offset, whole) {
+        return (mark === "'" || mark === '\u2019' || mark === '-') &&
+          isWordChar(whole[offset - 1]) && isWordChar(whole[offset + 1]) ? mark : ' ';
+      })
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function zooNotesEngineMessage(engine, ok) {
     if (!engine) return ok ? 'Re-translated.' : 'Re-translate failed -- try again in a moment.';
     return ok
@@ -554,6 +569,7 @@
       explain: 'zoopdog-nom-explain',
       notesRefresh: 'zoopdog-nom-notes-refresh',
       notesClear: 'zoopdog-nom-notes-clear',
+      notesStrip: 'zoopdog-nom-notes-strip',
       diffPreview: 'zoopdog-nom-diff-preview',
       status: 'zoopdog-nom-form-status',
       saveBtn: 'zoopdog-nom-save-btn',
@@ -988,6 +1004,13 @@
       });
     });
 
+    document.getElementById(ids.notesStrip).addEventListener('click', function() {
+      explainInput.value = zooStripPunctuation(explainInput.value);
+      explainEdits.mark();
+      resetPreview();
+      explainInput.focus();
+    });
+
     document.getElementById(ids.notesClear).addEventListener('click', function() {
       explainInput.value = '';
       explainEdits.mark();
@@ -1365,6 +1388,7 @@
       '<input id="', nomIds.explain, '" type="text">',
       '<button type="button" id="', nomIds.notesRefresh, '" class="zd-field-button" title="Re-translate -- each click asks the next engine in turn">\u21BB</button>',
       '<button type="button" id="', nomIds.notesClear, '" class="zd-field-button" title="Clear notes">\u2715</button>',
+      '<button type="button" id="', nomIds.notesStrip, '" class="zd-field-button" title="Remove punctuation from notes">!?</button>',
       '</span>',
       '</label>',
       '<ul id="', nomIds.diffPreview, '" class="zd-entry-diff-list" hidden></ul>',

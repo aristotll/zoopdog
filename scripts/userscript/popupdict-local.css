@@ -63,7 +63,8 @@
   max-width: 90vw;
   max-height: 85vh;
   overflow-y: auto;
-  display: flex;
+  /* !important: some pages (e.g. mp.weixin.qq.com) ship `form { display: none !important }`. */
+  display: flex !important;
   flex-direction: column;
   gap: 14px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.08);
