@@ -143,7 +143,7 @@ function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
     : readRuntime('popupdict.css');
   const updateUrl = variant.localMode
     ? repoPaths.localFileUrl(variant.targetKey)
-    : repoPaths.rawUrl(variant.targetKey);
+    : repoPaths.releaseUrl(variant.targetKey);
 
   return renderRuntime(readRuntime('popupdict.runtime.js'), {
     '"__ZOOPDOG_CSS__"': JSON.stringify(css),
@@ -195,6 +195,7 @@ function main(argv = process.argv.slice(2)) {
 
     console.log(`Wrote ${targetPath}`);
     console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+
   }
 
   console.log(`Embedded ${Object.keys(dictionary).length} dictionary keys`);

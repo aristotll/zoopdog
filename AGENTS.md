@@ -14,11 +14,14 @@ and Vietnamese pronunciation tools, along with two standalone userscripts genera
 same data.
 
 The repository intentionally tracks generated assets: `*.jade` compiles to a committed
-`*.html`, `css/*.styl` compiles to a committed `css/*.css`, and the userscripts at the root are
-built from `zd-extension/db_src/` and `scripts/userscript/`. Edit the source, then rebuild and
-commit the generated file alongside it.
+`*.html` and `css/*.styl` compiles to a committed `css/*.css`. The github-hosted userscripts
+(`zoopdog-*.user.js`) are built from `zd-extension/db_src/` and `scripts/userscript/` but are
+**not committed**: they are gitignored, minified into `dist/` by esbuild, and published as
+GitHub Release assets (`make release-userscripts`). Edit the source, then rebuild.
 
-There is no `package.json` and no npm dependency. Verify with:
+`package.json` exists only for the build-time devDependency `esbuild` (run `npm install` once);
+there are no runtime dependencies, and the shipped browser code is still plain JavaScript.
+Verify with:
 
 ```sh
 make verify

@@ -18,3 +18,10 @@ gen
 # Source font for the -local nom-ruby build's embedded @font-face (docs/build.md, "Known site
 # compatibility limitations"). ~10MB; the committed build keeps loading it from github instead.
 /zd-extension/db_src/fonts/
+
+# Built userscripts are published as GitHub Release assets (make release-userscripts), not
+# committed. The readable build at the root is the tooling/test contract; dist/ is minified.
+/node_modules/
+/dist/
+/zoopdog-nom-ruby.user.js
+/zoopdog-popupdict.user.js

@@ -23,7 +23,7 @@ endif
 .DEFAULT_GOAL := help
 
 .PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
-	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts \
+	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-vnedict-json nom-annotate nom-popup \
 	check-openspec verify verify-scripts verify-browser verify-add-chu-nom
@@ -35,6 +35,8 @@ help:
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
 	@echo "make rebuild-userscripts"
+	@echo "make minify-userscripts  # minified release builds into dist/ (esbuild)"
+	@echo "make release-userscripts  # publish dist/*.user.js as a GitHub Release (DRY_RUN=1 to preview)"
 	@echo "make rebuild-local-userscripts  # rebuild only the (Local) userscript variants"
 	@echo "make rebuild-cycle-local-userscripts  # watch user entries, rebuild (Local) on change; runs until stopped"
 	@echo "make rebuild-extension-vnedict-json"
@@ -68,6 +70,14 @@ rebuild-popupdict-userscript:
 	$(NODE) scripts/build-popupdict-userscript.js
 
 rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript
+
+# Minifies the readable root builds into dist/ (needs `npm install` once, for esbuild).
+minify-userscripts:
+	$(NODE) scripts/minify-userscripts.js
+
+# Publishes the minified builds in dist/; needs `gh`. See docs/build.md.
+release-userscripts: rebuild-userscripts minify-userscripts
+	$(NODE) scripts/release-userscripts.js $(if $(DRY_RUN),--dry-run)
 
 # The (Local) variants are never committed (see .gitignore) and update from their own file on
 # this machine, so rebuilding just them skips writing the github-hosted variants needlessly.

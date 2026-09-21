@@ -1,0 +1,11 @@
+{
+  "name": "zoopdog",
+  "private": true,
+  "description": "Build tooling only: esbuild minifies the generated userscripts. No runtime dependencies.",
+  "scripts": {
+    "verify": "make verify"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

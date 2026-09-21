@@ -143,16 +143,16 @@ test('source helpers read both MDX payload shapes and build stable definition ke
   assert.ok(Object.keys(sources.mdxEntries(payload)).length > 0);
 });
 
-test('raw URLs are derived from the declared repository paths', () => {
+test('release URLs are derived from the declared repository paths', () => {
   assert.equal(
-    paths.rawUrl('nomUserscript'),
-    `${paths.rawBaseUrl}/zoopdog-nom-ruby.user.js`
+    paths.releaseUrl('nomUserscript'),
+    `${paths.releaseBaseUrl}/zoopdog-nom-ruby.user.js`
   );
   assert.equal(
-    paths.rawUrl('popupUserscript'),
-    `${paths.rawBaseUrl}/zoopdog-popupdict.user.js`
+    paths.releaseUrl('popupUserscript'),
+    `${paths.releaseBaseUrl}/zoopdog-popupdict.user.js`
   );
-  assert.throws(() => paths.rawUrl('nope'), /Unknown repository path/);
+  assert.throws(() => paths.releaseUrl('nope'), /Unknown repository path/);
 });
 
 test('userscript versions compare as dotted numbers', () => {
@@ -268,4 +268,28 @@ test('nom-entries-csv rejects a literal list separator instead of silently mergi
     () => nomCsv.serializeShardCsv([{vi: 'x', nom: ['a|b'], explain: []}]),
     /reserved list separator/
   );
+});
+
+test('minified release builds keep the metadata block and stay valid JavaScript', () => {
+  const {minifyUserscript} = require('../scripts/lib/minify');
+  const source = [
+    '// ==UserScript==',
+    '// @name        Probe',
+    '// @version     1.2.3',
+    '// ==/UserScript==',
+    '',
+    '(function () {',
+    '  // a comment that should vanish',
+    '  const answer = 41 + 1;',
+    '  return answer;',
+    '})();',
+    ''
+  ].join('\n');
+  const minified = minifyUserscript(source);
+
+  assert.ok(minified.startsWith(source.slice(0, source.indexOf('// ==/UserScript==') + 18)));
+  assert.doesNotMatch(minified, /should vanish/);
+  assert.ok(minified.length < source.length);
+  assert.doesNotThrow(() => new Function(minified.slice(minified.indexOf('==/UserScript==') + 15)));
+  assert.throws(() => minifyUserscript('no header'), /UserScript/);
 });

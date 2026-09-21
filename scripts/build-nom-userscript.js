@@ -120,7 +120,7 @@ function nomFontSrcFor(variant) {
 function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
   const updateUrl = variant.targetKey === 'nomLocalUserscript'
     ? repoPaths.localFileUrl(variant.targetKey)
-    : repoPaths.rawUrl(variant.targetKey);
+    : repoPaths.releaseUrl(variant.targetKey);
 
   return renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
@@ -181,6 +181,7 @@ function main(argv = process.argv.slice(2)) {
 
     console.log(`Wrote ${targetPath}`);
     console.log(`Version ${version}${changed ? ' (content changed)' : ' (unchanged)'}`);
+
   }
 
   console.log(`Embedded ${Object.keys(nomMap).length} dictionary entries`);

@@ -6,7 +6,10 @@ const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 
 const {makeRealBuildCopy} = require('./helpers/real-build-copy');
+const {ensureUserscriptsBuilt} = require('./helpers/ensure-built');
 const repoRoot = path.resolve(__dirname, '..');
+
+ensureUserscriptsBuilt();
 const scriptsDir = path.join(repoRoot, 'scripts');
 
 function scriptFiles() {
@@ -179,7 +182,7 @@ test('generated userscripts declare a stamped version and their update location'
 
   for (const key of ['nomUserscript', 'popupUserscript']) {
     const source = fs.readFileSync(path.join(repoRoot, repoPaths.relative[key]), 'utf8');
-    const url = repoPaths.rawUrl(key);
+    const url = repoPaths.releaseUrl(key);
     const version = readUserscriptVersion(source);
 
     assert.ok(version && version !== PENDING_VERSION, `${key} carries a real @version`);

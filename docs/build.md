@@ -59,8 +59,21 @@ make rebuild-userscripts
 ```
 
 See [dictionary-data.md](dictionary-data.md) for what each userscript embeds and when a
-rebuild is required. The builders also stamp `@version`, so pushing a rebuilt
-userscript to `master` is what makes installed copies auto-update.
+rebuild is required. The builders also stamp `@version`.
+
+The github-hosted `zoopdog-*.user.js` are gitignored build output, not committed. Publishing:
+
+```sh
+npm install                 # once: esbuild is the only dependency
+make release-userscripts    # rebuild, minify into dist/, gh release create (DRY_RUN=1 to preview)
+```
+
+`make minify-userscripts` writes the esbuild-minified copies to `dist/` (metadata block kept
+verbatim; the `-local` builds are not minified). `release-userscripts` needs the GitHub CLI
+(`gh`) and uploads them as assets of a new release; `@updateURL`/`@downloadURL` point at
+`releases/latest/download/<name>`, so a new release is what makes installed copies auto-update.
+The version stamp is derived from the previous local build, so keep the last build around
+(or bump manually) when releasing from a fresh clone.
 
 Each builder writes two files: the committed `zoopdog-*.user.js` (updates from github, as
 above) and an uncommitted `zoopdog-*-local.user.js` that updates from its own `file://` path on

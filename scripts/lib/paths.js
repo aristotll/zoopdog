@@ -18,6 +18,7 @@ const relative = Object.freeze({
   popupUserscript: 'zoopdog-popupdict.user.js',
   nomLocalUserscript: 'zoopdog-nom-ruby-local.user.js',
   popupLocalUserscript: 'zoopdog-popupdict-local.user.js',
+  distDir: 'dist',
   defaultInput: '.idea/newfile.md',
   openspecChanges: 'openspec/changes',
   openspecArchive: 'openspec/changes/archive',
@@ -35,14 +36,22 @@ function resolveIn(base, key) {
   return path.join(base, relative[key]);
 }
 
-// Where the generated files are published. A userscript installed from this branch keeps
-// updating from this branch, so the branch is part of the userscript's update contract and is
-// declared here beside the paths rather than spelled out again in each runtime header.
-const rawBaseUrl = 'https://raw.githubusercontent.com/aristotll/zoopdog/master';
+// The userscripts are published as assets of the latest GitHub Release, not committed: the
+// embedded dictionaries make each build megabytes of churn per commit. `releases/latest/
+// download/<asset>` always redirects to the newest release, so the URL never changes and
+// installed copies keep updating. The asset name is the built file's basename.
+const releaseBaseUrl = 'https://github.com/aristotll/zoopdog/releases/latest/download';
 
-function rawUrl(key) {
+function releaseUrl(key) {
   assertKnown(key);
-  return `${rawBaseUrl}/${relative[key]}`;
+  return `${releaseBaseUrl}/${path.basename(relative[key])}`;
+}
+
+// Minified release builds live here (gitignored); the readable build at the repository root
+// stays the contract for scripts/add-chu-nom and the tests.
+function distPath(key, base = rootDir) {
+  assertKnown(key);
+  return path.join(base, relative.distDir, path.basename(relative[key]));
 }
 
 // The -local userscripts never publish to github: they update from their own built file on
@@ -61,7 +70,8 @@ module.exports = {
   relative,
   absolute,
   resolveIn,
-  rawBaseUrl,
-  rawUrl,
+  releaseBaseUrl,
+  releaseUrl,
+  distPath,
   localFileUrl
 };
