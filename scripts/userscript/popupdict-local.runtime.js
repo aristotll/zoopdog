@@ -145,7 +145,7 @@
     });
   }
 
-  // Engines that produced the same text share one row, in first-seen order;
+  // Engines that produced the same text (ignoring case) share one row, in first-seen order;
   // engines with no answer share a single trailing row with empty text.
   function zooGroupNotesAll(translations) {
     var rows = [];
@@ -158,11 +158,12 @@
         failed.engines.push(item.engine);
         return;
       }
-      if (!Object.prototype.hasOwnProperty.call(byText, text)) {
-        byText[text] = { engines: [], text: text };
-        rows.push(byText[text]);
+      var key = text.toLowerCase();
+      if (!Object.prototype.hasOwnProperty.call(byText, key)) {
+        byText[key] = { engines: [], text: text };
+        rows.push(byText[key]);
       }
-      byText[text].engines.push(item.engine);
+      byText[key].engines.push(item.engine);
     });
     if (failed) rows.push(failed);
     return rows;
