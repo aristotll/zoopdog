@@ -48,6 +48,12 @@ html
         font-weight bold
         padding 2px 4px
         border-radius 5px 5px 5px 5px
+      // Shown only on a sense whose source headword differs from the heading's primary
+      // display form -- e.g. `ballet` under `ba lê` when the heading also shows `Ba Lê`.
+      .zoopdog-headword
+        color $lightblue
+        font-style italic
+        margin-right 4px
 
 .zd-definition:not(:last-child) ul
   border-bottom 1px solid $lightblue

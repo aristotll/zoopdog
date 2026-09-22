@@ -438,12 +438,18 @@ __ZOOPDOG_RUNTIME_SOURCES__
   };
 
   function renderDefinition(entry) {
-    var vn = entry[0];
+    // `entry` is `[headwords, senses]` -- see scripts/build-popupdict-userscript.js and the
+    // shared grouping transform in scripts/lib/dictionary-identity.js. `headwords` is every
+    // display variant a normalized key collided on (`Ba Lê` / `ba lê`), ordered by first
+    // source occurrence; `vn` (the primary headword) is `headwords[0]` and is what a local
+    // "add Chu Nom"/"set order" action still keys on.
+    var headwords = entry[0];
     var definitions = entry[1];
+    var vn = headwords[0];
 
     return [
       '<div class="zd-definition">',
-      '<h1>', escapeHtml(vn), '</h1>',
+      '<h1>', headwords.map(escapeHtml).join(' / '), '</h1>',
       '<ul>',
       renderDefinitionItems(definitions),
       '</ul>',
@@ -520,10 +526,12 @@ __ZOOPDOG_RUNTIME_SOURCES__
   function renderDefinitionItem(item) {
     var definition = escapeHtml(item[0]);
     var pos = escapeHtml(item[1]);
+    var headword = item[2] ? escapeHtml(item[2]) : '';
+    var prefix = headword ? '<span class="zoopdog-headword">' + headword + '</span>' : '';
     if (pos) {
-      return '<li><span class="zoopdog-pos">' + pos + '</span> ' + definition + '</li>';
+      prefix += '<span class="zoopdog-pos">' + pos + '</span> ';
     }
-    return '<li>' + definition + '</li>';
+    return '<li>' + prefix + definition + '</li>';
   }
 
   function main() {

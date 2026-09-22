@@ -1,6 +1,11 @@
 'use strict';
 
-const ZD_DICTIONARY_METADATA_SCHEMA_VERSION = 1;
+// Bumped from 1 -> 2 when the runtime dictionary moved from one row per source headword
+// ({vn, en}) to one grouped row per normalized lookup key ({key, headwords, en}); see
+// openspec/changes/normalize-dictionary-entry-identity. A schema-version mismatch makes
+// `installedStateIsUsable` treat the installed rows as unusable, so the coordinator always
+// performs a full `adapter.replace()` rather than mixing old and new row shapes.
+const ZD_DICTIONARY_METADATA_SCHEMA_VERSION = 2;
 
 const STATES = Object.freeze({
   READY_CURRENT: 'ready-current',
@@ -64,17 +69,26 @@ function validateMetadata(metadata) {
   return metadata;
 }
 
+// Grouped-row shape ({key, headwords, en}) -- see scripts/lib/dictionary-identity.js, the
+// single definition of this schema shared between the Node build tooling and this browser
+// runtime. A row still carrying the old per-headword `{vn, en}` shape (no `key`/`headwords`)
+// is rejected here rather than silently accepted, so old and new schemas can never mix.
 function validateDictionaryEntry(entry, index) {
   const valid = entry
     && typeof entry === 'object'
     && !Array.isArray(entry)
-    && typeof entry.vn === 'string'
-    && entry.vn.length > 0
+    && typeof entry.key === 'string'
+    && entry.key.length > 0
+    && Array.isArray(entry.headwords)
+    && entry.headwords.length > 0
+    && entry.headwords.every((headword) => typeof headword === 'string' && headword.length > 0)
     && Array.isArray(entry.en)
-    && entry.en.every((definition) => definition
-      && typeof definition === 'object'
-      && typeof definition.def === 'string'
-      && typeof definition.pos === 'string');
+    && entry.en.every((sense) => sense
+      && typeof sense === 'object'
+      && typeof sense.def === 'string'
+      && typeof sense.pos === 'string'
+      && (sense.headword === undefined || typeof sense.headword === 'string')
+      && Object.keys(sense).every((prop) => prop === 'def' || prop === 'pos' || prop === 'headword'));
   if (!valid) {
     throw runtimeError(
       ERRORS.PAYLOAD_INVALID,

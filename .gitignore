@@ -30,6 +30,7 @@ gen
 # and published as GitHub Release assets alongside the userscripts, not committed (~7MB per edit).
 /zd-extension/js/vnedict.json
 /zd-extension/js/vnedict.meta.json
+/zd-extension/js/vnedict.collisions.json
 
 # The add-chu-nom workflow's repository-local lock/journal (scripts/add-chu-nom/lock.js,
 # scripts/add-chu-nom/journal.js). Machine-local coordination state, never committed; a

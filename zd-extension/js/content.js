@@ -103,7 +103,7 @@ function initializeContent() {
         return false;
       }
 
-      const wordCount = second.results[0].vn.split(' ').length;
+      const wordCount = second.results[0].headwords[0].split(' ').length;
       await window.popup.inject();
       if (!lookupTasks.isCurrent(task)) return false;
       window.highlighter.on(origin.node, origin.begin, wordCount);

@@ -15,15 +15,15 @@
     <script id="zoopdog-popup-template" type="text/x-handlebars-template">
       {{#each results}}
         <div class="zd-definition">
-          <h1>{{vn}}</h1>
-          <div class="zd-pronunciation">{{vn}}</div>
+          <h1>{{#each headwords}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</h1>
+          <div class="zd-pronunciation">{{headwords.[0]}}</div>
           <ul>
             {{#each en}}
-              {{#if pos}}
-                <li><span class="zoopdog-pos">{{pos}}</span> {{def}}</li>
-              {{else}}
-                <li>{{def}}</li>
-              {{/if}}
+              <li>
+                {{#if headword}}<span class="zoopdog-headword">{{headword}}</span>{{/if}}
+                {{#if pos}}<span class="zoopdog-pos">{{pos}}</span>{{/if}}
+                {{def}}
+              </li>
             {{/each}}
           </ul>
         </div>
