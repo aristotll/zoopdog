@@ -125,6 +125,15 @@ test('folds an adverb sense into a synonym bundle that already contains its adje
   assert.deepEqual(groups[0].en, [{def: 'last, previous, not far from here, recently', pos: ''}]);
 });
 
+test('folds a parenthetical gloss with its unparenthesized equivalent', () => {
+  const groups = groupEntries([
+    {vn: 'tiếng Anh', en: [{def: 'English (language)', pos: ''}]},
+    {vn: 'tiếng Anh', en: [{def: 'English language', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'English (language)', pos: ''}]);
+});
+
 test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
   const groups = groupEntries([
     {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},

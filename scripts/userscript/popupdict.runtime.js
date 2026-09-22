@@ -131,11 +131,11 @@ __ZOOPDOG_RUNTIME_SOURCES__
       button.disabled = true;
       error.style.display = 'none';
       var words = queue.map(function(entry) { return entry.vi; });
-      fetch(window.location.origin + '/v1/nom/entries/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ words: words })
-      }).then(function(response) {
+      // The reader server's whole API speaks query-string params, even on POST -- see
+      // control.html's own api() helper -- so this follows suit instead of a JSON body.
+      var url = window.location.origin + '/v1/nom/entries/import?words=' +
+        encodeURIComponent(words.join(','));
+      fetch(url, { method: 'POST' }).then(function(response) {
         if (!response.ok) throw new Error('HTTP ' + response.status);
         return response.json().catch(function() { return {}; });
       }).then(function() {

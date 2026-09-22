@@ -43,6 +43,13 @@ function stripToPrefix(word) {
   return word.replace(/^to\s+/i, '');
 }
 
+// Drops parenthesis characters (keeping their contents in place) and collapses the resulting
+// whitespace, so "English (language)" and "English language" compare equal -- a parenthetical
+// note is usually just a clarifying aside on the same headword, not a different gloss.
+function stripParens(word) {
+  return word.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // True when `token` is a multi-word phrase rather than a single word. Phrase containment (see
 // below) is trustworthy for multi-word needles unconditionally: a single short word like "go"
 // is often the first word of an unrelated, longer phrase ("go away (imperative)"), so folding
@@ -84,10 +91,11 @@ function isSuffixedFormOf(root, variant) {
   return RELATED_WORD_SUFFIXES.some((suffix) => `${root}${suffix}` === variant);
 }
 
-// True when two synonym tokens are effectively the same gloss: equal modulo case, a regular
-// suffix relationship between the two (see `isSuffixedFormOf`), or one is a phrase wholly
-// contained in the other -- each check runs after stripping a leading "to " infinitive marker
-// from both sides. A multi-word needle is checked at any position (see `containsAsPhrase`; e.g.
+// True when two synonym tokens are effectively the same gloss: equal modulo case, parenthesis
+// punctuation (see `stripParens`; "English (language)" == "English language"), a regular suffix
+// relationship between the two (see `isSuffixedFormOf`), or one is a phrase wholly contained in
+// the other -- each check runs after stripping a leading "to " infinitive marker from both
+// sides. A multi-word needle is checked at any position (see `containsAsPhrase`; e.g.
 // "on the side" in "on the side of"). A single-word needle is far riskier -- it is only checked
 // when `allowSingleWordContainment` says the surrounding group already has enough other senses
 // that dropping one generic word is unlikely to lose real meaning, and even then only at the
@@ -95,8 +103,8 @@ function isSuffixedFormOf(root, variant) {
 // does not fold into "understand clearly" (there it is a modifier of "understand", not a
 // restatement of "clearly, distinctly").
 function isSynonymMatch(x, y, allowSingleWordContainment) {
-  const nx = stripToPrefix(x.toLowerCase());
-  const ny = stripToPrefix(y.toLowerCase());
+  const nx = stripParens(stripToPrefix(x.toLowerCase()));
+  const ny = stripParens(stripToPrefix(y.toLowerCase()));
   if (nx === ny || isSuffixedFormOf(nx, ny) || isSuffixedFormOf(ny, nx)) {
     return true;
   }
