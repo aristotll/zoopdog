@@ -59,28 +59,31 @@ __ZOOPDOG_RUNTIME_SOURCES__
     GM_setValue(ZOO_NOM_REVIEW_QUEUE_KEY, JSON.stringify(entries));
   }
 
+  function zooIsNomReviewQueued(vi) {
+    return zooReadNomReviewQueue().some(function(entry) { return entry.vi === vi; });
+  }
+
+  // Once queued, the button stays disabled for that term (never re-enabled by a timeout):
+  // clicking it again would be a silent no-op against storage anyway (queue() dedupes), and a
+  // button that looks clickable but does nothing is worse than one that honestly can't be
+  // pressed. It re-renders enabled again only if the term is later exported/cleared from the
+  // queue and this popup is reopened.
   function zooQueueNomReview(vi, button) {
-    if (!vi) return;
+    if (!vi || zooIsNomReviewQueued(vi)) return;
     var queue = zooReadNomReviewQueue();
-    var already = queue.some(function(entry) { return entry.vi === vi; });
-    if (!already) {
-      queue.push({ vi: vi, ts: Date.now() });
-      zooWriteNomReviewQueue(queue);
-    }
+    queue.push({ vi: vi, ts: Date.now() });
+    zooWriteNomReviewQueue(queue);
     if (button) {
-      var original = button.textContent;
       button.textContent = 'Đã đánh dấu ✓';
       button.disabled = true;
-      window.setTimeout(function() {
-        button.textContent = original;
-        button.disabled = false;
-      }, 1500);
     }
   }
 
   function zooRenderNomReviewAction(vn) {
+    var queued = zooIsNomReviewQueued(vn);
     return '<button type="button" class="zd-action-btn" data-zd-action="queue-nom-review" data-zd-vi="' +
-      escapeHtml(vn) + '">+ Đánh dấu Nôm</button>';
+      escapeHtml(vn) + '"' + (queued ? ' disabled' : '') + '>' +
+      (queued ? 'Đã đánh dấu ✓' : '+ Đánh dấu Nôm') + '</button>';
   }
 
   // True only on the reader's own phone-remote page (scripts/reader/static/control.html in
