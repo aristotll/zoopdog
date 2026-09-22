@@ -143,6 +143,16 @@ This writes both `zd-extension/js/vnedict.json` and its deterministic revision s
 run this once after cloning, before loading the unpacked extension. `make release-userscripts`
 rebuilds them and attaches them to the GitHub Release. The extension and website compare the sidecar revision with IndexedDB before serving lookups.
 
+## Rebuilding the legacy base dictionary
+
+```sh
+make rebuild-extension-dict
+```
+
+Regenerates `zd-extension/db_src/vnedict.json` from `zd-extension/db_src/vnedict.txt`. This is
+a committed, diffable intermediate, not a runtime artifact -- see
+[docs/dictionary-data.md](dictionary-data.md) for how it relates to the runtime dictionary above.
+
 ## Manual verification
 
 Website changes:

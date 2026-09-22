@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern, extractNomCandidates} = require('./lib/cjk');
+const {atomicWrite} = require('./lib/fsutil');
 const {definitionKey, mdxEntries, readJson} = require('./lib/sources');
 const repoPaths = require('./lib/paths');
 
@@ -76,9 +76,13 @@ function dedupeDefinitions(entry) {
   return originalLength - entry.en.length;
 }
 
-function main() {
-  const dictionary = readJson(dictionaryPath);
-  const mdxPayload = readJson(mdxNomPath);
+function main({
+  dictionaryPath: targetDictionaryPath = dictionaryPath,
+  mdxNomPath: targetMdxNomPath = mdxNomPath,
+  write = atomicWrite
+} = {}) {
+  const dictionary = readJson(targetDictionaryPath);
+  const mdxPayload = readJson(targetMdxNomPath);
   const mdxNomEntries = mdxEntries(mdxPayload);
   const byKey = new Map();
 
@@ -98,6 +102,7 @@ function main() {
   let addedDefinitions = 0;
   let createdEntries = 0;
   let removedDuplicateDefinitions = 0;
+  let skippedMalformed = 0;
 
   for (const entry of dictionary) {
     removedDuplicateDefinitions += dedupeDefinitions(entry);
@@ -105,7 +110,11 @@ function main() {
 
   for (const [term, candidates] of Object.entries(mdxNomEntries)) {
     const key = normalizeTerm(term);
-    const cleanCandidates = Array.from(new Set((Array.isArray(candidates) ? candidates : [])
+    if (!Array.isArray(candidates)) {
+      skippedMalformed++;
+      continue;
+    }
+    const cleanCandidates = Array.from(new Set(candidates
       .map(cleanText)
       .filter(Boolean)));
 
@@ -135,14 +144,24 @@ function main() {
     addedDefinitions += cleanCandidates.length;
   }
 
-  fs.writeFileSync(dictionaryPath, JSON.stringify(dictionary), 'utf8');
+  write(targetDictionaryPath, JSON.stringify(dictionary));
 
-  console.log(`Updated ${dictionaryPath}`);
+  console.log(`Updated ${targetDictionaryPath}`);
   console.log(`Updated existing entries: ${updatedEntries}`);
   console.log(`Created new entries: ${createdEntries}`);
   console.log(`Added definitions: ${addedDefinitions}`);
   console.log(`Removed duplicate definitions: ${removedDuplicateDefinitions}`);
+  console.log(`Skipped malformed MDX entries: ${skippedMalformed}`);
   console.log(`Total dictionary entries: ${dictionary.length}`);
+
+  return {
+    updatedEntries,
+    addedDefinitions,
+    createdEntries,
+    removedDuplicateDefinitions,
+    skippedMalformed,
+    totalEntries: dictionary.length
+  };
 }
 
 module.exports = {

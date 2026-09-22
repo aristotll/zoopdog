@@ -56490,7 +56490,7 @@
     {
         "en": [
             {
-                "def": "Oh!, It’s 12",
+                "def": "Oh!, It’s 12:00 already",
                 "pos": ""
             }
         ],
@@ -72386,7 +72386,7 @@
     {
         "en": [
             {
-                "def": "I’m not going until about 1",
+                "def": "I’m not going until about 1:00",
                 "pos": ""
             }
         ],
@@ -80094,7 +80094,7 @@
     {
         "en": [
             {
-                "def": "",
+                "def": ": advantage",
                 "pos": ""
             }
         ],
@@ -140503,7 +140503,7 @@
     {
         "en": [
             {
-                "def": "(it’s) 2",
+                "def": "(it’s) 2:30, (it’s) half past two",
                 "pos": ""
             }
         ],
@@ -184519,7 +184519,11 @@
     {
         "en": [
             {
-                "def": "screech, gnashing, grinding (sound)",
+                "def": "screech, gnashing, grinding (sound):  safe, case",
+                "pos": ""
+            },
+            {
+                "def": "teal",
                 "pos": ""
             }
         ],
@@ -223766,7 +223770,7 @@
     {
         "en": [
             {
-                "def": "winter is approaching",
+                "def": "winter is approaching : winter is approaching",
                 "pos": ""
             }
         ],
@@ -225377,7 +225381,7 @@
     {
         "en": [
             {
-                "def": "12",
+                "def": "12:00",
                 "pos": ""
             }
         ],
@@ -225386,7 +225390,7 @@
     {
         "en": [
             {
-                "def": "12",
+                "def": "12:30",
                 "pos": ""
             }
         ],
@@ -233444,7 +233448,7 @@
     {
         "en": [
             {
-                "def": "1",
+                "def": "1:30, one thirty",
                 "pos": ""
             }
         ],
@@ -280459,7 +280463,7 @@
     {
         "en": [
             {
-                "def": "amniotic fluid",
+                "def": "amniotic fluid : all over, widespread",
                 "pos": ""
             }
         ],
@@ -287578,7 +287582,7 @@
     {
         "en": [
             {
-                "def": "creel",
+                "def": "creel : hot and oppressive, sultry",
                 "pos": ""
             }
         ],
@@ -287748,7 +287752,7 @@
     {
         "en": [
             {
-                "def": "honey",
+                "def": "honey : bee",
                 "pos": ""
             }
         ],
@@ -325603,7 +325607,11 @@
     {
         "en": [
             {
-                "def": "wolf",
+                "def": "wolf:  bald",
+                "pos": ""
+            },
+            {
+                "def": "chloranth",
                 "pos": ""
             }
         ],
@@ -486441,7 +486449,7 @@
                 "pos": "verb"
             },
             {
-                "def": "enemy, adversary, foe",
+                "def": "enemy, adversary, foe:  reed flute",
                 "pos": ""
             }
         ],
@@ -499099,7 +499107,7 @@
     {
         "en": [
             {
-                "def": "blow",
+                "def": "blow : pipe",
                 "pos": ""
             }
         ],
@@ -499225,7 +499233,7 @@
     {
         "en": [
             {
-                "def": "to goad, to prod",
+                "def": "to goad, to prod : to press together",
                 "pos": "verb"
             }
         ],

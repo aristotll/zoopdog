@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 
@@ -7,6 +9,13 @@ const merge = require('../scripts/merge-mdx-nom-into-vnedict2');
 const extract = require('../scripts/extract-mdx-nom-data');
 
 const repoRoot = path.resolve(__dirname, '..');
+
+function mergeFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-merge-mdx-'));
+  const dictionaryPath = path.join(dir, 'vnedict2.json');
+  const mdxNomPath = path.join(dir, 'mdx_nom.json');
+  return {dir, dictionaryPath, mdxNomPath};
+}
 
 test('merge inserts Nom definitions ahead of English ones', () => {
   const entry = {vn: 'quản lý', en: [{def: 'to manage', pos: 'v'}]};
@@ -116,4 +125,47 @@ test('extract reports missing js-mdict from the command line', () => {
       return true;
     }
   );
+});
+
+test('merge main() counts malformed MDX candidates and skips them without throwing', () => {
+  const {dir, dictionaryPath, mdxNomPath} = mergeFixture();
+  fs.writeFileSync(dictionaryPath, JSON.stringify([{vn: 'quản lý', en: [{def: 'to manage', pos: 'v'}]}]));
+  fs.writeFileSync(mdxNomPath, JSON.stringify({
+    entries: {
+      'quản lý': ['管理'],
+      'lỗi dữ liệu': 'not-an-array',
+      'lỗi khác': {not: 'an array either'}
+    }
+  }));
+
+  const result = merge.main({dictionaryPath, mdxNomPath});
+
+  assert.equal(result.skippedMalformed, 2);
+  assert.equal(result.updatedEntries, 1);
+
+  const written = JSON.parse(fs.readFileSync(dictionaryPath, 'utf8'));
+  assert.deepEqual(written[0].en.map((item) => item.def), ['管理', 'to manage']);
+
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('merge main() writes via the shared atomic writer, leaving prior contents intact on a failed write', () => {
+  const {dir, dictionaryPath, mdxNomPath} = mergeFixture();
+  const original = JSON.stringify([{vn: 'quản lý', en: [{def: 'to manage', pos: 'v'}]}]);
+  fs.writeFileSync(dictionaryPath, original);
+  fs.writeFileSync(mdxNomPath, JSON.stringify({entries: {'quản lý': ['管理']}}));
+
+  assert.throws(
+    () => merge.main({
+      dictionaryPath,
+      mdxNomPath,
+      write: () => { throw new Error('injected write failure'); }
+    }),
+    /injected write failure/
+  );
+
+  assert.equal(fs.readFileSync(dictionaryPath, 'utf8'), original,
+    'a failed write must never touch the target file directly (atomicWrite writes a temp file first)');
+
+  fs.rmSync(dir, {recursive: true, force: true});
 });

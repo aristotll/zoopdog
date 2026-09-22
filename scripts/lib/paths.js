@@ -7,6 +7,8 @@ const rootDir = path.resolve(__dirname, '../..');
 // Repository-relative locations, kept as relative strings so callers that operate on an
 // alternate root (tests, isolated fixtures) can resolve them against their own base.
 const relative = Object.freeze({
+  baseDictionarySource: 'zd-extension/db_src/vnedict.txt',
+  baseDictionary: 'zd-extension/db_src/vnedict.json',
   dictionary: 'zd-extension/db_src/vnedict2.json',
   runtimeDictionary: 'zd-extension/js/vnedict.json',
   runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',

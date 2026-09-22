@@ -4,15 +4,19 @@ Dictionary source data lives under `zd-extension/db_src/`.
 
 ## Extension runtime dictionary
 
-To regenerate `zd-extension/db_src/vnedict.json`:
+`zd-extension/db_src/vnedict.json` is a regenerated, bug-fixed copy of the legacy
+`zd-extension/db_src/vnedict.txt` base vocabulary. It is not read by the extension or the
+website at runtime (see below) -- it exists as a diffable, testable intermediate. Regenerate it
+with:
 
 ```sh
-cd zd-extension/db_src
-python3 make_dict.py
+make rebuild-extension-dict
 ```
 
-The extension and website read the actively maintained `zd-extension/db_src/vnedict2.json`
-through generated runtime files. Rebuild them after any merge or hand-maintained Chu Nom apply:
+The extension and website instead read the actively maintained `zd-extension/db_src/vnedict2.json`
+through generated runtime files. Rebuild those after any merge or hand-maintained Chu Nom apply
+that changes `vnedict2.json` (the merge script, `add-chu-nom-apply`), the same way you would
+rerun `make rebuild-userscripts`:
 
 ```sh
 make rebuild-extension-vnedict-json
