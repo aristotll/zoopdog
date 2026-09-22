@@ -88,6 +88,15 @@ test('folds a plural/case variant regardless of which one appears first', () => 
   assert.deepEqual(groups[0].en, [{def: 'Rumors', pos: ''}]);
 });
 
+test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
+  const groups = groupEntries([
+    {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},
+    {vn: 'người khác', en: [{def: 'others', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'other, different person, people', pos: ''}]);
+});
+
 test('does not fold unrelated definitions that merely share characters', () => {
   const groups = groupEntries([
     {vn: 'Cu Ba', en: [{def: 'Cuba', pos: ''}, {def: 'ba', pos: ''}]}

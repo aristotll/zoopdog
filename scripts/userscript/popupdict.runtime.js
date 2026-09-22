@@ -352,11 +352,33 @@ __ZOOPDOG_RUNTIME_SOURCES__
     } catch (error) { /* position just is not remembered */ }
   }
 
+  // The part of the page actually on screen, in the coordinates a `position: fixed` box and
+  // getBoundingClientRect() use (the layout viewport). On a phone these differ: a page without a
+  // mobile viewport lays out ~980px wide, and pinch-zoom shows only a slice of that, so clamping
+  // to `clientWidth`/`innerWidth` let the popup run off the right edge of the screen.
+  function visibleViewport() {
+    var vv = window.visualViewport;
+    if (vv && vv.width > 0 && vv.height > 0) {
+      return {left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height};
+    }
+    return {
+      left: 0,
+      top: 0,
+      width: document.documentElement.clientWidth || window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+
+  function clampInto(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+  }
+
   ResultPopup.prototype.moveTo = function(left, top) {
     var box = this.container.getBoundingClientRect();
+    var view = visibleViewport();
     var style = this.container.style;
-    style.left = Math.max(0, Math.min(left, window.innerWidth - box.width)) + 'px';
-    style.top = Math.max(0, Math.min(top, window.innerHeight - box.height)) + 'px';
+    style.left = clampInto(left, view.left, view.left + view.width - box.width) + 'px';
+    style.top = clampInto(top, view.top, view.top + view.height - box.height) + 'px';
     style.bottom = 'auto';
   };
 
@@ -390,31 +412,48 @@ __ZOOPDOG_RUNTIME_SOURCES__
   ResultPopup.prototype.show = function(rect) {
     var style = this.container.style;
     var margin = 8;
-    var viewWidth = document.documentElement.clientWidth || window.innerWidth;
-    var viewHeight = window.innerHeight;
-    var below = viewHeight - rect.bottom - margin;
-    var above = rect.top - margin;
+    var view = visibleViewport();
+    var viewRight = view.left + view.width;
+    var viewBottom = view.top + view.height;
+    var below = viewBottom - rect.bottom - margin;
+    var above = rect.top - view.top - margin;
     var placeAbove = below < 160 && above > below;
     var room = Math.max(80, placeAbove ? above : below);
 
-    // Fit the popup to the viewport: cap its size, then clamp its position.
-    style.maxWidth = Math.min(400, viewWidth - 2 * margin) + 'px';
-    style.maxHeight = Math.min(Math.max(280, viewHeight * 0.5), room) + 'px';
+    // Fit the popup to the visible area: cap its size, then clamp its position.
+    style.maxWidth = Math.max(0, Math.min(400, view.width - 2 * margin)) + 'px';
+    style.maxHeight = Math.min(Math.max(280, view.height * 0.5), room) + 'px';
     style.visibility = 'visible';
 
     // A fixed box shrink-wraps to the space right of `left`, so measure its
     // natural width at the left edge before clamping.
     style.left = '0px';
+    style.top = '0px';
+    style.bottom = 'auto';
     var box = this.container.getBoundingClientRect();
-    var left = Math.max(margin, Math.min(rect.left - 20, viewWidth - box.width - margin));
-    style.left = left + 'px';
-    if (placeAbove) {
-      style.top = 'auto';
-      style.bottom = (viewHeight - rect.top + 4) + 'px';
-    } else {
-      style.top = rect.bottom + 'px';
-      style.bottom = 'auto';
+    // The CSS `margin-top` offsets the box below its `top`.
+    var offsetTop = box.top;
+    style.left = clampInto(rect.left - 20, view.left + margin, viewRight - box.width - margin) + 'px';
+    // Placed by `top` in both cases: a `bottom` offset is measured from the layout viewport's
+    // bottom edge, which on a phone is not where the visible screen ends.
+    style.top = (placeAbove ? rect.top - 4 - box.height - offsetTop : rect.bottom) + 'px';
+    this.shownView = view;
+
+    // Last guard: whatever the page's CSS did to the box, pull it back on screen.
+    box = this.container.getBoundingClientRect();
+    if (box.right > viewRight - margin || box.left < view.left + margin) {
+      style.left = clampInto(box.left, view.left + margin, viewRight - box.width - margin) + 'px';
     }
+  };
+
+  // True when the visible area moved or zoomed since the popup was placed, so its
+  // on-screen position no longer matches the word.
+  ResultPopup.prototype.viewChanged = function() {
+    if (!this.shownView) return false;
+    var now = visibleViewport();
+    var was = this.shownView;
+    return Math.abs(now.left - was.left) > 1 || Math.abs(now.top - was.top) > 1 ||
+      Math.abs(now.width - was.width) > 1 || Math.abs(now.height - was.height) > 1;
   };
 
   ResultPopup.prototype.hide = function() {
@@ -635,6 +674,23 @@ __ZOOPDOG_RUNTIME_SOURCES__
       highlighter.resize();
       clearActiveResult();
     });
+
+    // Pinch-zoom and panning a zoomed page move the visual viewport without firing a window
+    // 'scroll'/'resize', leaving the popup stranded (or half off screen) away from its word.
+    if (window.visualViewport) {
+      var onViewportChange = function() {
+        if (popup.container.style.visibility !== 'visible' || !popup.viewChanged()) return;
+        if (popup.locked) {
+          var box = popup.container.getBoundingClientRect();
+          popup.moveTo(box.left, box.top);
+          popup.shownView = visibleViewport();
+          return;
+        }
+        clearActiveResult();
+      };
+      window.visualViewport.addEventListener('resize', onViewportChange);
+      window.visualViewport.addEventListener('scroll', onViewportChange);
+    }
 
     function insidePopup(target) {
       return !!(target && target.nodeType === Node.ELEMENT_NODE &&

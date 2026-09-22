@@ -30,27 +30,32 @@ function isAsciiText(str) {
   return /^[\x00-\x7f]*$/.test(str);
 }
 
-// Case-insensitive, word-boundary containment: true when `needle` occurs inside `haystack`
-// bounded by non-alphanumeric characters (or the string ends), optionally followed by a plural
-// "s"/"es" suffix -- e.g. "rumor" is contained in "Rumors", but "ba" is not contained in "Cuba"
-// and "an" is not contained in "Iran".
-function containsAsWordOrPlural(haystack, needle) {
-  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escaped}(es|s)?($|[^a-zA-Z0-9])`, 'i');
-  return pattern.test(haystack);
+// A dictionary sense's def is often a comma-separated bundle of synonyms (e.g.
+// "other, different person, people"), each a candidate atomic gloss in its own right.
+function synonymTokens(def) {
+  return def.split(',').map((token) => token.trim()).filter(Boolean);
 }
 
-// True when `a` and `b` are the same definition modulo case, or one is a plural/word-boundary
-// variant containing the other (see `containsAsWordOrPlural`). Restricted to plain ASCII text
-// (see `isAsciiText`) so Chu Nom/CJK renderings are never folded.
+// Case-insensitive equality, or a regular "s"/"es" plural relationship between the two --
+// e.g. "rumor"/"Rumors" and "other"/"others" match, but "ba"/"Cuba" and "an"/"Iran" do not,
+// because those pairs are never actually the same word with a plural suffix appended.
+function isPluralVariant(x, y) {
+  const lx = x.toLowerCase();
+  const ly = y.toLowerCase();
+  return lx === ly || `${lx}s` === ly || `${lx}es` === ly || `${ly}s` === lx || `${ly}es` === lx;
+}
+
+// True when some synonym token of `a` and some synonym token of `b` are the same word modulo
+// case or a plural suffix (see `isPluralVariant`) -- e.g. "others" is redundant with
+// "other, different person, people" because "other" is one of its bundled synonyms. Restricted
+// to plain ASCII text (see `isAsciiText`) so Chu Nom/CJK renderings are never folded.
 function isRedundantVariant(a, b) {
   if (!isAsciiText(a) || !isAsciiText(b)) {
     return false;
   }
-  if (a.toLowerCase() === b.toLowerCase()) {
-    return true;
-  }
-  return containsAsWordOrPlural(a, b) || containsAsWordOrPlural(b, a);
+  const tokensA = synonymTokens(a);
+  const tokensB = synonymTokens(b);
+  return tokensA.some((tokenA) => tokensB.some((tokenB) => isPluralVariant(tokenA, tokenB)));
 }
 
 function assertSourceEntries(entries) {
