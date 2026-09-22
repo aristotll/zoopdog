@@ -221,7 +221,9 @@ test('CLI module exposes an importable main function and stable exit codes', () 
     SUCCESS: 0,
     VALIDATION: 2,
     STALE: 3,
-    APPLY_FAILED: 4
+    APPLY_FAILED: 4,
+    WORKFLOW_BUSY: 5,
+    RECOVERY_REQUIRED: 6
   });
 });
 

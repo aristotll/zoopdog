@@ -1,6 +1,7 @@
 NODE ?= node
 INPUT ?= .idea/newfile.md
 MANIFEST ?=
+REPO_ROOT ?=
 ARCHIVE ?=
 DRY_RUN ?=
 TEXT ?=
@@ -10,6 +11,11 @@ TERM ?=
 # never defaulted: a fixed name in a world-writable shared directory would let an unrelated
 # or attacker-controlled file be applied by a bare `make import-chu-nom`.
 DECISIONS ?= -
+
+# How long review/apply queue behind another session's workflow lock before giving up with
+# workflow_busy (.codex/commands/add-chu-nom.md). Empty means fail fast; the default
+# uncontended path never waits at all.
+WAIT_MS ?=
 
 MANIFEST_GOALS := add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom
 REQUESTED_MANIFEST_GOALS := $(filter $(MANIFEST_GOALS),$(MAKECMDGOALS))
@@ -22,7 +28,7 @@ endif
 
 .DEFAULT_GOAL := help
 
-.PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply import-chu-nom \
+.PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply add-chu-nom-recover import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json nom-annotate nom-popup \
@@ -31,8 +37,9 @@ endif
 
 help:
 	@echo "make add-chu-nom-plan MANIFEST=/path/to/manifest.json [INPUT=path]"
-	@echo "make add-chu-nom-review MANIFEST=/path/to/manifest.json [DECISIONS=path|-]"
-	@echo "make import-chu-nom MANIFEST=/path/to/reviewed.json"
+	@echo "make add-chu-nom-review MANIFEST=/path/to/manifest.json [DECISIONS=path|-] [WAIT_MS=ms]"
+	@echo "make import-chu-nom MANIFEST=/path/to/reviewed.json [WAIT_MS=ms]"
+	@echo "make add-chu-nom-recover [REPO_ROOT=path]  # after review/apply exits busy/5 or recovery-required/6"
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
 	@echo "make rebuild-userscripts"
@@ -60,12 +67,19 @@ add-chu-nom-plan:
 # Decisions default to stdin because the common case is a small array piped straight in; a
 # file path avoids shell quoting trouble with Vietnamese and Chu Nom text.
 add-chu-nom-review:
-	$(NODE) scripts/add-chu-nom.js review --manifest "$(MANIFEST)" --decisions "$(DECISIONS)"
+	$(NODE) scripts/add-chu-nom.js review --manifest "$(MANIFEST)" --decisions "$(DECISIONS)" $(if $(WAIT_MS),--wait-ms "$(WAIT_MS)")
 
 add-chu-nom-apply:
-	$(NODE) scripts/add-chu-nom.js apply --manifest "$(MANIFEST)" --approve
+	$(NODE) scripts/add-chu-nom.js apply --manifest "$(MANIFEST)" --approve $(if $(WAIT_MS),--wait-ms "$(WAIT_MS)")
 
 import-chu-nom: add-chu-nom-apply
+
+# Only after review or apply reports workflow_busy (exit 5, another session holds the lock --
+# just wait or retry) or workflow_lock_recovery_required (exit 6, an interrupted session left
+# the lock in a state that needs a human to confirm before it is cleared). Never run this
+# while another add-chu-nom session might legitimately still be running.
+add-chu-nom-recover:
+	$(NODE) scripts/add-chu-nom.js recover $(if $(REPO_ROOT),--repo-root "$(REPO_ROOT)")
 
 rebuild-nom-userscript:
 	$(NODE) scripts/build-nom-userscript.js

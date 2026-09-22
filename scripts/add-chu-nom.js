@@ -17,12 +17,14 @@ const {buildReviewProjection, createPlan, summarizePlan} = require('./add-chu-no
 const {DECISION_FIELDS, applyDecisions, readDecisions} = require('./add-chu-nom/decisions');
 const {levenshtein} = require('./add-chu-nom/sources');
 const {foldAccents} = require('./lib/text');
+const {acquireLock, releaseLock, planRecovery, recover: recoverLock} = require('./add-chu-nom/lock');
+const {readJournal} = require('./add-chu-nom/journal');
 
 function parseArguments(argv) {
   const args = {command: argv[0]};
   const booleanFlags = new Set(['--approve']);
   const allowedFlags = new Set([
-    '--approve', '--words', '--file', '--manifest', '--repo-root', '--decisions'
+    '--approve', '--words', '--file', '--manifest', '--repo-root', '--decisions', '--wait-ms'
   ]);
   for (let index = 1; index < argv.length; index++) {
     const flag = argv[index];
@@ -60,9 +62,21 @@ function readManifest(manifestPath) {
   }
 }
 
+function parseWaitMs(value) {
+  if (value === undefined) return 0;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new WorkflowError('wait_ms_invalid', `--wait-ms must be a non-negative integer: ${value}`);
+  }
+  return n;
+}
+
 function main(argv = process.argv.slice(2), io = process) {
   try {
     const args = parseArguments(argv);
+    if (args.command !== 'review' && args.command !== 'apply' && args.waitMs !== undefined) {
+      throw new WorkflowError('wait_ms_requires_lock_command', '--wait-ms only applies to review and apply.');
+    }
     if (args.command === 'plan') {
       if (args.approve) {
         throw new WorkflowError('approve_requires_apply', '--approve is only valid with apply.');
@@ -102,12 +116,24 @@ function main(argv = process.argv.slice(2), io = process) {
           'review requires --decisions <path|-> holding a JSON array of decisions.');
       }
       const manifestPath = path.resolve(args.manifest);
-      const manifest = readManifest(manifestPath);
-      const decisions = readDecisions(args.decisions);
-      // Every decision is validated before the first is written, so a rejected batch leaves
-      // the manifest byte-identical.
-      const recorded = applyDecisions(manifest, decisions);
-      atomicWrite(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      const repoRoot = path.resolve(args.repoRoot || path.join(__dirname, '..'));
+      const waitMs = parseWaitMs(args.waitMs);
+      // Reviewing the same manifest from two sessions is exactly the lost-update race this
+      // lock exists to close, so review takes the same repository-scoped lock as apply,
+      // re-reading the manifest only after acquiring it.
+      const owner = acquireLock(repoRoot, {operation: 'review', manifestPath, waitMs});
+      let manifest;
+      let recorded;
+      try {
+        manifest = readManifest(manifestPath);
+        const decisions = readDecisions(args.decisions);
+        // Every decision is validated before the first is written, so a rejected batch leaves
+        // the manifest byte-identical.
+        recorded = applyDecisions(manifest, decisions);
+        atomicWrite(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+      } finally {
+        releaseLock(repoRoot, owner.token);
+      }
 
       const {errors} = collectManifestIssues(manifest, {repoRoot: args.repoRoot});
       const summary = summarizePlan(manifest);
@@ -144,9 +170,28 @@ function main(argv = process.argv.slice(2), io = process) {
       const manifest = readManifest(manifestPath);
       const result = applyManifest(manifest, {
         repoRoot: args.repoRoot,
-        approved: Boolean(args.approve)
+        approved: Boolean(args.approve),
+        manifestPath,
+        waitMs: parseWaitMs(args.waitMs)
       });
       writeResult(io.stdout, result);
+      return EXIT_CODES.SUCCESS;
+    }
+    if (args.command === 'recover') {
+      for (const key of ['words', 'file', 'manifest', 'decisions', 'approve', 'waitMs']) {
+        if (args[key] !== undefined) {
+          throw new WorkflowError('unknown_option', `--${key.replace(/([A-Z])/g, '-$1').toLowerCase()} is not valid with recover.`);
+        }
+      }
+      const repoRoot = path.resolve(args.repoRoot || path.join(__dirname, '..'));
+      const plan = planRecovery(repoRoot, {readJournal});
+      if (plan.status === 'live' || plan.status === 'ambiguous' || plan.status === 'needs_operator_recovery') {
+        throw new WorkflowError('workflow_lock_recovery_required',
+          'The workflow lock cannot be recovered automatically.',
+          {status: plan.status, owner: plan.owner, mismatches: plan.mismatches});
+      }
+      const result = recoverLock(repoRoot, plan);
+      writeResult(io.stdout, {ok: true, action: 'recover', ...result});
       return EXIT_CODES.SUCCESS;
     }
     throw new WorkflowError('unknown_command', `Unknown command: ${args.command || '(missing)'}`);

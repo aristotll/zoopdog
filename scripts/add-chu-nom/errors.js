@@ -4,7 +4,9 @@ const EXIT_CODES = Object.freeze({
   SUCCESS: 0,
   VALIDATION: 2,
   STALE: 3,
-  APPLY_FAILED: 4
+  APPLY_FAILED: 4,
+  WORKFLOW_BUSY: 5,
+  RECOVERY_REQUIRED: 6
 });
 
 // One row per distinct failure cause. The code is the stable identifier a caller matches on,
@@ -21,7 +23,9 @@ const ERROR_CODES = Object.freeze({
   manifest_option_required: {exit: EXIT_CODES.VALIDATION, hint: 'Pass --manifest with a path outside the repository, for example "$(mktemp -t zoopdog-chu-nom)".'},
   input_option_requires_plan: {exit: EXIT_CODES.VALIDATION, hint: '--words and --file select what to plan; apply and review read the manifest instead.'},
   manifest_unreadable: {exit: EXIT_CODES.VALIDATION, hint: 'Re-run plan to regenerate the manifest; do not hand-write it.'},
-  unknown_command: {exit: EXIT_CODES.VALIDATION, hint: 'Use one of: plan, review, apply.'},
+  unknown_command: {exit: EXIT_CODES.VALIDATION, hint: 'Use one of: plan, review, apply, recover.'},
+  wait_ms_requires_lock_command: {exit: EXIT_CODES.VALIDATION, hint: '--wait-ms only applies to review and apply, which take the workflow lock.'},
+  wait_ms_invalid: {exit: EXIT_CODES.VALIDATION, hint: '--wait-ms must be a non-negative integer number of milliseconds.'},
   unexpected_failure: {exit: EXIT_CODES.APPLY_FAILED, hint: 'Unhandled failure; re-run plan and report the message if it repeats.'},
 
   // Planning input
@@ -85,7 +89,12 @@ const ERROR_CODES = Object.freeze({
   dictionary_source_missing: {exit: EXIT_CODES.VALIDATION, hint: 'Generate the dictionary source before planning.'},
   path_escapes_root: {exit: EXIT_CODES.VALIDATION, hint: 'Use a path inside the repository.'},
   path_unresolvable: {exit: EXIT_CODES.VALIDATION, hint: 'Check that the path exists and is readable.'},
-  path_outside_root: {exit: EXIT_CODES.VALIDATION, hint: 'Use a path inside the repository; symlinks may not point outside it.'}
+  path_outside_root: {exit: EXIT_CODES.VALIDATION, hint: 'Use a path inside the repository; symlinks may not point outside it.'},
+
+  // Workflow lock / transaction coordination
+  workflow_busy: {exit: EXIT_CODES.WORKFLOW_BUSY, hint: 'Another add-chu-nom session holds the workflow lock. Wait and retry, or pass --wait-ms to queue automatically.'},
+  workflow_lock_owner_mismatch: {exit: EXIT_CODES.APPLY_FAILED, hint: 'The workflow lock changed ownership unexpectedly; re-run the command.'},
+  workflow_lock_recovery_required: {exit: EXIT_CODES.RECOVERY_REQUIRED, hint: 'An interrupted session left the workflow lock in an unclear state. Run `node scripts/add-chu-nom.js recover --repo-root <path>` after inspecting .zd-chu-nom-workflow/, or restore workflow-owned files from git before retrying.'}
 });
 
 const EXIT_CATEGORIES = Object.freeze({

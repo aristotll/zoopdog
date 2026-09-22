@@ -100,3 +100,34 @@ touching the same keys, is idempotent and duplicate-free — an existing key is 
 place rather than appended again.
 
 Preserve unrelated worktree changes throughout the workflow.
+
+## Concurrency: workflow lock, busy/stale/recovery
+
+`review` and `apply` serialize through a repository-local workflow lock (a `.zd-chu-nom-workflow/`
+directory next to the repository root, gitignored) so two sessions can never race the same
+dictionary files. This is normally invisible: the common uncontended case is silent and fast.
+When it is not:
+
+- **`workflow_busy` (exit 5).** Another session holds the lock right now. Report the owner
+  info from the error's `details` (pid, operation, when it was acquired) and either wait and
+  retry, or re-run the same command with `--wait-ms <n>` (`make add-chu-nom-apply ...
+  WAIT_MS=<n>`) to queue for up to that many milliseconds instead of failing immediately. Never
+  loop retries indefinitely yourself; pass `--wait-ms` instead.
+- **`stale_source` (exit 3) on apply, even though `review` said the manifest was ready.** This
+  means another session committed changes to a shared source (most often the sharded
+  `user_nom_entries/` store) while this apply was queued behind the lock. The fix is the normal
+  stale-source fix: re-run `plan`/`review` against the current state and get approval again.
+  This is expected, safe behavior, not a bug — it is what stops a queued session from applying
+  a decision made against data that no longer exists.
+- **`workflow_lock_recovery_required` (exit 6).** An interrupted session (killed process, crashed
+  build) left the lock in a state that cannot be resolved automatically — either the process
+  that held it might still be running, or file bytes were found that do not match either the
+  pre- or post-transaction state the interrupted session recorded. Do **not** delete
+  `.zd-chu-nom-workflow/` by hand. Instead:
+  1. Confirm no other add-chu-nom session (human or agent) is legitimately still running.
+  2. Run `node scripts/add-chu-nom.js recover --repo-root <repo>` (or `make add-chu-nom-recover
+     REPO_ROOT=<repo>`). If it succeeds, the lock is cleared and the workflow is usable again.
+  3. If recovery itself reports `workflow_lock_recovery_required`, its `details` name the
+     mismatched files. Inspect them (`git status`/`git diff` on the sharded
+     `zd-extension/db_src/user_nom_entries/` files and the generated userscripts) and restore
+     known-good bytes with `git checkout` before recovering the lock again.

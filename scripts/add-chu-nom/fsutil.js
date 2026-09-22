@@ -22,6 +22,14 @@ function listFilesRecursive(dir) {
   return files;
 }
 
+// The content hash of a byte buffer, using the same digest as `hashFile` so the two are
+// directly comparable (needed to check a snapshot's in-memory preimage against a file on disk
+// without writing the preimage out first).
+function hashBuffer(data) {
+  if (data === null || data === undefined) return null;
+  return crypto.createHash('sha256').update(data).digest('hex');
+}
+
 // A single file's content hash, or -- for a directory (the sharded `user_nom_entries/` store) --
 // a hash over every file beneath it in a fixed sort order, each framed with its relative path so
 // a rename and a content change can never produce the same digest.
@@ -84,10 +92,35 @@ function restoreSnapshot(snapshot) {
   }
 }
 
+// Rollback guarded against clobbering bytes this transaction did not itself produce. For every
+// snapshotted path, restoring is only allowed when the file's current content is either still
+// the pre-transaction preimage (nothing happened yet) or exactly what this transaction's own
+// `writtenHashes` map says it last wrote there. Anything else -- a foreign process or a manual
+// edit landing mid-transaction -- stops the restore instead of silently overwriting it.
+function guardedRestoreSnapshot(snapshot, writtenHashes = new Map()) {
+  const mismatches = [];
+  for (const [target, state] of snapshot) {
+    const current = hashFile(target);
+    const preHash = state.exists ? hashBuffer(state.data) : null;
+    if (current === preHash) continue;
+    const expectedWritten = writtenHashes.get(target);
+    if (expectedWritten !== undefined && current === expectedWritten) continue;
+    mismatches.push(target);
+  }
+  if (mismatches.length) {
+    throw new WorkflowError('workflow_lock_recovery_required',
+      'Files changed unexpectedly during rollback; refusing to overwrite them. Inspect and restore manually.',
+      {paths: mismatches});
+  }
+  restoreSnapshot(snapshot);
+}
+
 module.exports = {
   hashFile,
+  hashBuffer,
   resolveInsideRoot,
   atomicWrite,
   snapshotFiles,
-  restoreSnapshot
+  restoreSnapshot,
+  guardedRestoreSnapshot
 };
