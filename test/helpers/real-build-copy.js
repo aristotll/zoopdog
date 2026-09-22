@@ -7,9 +7,9 @@
 // `process.cwd()`, so only a copy of `scripts/` run from inside the returned directory (never
 // the real `scripts/`, even with `cwd` pointed elsewhere) resolves relative to it.
 //
-// This is deliberately not `makeFixture` in test/add-chu-nom.test.js, which substitutes small
-// synthetic dictionary data and stub runtime files for tests that don't care about real
-// content -- these tests specifically need the real content.
+// This is deliberately not a fixture that substitutes small synthetic dictionary data and stub
+// runtime files for tests that don't care about real content -- these tests specifically need
+// the real content.
 
 const fs = require('node:fs');
 const os = require('node:os');

@@ -372,23 +372,21 @@ test('no browser source calls the retired global word character class', () => {
     'use zdIsWordChar from zd-extension/js/zd-words.js instead of a global `chars`');
 });
 
-test('the extension loads the shared primitives before every script that uses them', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'zd-extension/manifest.json'), 'utf8'));
-  const scripts = manifest.content_scripts[0].js;
-  const shared = scripts.indexOf('js/zd-words.js');
-  assert.notEqual(shared, -1, 'the manifest declares the shared source');
+test('the website loads the shared primitives before every script that uses them', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'popupdict.jade'), 'utf8');
+  const shared = source.indexOf('zd-extension/js/zd-words.js');
+  assert.notEqual(shared, -1, 'popupdict.jade loads the shared source');
 
   for (const relative of sharedConsumers()) {
     if (!relative.startsWith('zd-extension/js/')) {
       continue;
     }
-    const entry = relative.replace('zd-extension/', '');
-    const position = scripts.indexOf(entry);
+    const position = source.indexOf(relative);
     if (position === -1) {
-      continue; // not a content script; nothing to order
+      continue; // not loaded by this page; nothing to order
     }
     assert.ok(shared < position,
-      `js/zd-words.js must precede ${entry}, got ${JSON.stringify(scripts)}`);
+      `zd-words.js must precede ${relative} in popupdict.jade`);
   }
 });
 

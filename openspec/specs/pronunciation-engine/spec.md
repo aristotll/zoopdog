@@ -7,7 +7,7 @@ Canonical specification for the `pronunciation-engine` capability, promoted from
 ## Requirements
 
 ### Requirement: Pronunciation core is pure and shared
-The system SHALL provide one dependency-free pronunciation core that is importable under CommonJS and loadable by first-party browser surfaces. Importing or calling it MUST NOT mutate built-in prototypes, create implicit globals, read the DOM, or write files, and every website, extension, and generated-userscript consumer SHALL derive pronunciation behavior from that source.
+The system SHALL provide one dependency-free pronunciation core that is importable under CommonJS and loadable by first-party browser surfaces. Importing or calling it MUST NOT mutate built-in prototypes, create implicit globals, read the DOM, or write files, and every website and generated-userscript consumer SHALL derive pronunciation behavior from that source.
 
 #### Scenario: Core is imported in isolation
 - **WHEN** a test imports the pronunciation core and invokes its exported transformations

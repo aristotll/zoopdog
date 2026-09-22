@@ -7,10 +7,9 @@ const words = require('../zd-extension/js/zd-words');
 const {textNode, elementNode, linkChildren, rubyWord, rubyPageStyle} = require('./support/ruby-dom');
 
 // highlighter.js expects zdIsWordChar / zdContainerBoundary / zdNextTextNode and `Range` as
-// ambient globals -- exactly what a browser content script sees once the manifest has loaded
-// zd-words.js first (see zd-extension/manifest.json). Wiring the real functions in here, rather
-// than re-implementing fakes for them, is what keeps this test honest about what the shipped
-// class actually calls.
+// ambient globals -- exactly what a browser sees once the page has loaded zd-words.js first
+// (see popupdict.jade). Wiring the real functions in here, rather than re-implementing fakes
+// for them, is what keeps this test honest about what the shipped class actually calls.
 global.zdIsWordChar = words.zdIsWordChar;
 global.zdContainerBoundary = words.zdContainerBoundary;
 global.zdNextTextNode = words.zdNextTextNode;

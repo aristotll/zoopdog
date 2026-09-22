@@ -7,7 +7,7 @@ Canonical specification for the `popup-dictionary-runtime` capability, promoted 
 ## Requirements
 
 ### Requirement: Shipped dictionary has a deterministic identity
-The build that produces `zd-extension/js/vnedict.json` SHALL also produce a committed sidecar containing a schema version, SHA-256 revision of the exact runtime JSON bytes, and entry count. Identical dictionary input SHALL produce byte-identical dictionary and metadata outputs, and the website and extension SHALL use that identity to decide whether installed data is current.
+The build that produces `zd-extension/js/vnedict.json` SHALL also produce a committed sidecar containing a schema version, SHA-256 revision of the exact runtime JSON bytes, and entry count. Identical dictionary input SHALL produce byte-identical dictionary and metadata outputs, and the website SHALL use that identity to decide whether installed data is current.
 
 #### Scenario: Unchanged data keeps the same revision
 - **WHEN** the runtime dictionary builder runs twice against unchanged source data
@@ -22,7 +22,7 @@ The build that produces `zd-extension/js/vnedict.json` SHALL also produce a comm
 - **THEN** it leaves the previously committed matching pair intact and never exposes a new payload with old or missing metadata
 
 ### Requirement: Browser clients refresh by revision, not row presence
-The extension and website SHALL compare the shipped dictionary identity with the metadata of their IndexedDB entries before declaring the dictionary current. A non-empty database with missing, different, or internally inconsistent revision metadata SHALL be treated as stale and refreshed before current data is reported.
+The website SHALL compare the shipped dictionary identity with the metadata of its IndexedDB entries before declaring the dictionary current. A non-empty database with missing, different, or internally inconsistent revision metadata SHALL be treated as stale and refreshed before current data is reported.
 
 #### Scenario: Returning client already has the shipped revision
 - **WHEN** stored revision/schema/count metadata matches the sidecar and the live row count
@@ -32,12 +32,12 @@ The extension and website SHALL compare the shipped dictionary identity with the
 - **WHEN** a returning client has dictionary rows but no accepted revision metadata
 - **THEN** the client performs a one-time refresh instead of treating a non-zero count as current
 
-#### Scenario: Extension update ships a new dictionary
-- **WHEN** the packaged sidecar revision differs from the revision stored by an existing extension installation
-- **THEN** the extension refreshes IndexedDB before reporting the new revision ready
+#### Scenario: A new dictionary ships
+- **WHEN** the packaged sidecar revision differs from the revision stored by an existing visitor's IndexedDB
+- **THEN** the client refreshes IndexedDB before reporting the new revision ready
 
 ### Requirement: Dictionary replacement is transactional
-Both browser clients SHALL fetch, parse, and validate candidate metadata and dictionary data before mutation, then replace entries and accepted metadata in one IndexedDB transaction. A failed fetch, parse, validation, clear, add, count check, or metadata write MUST leave the previously committed entries and revision usable.
+The browser client SHALL fetch, parse, and validate candidate metadata and dictionary data before mutation, then replace entries and accepted metadata in one IndexedDB transaction. A failed fetch, parse, validation, clear, add, count check, or metadata write MUST leave the previously committed entries and revision usable.
 
 #### Scenario: Download or parse fails
 - **WHEN** a refresh cannot fetch or parse a valid candidate dictionary
@@ -68,7 +68,7 @@ Install, update, manual reload, website startup, and search SHALL use one refres
 
 #### Scenario: First run has no usable data
 - **WHEN** refresh fails and no previously validated database exists
-- **THEN** searches return `unavailable` and the extension popup or website shows a failure message instead of remaining indefinitely in a loading state
+- **THEN** searches return `unavailable` and the website shows a failure message instead of remaining indefinitely in a loading state
 
 ### Requirement: Popup frame uses a private validated channel
 After iframe load, the parent controller SHALL create a versioned `MessageChannel`, transfer one port to the sandbox exactly once, and use that port for all subsequent popup traffic. The sandbox SHALL accept no second initializer and both endpoints SHALL ignore messages with an unknown type, wrong protocol version, invalid dictionary result shape, unknown dialect, or invalid dimensions.
@@ -101,7 +101,7 @@ Lock, unlock, and toggle-lock events SHALL travel through the private popup chan
 - **THEN** its channel is closed and no later message from it can toggle the replacement frame or highlighter
 
 ### Requirement: Browser initialization is additive and idempotent
-First-party website and extension runtime sources SHALL NOT assign `window.onload` or another global event-handler property. Each entry point SHALL initialize exactly once by checking document readiness and, when needed, registering an additive one-shot readiness listener.
+First-party website runtime sources SHALL NOT assign `window.onload` or another global event-handler property. Each entry point SHALL initialize exactly once by checking document readiness and, when needed, registering an additive one-shot readiness listener.
 
 #### Scenario: Script runs while the document is loading
 - **WHEN** an entry point loads before its required DOM exists
@@ -116,7 +116,7 @@ First-party website and extension runtime sources SHALL NOT assign `window.onloa
 - **THEN** only one set of DOM nodes, listeners, and database startup work is created
 
 ### Requirement: Only the newest lookup may update the popup
-The extension and website lookup controllers SHALL assign a monotonically changing request epoch to asynchronous lookups and SHALL update highlights or popup content only when a response belongs to the current epoch. Misses, failures, pointer invalidation, disable, scroll, resize, and hide SHALL invalidate pending work and release word-suppression state.
+The website's lookup controller SHALL assign a monotonically changing request epoch to asynchronous lookups and SHALL update highlights or popup content only when a response belongs to the current epoch. Misses, failures, pointer invalidation, disable, scroll, resize, and hide SHALL invalidate pending work and release word-suppression state.
 
 #### Scenario: Older response arrives last
 - **WHEN** lookup A starts, lookup B starts for a newer pointer position, and A resolves after B
@@ -137,32 +137,21 @@ The extension and website lookup controllers SHALL assign a monotonically changi
 - **WHEN** structural verification scans `frame.jade`
 - **THEN** it finds the external `js/frame.js` reference and no inline frame-controller implementation
 
-#### Scenario: Extension page is regenerated
+#### Scenario: Page is regenerated
 - **WHEN** `frame.jade` is compiled with the documented Pug command
 - **THEN** the resulting `frame.html` still loads `js/frame.js` and runtime behavior does not revert to a stale inline copy
 
-### Requirement: Extension manifest follows least privilege
-The extension manifest SHALL declare only named and host permissions that have an enumerated first-party API or resource need. Using `chrome.tabs` methods without reading sensitive tab fields SHALL NOT by itself retain the `tabs` permission, and unused temporary host or host-origin grants SHALL be removed.
-
-#### Scenario: Current API usage is audited
-- **WHEN** verification maps manifest permissions to first-party extension source usage
-- **THEN** `storage` remains justified while unused `tabs`, `activeTab`, and unmatched host permissions are absent
-
-#### Scenario: New permission is introduced
-- **WHEN** a future change adds a named or host permission
-- **THEN** structural verification requires a documented usage mapping and fails if none exists
-
 ### Requirement: Popup runtime contracts are verified
-Dependency-free automated tests SHALL exercise refresh decisions and rollback, readiness coalescing, message initialization/validation, non-clobbering startup, latest-lookup-wins behavior, source/generated ownership, and manifest permissions. Real-browser verification SHALL cover both the static website and unpacked extension before the change is marked complete.
+Dependency-free automated tests SHALL exercise refresh decisions and rollback, readiness coalescing, message initialization/validation, non-clobbering startup, and latest-lookup-wins behavior. Real-browser verification SHALL cover the static website before the change is marked complete.
 
 #### Scenario: Automated verification runs
 - **WHEN** a maintainer runs `make verify`
-- **THEN** all popup runtime contract tests run without network access, the full dictionary, Chrome, or writes to repository data files
+- **THEN** all popup runtime contract tests run without network access, the full dictionary, a browser, or writes to repository data files
 
-#### Scenario: Hostile message test runs in Chrome
-- **WHEN** the unpacked extension is exercised on a page that sends malformed ambient popup messages
+#### Scenario: Hostile message test runs in a browser
+- **WHEN** the website is exercised on a page that sends malformed ambient popup messages
 - **THEN** normal lookup still works and the hostile messages cannot change popup content, lock state, or dimensions
 
-#### Scenario: Refresh rollback is exercised in both surfaces
+#### Scenario: Refresh rollback is exercised
 - **WHEN** manual browser verification simulates an unavailable or malformed replacement after a valid database exists
-- **THEN** both website and extension continue serving the prior dictionary and show a retryable stale/error state
+- **THEN** the website continues serving the prior dictionary and shows a retryable stale/error state

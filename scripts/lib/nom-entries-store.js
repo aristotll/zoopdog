@@ -2,7 +2,7 @@
 
 // The sharded `user_nom_entries/` store: 128 CSV shard files under a root directory, addressed by
 // `shard-path.js`. This is the one place that knows the store is sharded at all -- everything
-// else (readers, the add-chu-nom upsert flow, the userscript builders) goes through
+// else (readers, upsert callers, the userscript builders) goes through
 // `readAllEntries`/`upsertEntries` and gets back the same `{vi, nom, explain}` shape a single-file
 // store would have returned. See openspec/changes/shard-user-nom-entries-csv/design.md.
 const fs = require('node:fs');

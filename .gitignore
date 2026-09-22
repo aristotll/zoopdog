@@ -7,8 +7,6 @@
 .DS_Store
 out
 gen
-/zd-extension.crx
-/zd-extension.pem
 
 # Local-only userscript builds (docs/local-mode.md): update from this machine's own file via
 # Violentmonkey's "track local file", never from github, so they are never committed.
@@ -26,16 +24,10 @@ gen
 /zoopdog-nom-ruby.user.js
 /zoopdog-popupdict.user.js
 
-# The extension's runtime dictionary is generated from db_src/ (make rebuild-extension-vnedict-json)
+# The website's runtime dictionary is generated from db_src/ (make rebuild-extension-vnedict-json)
 # and published as GitHub Release assets alongside the userscripts, not committed (~7MB per edit).
 /zd-extension/js/vnedict.json
 /zd-extension/js/vnedict.meta.json
 /zd-extension/js/vnedict.collisions.json
-
-# The add-chu-nom workflow's repository-local lock/journal (scripts/add-chu-nom/lock.js,
-# scripts/add-chu-nom/journal.js). Machine-local coordination state, never committed; a
-# leftover directory here after an interrupted apply is resolved with
-# `node scripts/add-chu-nom.js recover`, not by deleting it by hand.
-/.zd-chu-nom-workflow/
 
 .claude/worktrees

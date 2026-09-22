@@ -70,7 +70,7 @@ test('extractNomCandidates option sets reproduce every historical variant', () =
     ['管理', '檢查', '䀡']
   );
 
-  // add-chu-nom's planner: strip parentheticals, no separator split, no CJK guard.
+  // Strip parentheticals, no separator split, no CJK guard.
   assert.deepEqual(
     cjk.extractNomCandidates(definition, {requireCjk: false, separators: null}),
     ['管理', '檢查', '䀡']

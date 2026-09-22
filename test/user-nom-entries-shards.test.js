@@ -1,7 +1,7 @@
 'use strict';
 
 // Permanent `make verify` coverage for the `user_nom_entries/` shard store's own invariants --
-// not the read/write API (covered in test/scripts-lib.test.js and test/add-chu-nom.test.js), but
+// not the read/write API (covered in test/scripts-lib.test.js), but
 // whether the *committed files themselves* still satisfy the rules the store depends on. A hand
 // edit to a shard (wrong sort order, an entry filed under the wrong shard, output that didn't go
 // through the codec) would otherwise sit undetected until it silently broke a lookup or a future

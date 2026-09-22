@@ -591,20 +591,6 @@ test('Dexie adapter replaces entries and metadata atomically', async () => {
   });
 });
 
-test('extension service worker uses revision-aware Dexie schema and shared coordinator', () => {
-  const source = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/background.js'), 'utf8');
-  const runtimeImport = source.indexOf('importScripts(chrome.runtime.getURL("js/zd-dictionary-runtime.js"))');
-  const coordinatorUse = source.indexOf('zdDictionaryRuntime.createCoordinator');
-
-  assert.notEqual(runtimeImport, -1);
-  assert.ok(runtimeImport < coordinatorUse);
-  assert.match(source, /db\.version\(3\)\.stores\([\s\S]*metadata:\s*['"]&key['"]/u);
-  assert.doesNotMatch(source, /db\.entries\.clear\(\)\s*\.then\(\(\) => populateFrom/u);
-  assert.match(source, /ensureReady\(\{force:\s*true\}\)/u);
-  assert.match(source, /ERRORS\.METADATA_INVALID/u);
-  assert.match(source, /globalThis\.crypto/u);
-});
-
 test('website source and generated page load dictionary runtime before popup logic', () => {
   for (const relativePath of ['popupdict.jade', 'popupdict.html']) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -620,19 +606,6 @@ test('website source and generated page load dictionary runtime before popup log
   assert.match(popupSource, /location\.protocol\s*===\s*['"]file:['"]/u);
   assert.match(popupSource, /new XMLHttpRequest\(\)/u);
   assert.match(popupSource, /dialect-menu[\s\S]*addEventListener\(['"]change['"]/u);
-});
-
-test('extension popup exposes refresh state and disables reload while pending', () => {
-  const jade = fs.readFileSync(path.join(repoRoot, 'zd-extension/popup.jade'), 'utf8');
-  const html = fs.readFileSync(path.join(repoRoot, 'zd-extension/popup.html'), 'utf8');
-  const source = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/popup.js'), 'utf8');
-  assert.match(jade, /#dictionary-status/u);
-  assert.match(html, /id="dictionary-status"/u);
-  assert.match(source, /reload\.disabled\s*=\s*true/u);
-  assert.match(source, /reload\.disabled\s*=\s*false/u);
-  assert.match(source, /dictionary-status/u);
-  assert.match(source, /function sendRuntimeMessage/u);
-  assert.equal((source.match(/chrome\.runtime\.sendMessage/gu) || []).length, 1);
 });
 
 function validResults() {
@@ -788,8 +761,6 @@ test('latest-task epochs reject stale and invalidated async work', () => {
 
 test('browser entry points initialize additively and lookup sources use epochs', () => {
   const firstPartySources = [
-    'zd-extension/js/content.js',
-    'zd-extension/js/popup.js',
     'js/popupdict.js',
     'js/zd-pron.js',
     'zd-extension/js/zd-pronguide.js'
@@ -799,7 +770,7 @@ test('browser entry points initialize additively and lookup sources use epochs',
     assert.doesNotMatch(source, /window\.onload\s*=/u, relativePath);
     assert.match(source, /zdBrowserRuntime\.runWhenReady/u, relativePath);
   }
-  for (const relativePath of ['zd-extension/js/content.js', 'js/popupdict.js']) {
+  for (const relativePath of ['js/popupdict.js']) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     assert.match(source, /createLatestTask\(\)/u, relativePath);
     assert.match(source, /isCurrent\(/u, relativePath);
@@ -814,40 +785,15 @@ test('browser entry points initialize additively and lookup sources use epochs',
 });
 
 test('browser runtime helper loads before every consumer', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'zd-extension/manifest.json'), 'utf8'));
-  const contentScripts = manifest.content_scripts[0].js;
-  assert.ok(contentScripts.indexOf('js/zd-browser-runtime.js') < contentScripts.indexOf('js/content.js'));
-
   const pages = [
     ['popupdict.jade', 'js/popupdict.js'],
     ['pronunciation.jade', 'js/zd-pron.js'],
     ['homophones.jade', 'js/zd-pron.js'],
-    ['pronguide.jade', 'zd-extension/js/zd-pronguide.js'],
-    ['zd-extension/popup.jade', 'js/popup.js']
+    ['pronguide.jade', 'zd-extension/js/zd-pronguide.js']
   ];
   for (const [relativePath, consumer] of pages) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     assert.ok(source.indexOf('zd-browser-runtime.js') < source.indexOf(consumer), relativePath);
-  }
-});
-
-test('extension manifest declares only usage-backed permissions', () => {
-  const manifestPath = path.join(repoRoot, 'zd-extension/manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const extensionSource = [
-    'zd-extension/js/background.js',
-    'zd-extension/js/content.js',
-    'zd-extension/js/popup.js'
-  ].map((relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), 'utf8')).join('\n');
-
-  assert.deepEqual(manifest.permissions, ['storage']);
-  assert.ok(!Object.hasOwn(manifest, 'host_permissions'));
-  const permissionUsage = {
-    storage: /chrome\.storage/u
-  };
-  for (const permission of manifest.permissions) {
-    assert.ok(permissionUsage[permission], `No usage mapping for ${permission}`);
-    assert.match(extensionSource, permissionUsage[permission], permission);
   }
 });
 
@@ -875,7 +821,7 @@ test('runtime dictionary build is wired, documented and uses one atomic writer',
 test('make verify syntax-checks first-party browser modules', () => {
   const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
 
-  assert.match(makefile, /^verify:\s+verify-scripts\s+verify-browser\s+verify-extension-package$/mu);
+  assert.match(makefile, /^verify:\s+verify-scripts\s+verify-browser$/mu);
   assert.match(makefile, /^verify-browser:/mu);
   assert.match(makefile, /find js zd-extension\/js -name '\*\.js'/u);
   assert.match(makefile, /! -path '\*\/lib\/\*'/u);

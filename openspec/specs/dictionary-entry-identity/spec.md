@@ -14,7 +14,7 @@ Every generated dictionary consumer SHALL derive logical entry identity with the
 - **THEN** generation emits one logical lookup entry for that key while retaining both source display forms and senses
 
 #### Scenario: Consumers build from the same fixtures
-- **WHEN** the extension runtime and popup userscript builders receive identical fixture rows
+- **WHEN** the website runtime and popup userscript builders receive identical fixture rows
 - **THEN** they produce the same ordered logical keys and definition identities
 
 ### Requirement: Collision grouping is lossless and deterministic
@@ -55,7 +55,7 @@ Grouped runtime entries SHALL use a new explicit schema version. Browser clients
 - **THEN** the prior entries and metadata remain intact and the readiness result reports the documented stale or unavailable state
 
 ### Requirement: Lookup and rendering semantics agree across consumers
-Website, extension, and popup userscript lookups SHALL return the same union and stable order of definitions for a normalized key. Rendering SHALL preserve meaningful headword variants and MUST NOT show duplicate cards merely because source capitalization differs.
+Website and popup userscript lookups SHALL return the same union and stable order of definitions for a normalized key. Rendering SHALL preserve meaningful headword variants and MUST NOT show duplicate cards merely because source capitalization differs.
 
 #### Scenario: A verified collision is queried
 - **WHEN** each consumer looks up a capitalization-collision key

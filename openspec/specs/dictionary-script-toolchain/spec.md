@@ -126,12 +126,12 @@ The Node.js script that regenerates `zd-extension/db_src/vnedict.json` from `zd-
 - **WHEN** a maintainer looks for the script that regenerates `zd-extension/db_src/vnedict.json`
 - **THEN** it is a Node.js file under `scripts/`, not a Python script, and is syntax-checked and test-covered by `make verify`
 
-### Requirement: The extension's runtime dictionary is generated, not hand-copied
-`zd-extension/js/vnedict.json` — the file loaded by the Chrome extension's background script and by the website's popup dictionary page — SHALL be produced by a script that reads `zd-extension/db_src/vnedict2.json`, the actively-maintained dictionary, rather than by a manual copy or transform from any other file.
+### Requirement: The website's runtime dictionary is generated, not hand-copied
+`zd-extension/js/vnedict.json` — the file loaded by the website's popup dictionary page — SHALL be produced by a script that reads `zd-extension/db_src/vnedict2.json`, the actively-maintained dictionary, rather than by a manual copy or transform from any other file.
 
 #### Scenario: Runtime dictionary matches the maintained source
 - **WHEN** `zd-extension/js/vnedict.json` is regenerated
-- **THEN** every entry present in `zd-extension/db_src/vnedict2.json` is present in the output, including entries added by the MDX merge or the add-chu-nom workflow
+- **THEN** every entry present in `zd-extension/db_src/vnedict2.json` is present in the output, including entries added by the MDX merge
 
 #### Scenario: No manual copy step is documented
 - **WHEN** a maintainer follows `docs/dictionary-data.md` after changing `vnedict2.json`

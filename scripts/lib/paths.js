@@ -51,7 +51,7 @@ function releaseUrl(key) {
 }
 
 // Minified release builds live here (gitignored); the readable build at the repository root
-// stays the contract for scripts/add-chu-nom and the tests.
+// stays the contract for the tests.
 function distPath(key, base = rootDir) {
   assertKnown(key);
   return path.join(base, relative.distDir, path.basename(relative[key]));

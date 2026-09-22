@@ -32,10 +32,103 @@ function renderRuntime(source, replacements) {
 
 // Emits `value` as `JSON.parse("...")` source. V8 parses a JSON string markedly faster than the
 // same data written as an object literal (measured ~2x on the 5 MB popup dictionary), and the
-// literal is at once a valid JS string and a valid JSON string, so `extractAssignedJson` in
-// scripts/add-chu-nom/apply.js can read it back with the JSON primitives it already has.
+// literal is at once a valid JS string and a valid JSON string, so `extractAssignedJson` below
+// can read it back with the JSON primitives it already has.
 function jsonParseLiteral(value) {
   return `JSON.parse(${JSON.stringify(JSON.stringify(value))})`;
+}
+
+// Generic JS-source-value-span scanning, used by `extractAssignedJson` to find where a
+// `var NOM_MAP = {...}` / `var ZOO_DICTIONARY = {...}` assignment's value ends inside a
+// generated userscript.
+function skipJsoncTrivia(source, start) {
+  let index = start;
+  while (index < source.length) {
+    if (/\s/.test(source[index])) {
+      index++;
+      continue;
+    }
+    if (source[index] === '/' && source[index + 1] === '/') {
+      index += 2;
+      while (index < source.length && source[index] !== '\n') index++;
+      continue;
+    }
+    if (source[index] === '/' && source[index + 1] === '*') {
+      const end = source.indexOf('*/', index + 2);
+      if (end < 0) throw new Error('Unterminated JSONC block comment.');
+      index = end + 2;
+      continue;
+    }
+    break;
+  }
+  return index;
+}
+
+function readJsonStringEnd(source, start) {
+  let escaped = false;
+  for (let index = start + 1; index < source.length; index++) {
+    const char = source[index];
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      return index + 1;
+    }
+  }
+  throw new Error('Unterminated JSON string.');
+}
+
+function readJsonValueEnd(source, start) {
+  if (source[start] === '"') {
+    return readJsonStringEnd(source, start);
+  }
+  let square = 0;
+  let curly = 0;
+  let index = start;
+  while (index < source.length) {
+    const char = source[index];
+    if (char === '"') {
+      index = readJsonStringEnd(source, index);
+      continue;
+    }
+    if (char === '/' && (source[index + 1] === '/' || source[index + 1] === '*')) {
+      index = skipJsoncTrivia(source, index);
+      continue;
+    }
+    if (char === '[') square++;
+    else if (char === ']') {
+      square--;
+      if (square === 0 && curly === 0) return index + 1;
+    }
+    else if (char === '{') curly++;
+    else if (char === '}') {
+      if (square === 0 && curly === 0) return index;
+      curly--;
+      if (square === 0 && curly === 0) return index + 1;
+    } else if (char === ',' && square === 0 && curly === 0) {
+      return index;
+    }
+    index++;
+  }
+  return index;
+}
+
+// Reads back a `var <variableName> = ...;` assignment written by `jsonParseLiteral` (or a plain
+// object literal) from generated userscript source.
+function extractAssignedJson(source, variableName) {
+  const marker = `var ${variableName} =`;
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) throw new Error(`Missing generated ${variableName}.`);
+  let start = markerIndex + marker.length;
+  while (start < source.length && /\s/.test(source[start])) start++;
+  const wrapper = 'JSON.parse(';
+  if (source.startsWith(wrapper, start)) {
+    const stringStart = start + wrapper.length;
+    return JSON.parse(JSON.parse(source.slice(stringStart, readJsonStringEnd(source, stringStart))));
+  }
+  const end = readJsonValueEnd(source, start);
+  return JSON.parse(source.slice(start, end));
 }
 
 // --- versioning ------------------------------------------------------------
@@ -121,6 +214,7 @@ module.exports = {
   readRuntime,
   renderRuntime,
   jsonParseLiteral,
+  extractAssignedJson,
   VERSION_PLACEHOLDER,
   PENDING_VERSION,
   readUserscriptVersion,

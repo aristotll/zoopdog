@@ -1,7 +1,7 @@
 # Pronunciation engine
 
 The Vietnamese pronunciation, number-spelling, and homophone logic shared by the website
-pages, the extension popup frame, and (if a future userscript needs it) the generated
+pages, the sandboxed popup frame, and (if a future userscript needs it) the generated
 popup userscript.
 
 ## Module ownership

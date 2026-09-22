@@ -22,9 +22,7 @@ path       = f"{folder}/{file}.csv"
 ```
 
 `normalizeTerm` here means *this repo's* `scripts/lib/text.js` `normalizeTerm` exactly: NFC,
-`toLocaleLowerCase('vi-VN')`, whitespace-collapsed -- nothing more. SHA-256 matches the hash
-already used elsewhere in this repo for file integrity (`scripts/add-chu-nom/fsutil.js`'s
-`hashFile`).
+`toLocaleLowerCase('vi-VN')`, whitespace-collapsed -- nothing more.
 
 **book-translator must NOT hash its own `_normalize_term`'s output.** `book-translator`'s
 `scripts/reader/nom_sources.py` has a *richer* term key, `_normalize_term`, that additionally

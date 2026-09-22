@@ -2,10 +2,10 @@
 
 Dictionary source data lives under `zd-extension/db_src/`.
 
-## Extension runtime dictionary
+## Website runtime dictionary
 
 `zd-extension/db_src/vnedict.json` is a regenerated, bug-fixed copy of the legacy
-`zd-extension/db_src/vnedict.txt` base vocabulary. It is not read by the extension or the
+`zd-extension/db_src/vnedict.txt` base vocabulary. It is not read by the
 website at runtime (see below) -- it exists as a diffable, testable intermediate. Regenerate it
 with:
 
@@ -13,9 +13,9 @@ with:
 make rebuild-extension-dict
 ```
 
-The extension and website instead read the actively maintained `zd-extension/db_src/vnedict2.json`
-through generated runtime files. Rebuild those after any merge or hand-maintained Chu Nom apply
-that changes `vnedict2.json` (the merge script, `add-chu-nom-apply`), the same way you would
+The website instead reads the actively maintained `zd-extension/db_src/vnedict2.json`
+through generated runtime files. Rebuild those after any merge or hand-maintained Chu Nom edit
+that changes `vnedict2.json` (the merge script), the same way you would
 rerun `make rebuild-userscripts`:
 
 ```sh
@@ -25,9 +25,8 @@ make rebuild-extension-vnedict-json
 The target folds in the hand-maintained `zd-extension/db_src/user_nom_entries/` shard store the
 same way both userscript builders do -- its renderings lead lower-priority candidates while its
 explanations follow the existing glosses -- and then applies `user_nom_order.jsonc` as the
-final override. Without that fold an entry added by
-`/add-chu-nom` reaches the two userscripts and stays invisible in the extension, which reads
-only this generated file.
+final override. Without that fold an entry added to the shard store reaches the two userscripts
+and stays invisible on the website, which reads only this generated file.
 
 Hoisting from `user_nom_order.jsonc` preserves whole source rows. When a preferred rendering
 exists only inside a grouped cell (`巴|芭|𠀧|爸`), the build emits a separate exact row ahead of
@@ -140,6 +139,8 @@ make rebuild-userscripts
 
 ## Hand-maintained Chu Nom entries
 
-Use the `/add-chu-nom` command. `.codex/commands/add-chu-nom.md` is the canonical workflow
-document; `scripts/add-chu-nom.js` is the only writer. Never edit the dictionary data, the
-input queue, or the generated userscripts by hand for this workflow.
+Add or correct entries through the `zd-extension/db_src/user_nom_entries/` shard store (see
+`SHARDING.md` in that directory) and `user_nom_order.jsonc` — either the popup userscript's
+local mode (see [`docs/local-mode.md`](local-mode.md)) or the reader's own modals in the
+`book-translator` repo. After a change there, rebuild the userscripts and the website's
+runtime dictionary (`make rebuild-userscripts`, `make rebuild-extension-vnedict-json`).

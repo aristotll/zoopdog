@@ -7,7 +7,7 @@ Canonical specification for the `userscript-runtime-performance` capability, pro
 ## Requirements
 
 ### Requirement: Embedded data loads as parsed JSON strings
-The generated userscripts SHALL embed the popup dictionary and the nom-ruby term and case-sensitive maps as `JSON.parse` of a single JavaScript string literal, not as object literals, and `scripts/add-chu-nom/apply.js` SHALL still recover those maps from the generated files to verify approved keys.
+The generated userscripts SHALL embed the popup dictionary and the nom-ruby term and case-sensitive maps as `JSON.parse` of a single JavaScript string literal, not as object literals, and `scripts/lib/userscript.js`'s `extractAssignedJson` SHALL still recover those maps from the generated files.
 
 #### Scenario: Generated maps round-trip
 - **WHEN** a userscript is built and `extractAssignedJson` reads `NOM_MAP` and `ZOO_DICTIONARY` from it

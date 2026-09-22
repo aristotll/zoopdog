@@ -5,8 +5,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const {jsonParseLiteral} = require('../scripts/lib/userscript');
-const {extractAssignedJson} = require('../scripts/add-chu-nom/apply');
+const {jsonParseLiteral, extractAssignedJson} = require('../scripts/lib/userscript');
 
 const SAMPLE = {
   'kiểm tra': '檢查 / 檢查',

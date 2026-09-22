@@ -8,9 +8,8 @@ const FOLDERS_PER_ROOT = 8;
 const FILES_PER_FOLDER = SHARD_COUNT / FOLDERS_PER_ROOT;
 
 // Deterministic bucket for a `vi` term: SHA-256 of its normalized form, first 16 bits of the
-// digest mod 128. SHA-256 matches the hash primitive already used elsewhere in this repo
-// (`scripts/add-chu-nom/fsutil.js`'s `hashFile`) rather than introducing a second one, and 16
-// bits of entropy is far more than 128 buckets need while staying trivial to re-derive by hand.
+// digest mod 128. 16 bits of entropy is far more than 128 buckets need while staying trivial to
+// re-derive by hand.
 // This exact algorithm is also implemented independently in `book-translator` (Python) against
 // the shared fixture in `zd-extension/db_src/user_nom_entries/SHARDING.md` -- changing it here
 // without updating that fixture and the Python side breaks cross-repo agreement on which shard a

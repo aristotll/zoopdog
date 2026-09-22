@@ -6,8 +6,8 @@ repository** — the `book-translator` project's reader/TTS server
 <path-to-this-repo>/zd-extension/db_src`). When that server is reachable, the popup gains two
 extra actions on every looked-up term: **"+ Add Chữ Nôm"** and **"Set order"**, writing straight
 into this repo's `zd-extension/db_src/user_nom_entries/` shard store (128 CSV files, see
-`SHARDING.md` in that directory) and `user_nom_order.jsonc` — the same store `/add-chu-nom` and
-the reader's own modals write.
+`SHARDING.md` in that directory) and `user_nom_order.jsonc` — the same store the reader's own
+modals write.
 
 This file only covers the userscript side. The server, its routes, and its Notes-translation
 provider chain are documented in the other repository — see the cross-repo pointer at the
