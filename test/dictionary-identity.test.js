@@ -88,6 +88,43 @@ test('folds a plural/case variant regardless of which one appears first', () => 
   assert.deepEqual(groups[0].en, [{def: 'Rumors', pos: ''}]);
 });
 
+test('folds an infinitive gloss with a bare hand-maintained one despite differing pos tags', () => {
+  const groups = groupEntries([
+    {vn: 'mỉm cười', en: [{def: 'to smile', pos: 'verb'}]},
+    {vn: 'mỉm cười', en: [{def: 'smile', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'to smile', pos: 'verb'}]);
+});
+
+test('does not fold senses that carry two distinct, non-empty pos tags', () => {
+  const groups = groupEntries([
+    {vn: 'smile', en: [{def: 'smile', pos: 'noun'}, {def: 'to smile', pos: 'verb'}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'smile', pos: 'noun'},
+    {def: 'to smile', pos: 'verb'}
+  ]);
+});
+
+test('folds a shorter phrase into a synonym bundle that already contains it as a prefix', () => {
+  const groups = groupEntries([
+    {vn: 'về phía', en: [{def: 'on the side of, on the part of', pos: ''}]},
+    {vn: 'về phía', en: [{def: 'on the side', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'on the side of, on the part of', pos: ''}]);
+});
+
+test('folds an adverb sense into a synonym bundle that already contains its adjective form', () => {
+  const groups = groupEntries([
+    {vn: 'gần đây', en: [{def: 'last, previous, not far from here, recently', pos: ''}]},
+    {vn: 'gần đây', en: [{def: 'Recent', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'last, previous, not far from here, recently', pos: ''}]);
+});
+
 test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
   const groups = groupEntries([
     {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},
@@ -95,6 +132,79 @@ test('folds a plural sense into a comma-separated synonym bundle that already co
   ]);
   assert.equal(groups.length, 1);
   assert.deepEqual(groups[0].en, [{def: 'other, different person, people', pos: ''}]);
+});
+
+test('keeps a multi-synonym bundle intact instead of collapsing it to one longer redundant sense', () => {
+  const groups = groupEntries([
+    {vn: 'e', en: [{def: 'to fear, be afraid, be shy', pos: 'verb'}]},
+    {vn: 'e', en: [
+      {def: 'to fear', pos: ''},
+      {def: 'be afraid', pos: ''},
+      {def: "be shy (vnedict2.json's own recorded rendering)", pos: ''}
+    ]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'to fear, be afraid, be shy', pos: 'verb'}]);
+});
+
+test('folds a lone generic word into a longer sense once the group has enough other senses', () => {
+  const groups = groupEntries([
+    {vn: 'không phải', en: [
+      {def: '空沛', pos: ''},
+      {def: 'there is not, there are not', pos: ''},
+      {def: 'not correct', pos: ''}
+    ]},
+    {vn: 'không phải', en: [{def: 'not', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '空沛', pos: ''},
+    {def: 'there is not, there are not', pos: ''},
+    {def: 'not correct', pos: ''}
+  ]);
+});
+
+test('does not fold a word at the end of an unrelated phrase even with enough other senses', () => {
+  const groups = groupEntries([
+    {vn: 'rõ', en: [
+      {def: '𤑟', pos: ''},
+      {def: '𠓑', pos: ''},
+      {def: '𤍊', pos: ''},
+      {def: 'clear, distinct', pos: ''},
+      {def: 'clearly, distinctly', pos: ''},
+      {def: 'to know well, understand clearly', pos: 'verb'}
+    ]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '𤑟', pos: ''},
+    {def: '𠓑', pos: ''},
+    {def: '𤍊', pos: ''},
+    {def: 'clearly, distinctly', pos: ''},
+    {def: 'to know well, understand clearly', pos: 'verb'}
+  ]);
+});
+
+test('does not fold a lone generic word into a longer sense when the group has too few other senses', () => {
+  const groups = groupEntries([
+    {vn: 'không đúng', en: [{def: 'not correct', pos: ''}]},
+    {vn: 'không đúng', en: [{def: 'not', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'not correct', pos: ''},
+    {def: 'not', pos: ''}
+  ]);
+});
+
+test('does not fold a short word into an unrelated longer phrase that starts with it', () => {
+  const groups = groupEntries([
+    {vn: 'đi', en: [{def: 'to go', pos: 'v'}]},
+    {vn: 'đi', en: [{def: 'go away (imperative)', pos: 'v'}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'to go', pos: 'v'},
+    {def: 'go away (imperative)', pos: 'v'}
+  ]);
 });
 
 test('does not fold unrelated definitions that merely share characters', () => {

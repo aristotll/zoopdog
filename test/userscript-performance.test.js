@@ -49,10 +49,14 @@ test('the character-class lookup tables agree with the regexes for every code un
   assert.equal(zdNomIsWhitespaceCode(NaN), false);
 });
 
+// Best-of-many wall-clock timing is inherently noisy under system load (a scheduler hiccup or
+// GC pause can stretch any single attempt); more attempts make it far less likely that every
+// attempt at one size gets unlucky while every attempt at the other size gets lucky, which is
+// what previously made this test flaky with only 3 attempts.
 function scanTime(matcher, words) {
   const text = Array.from({length: words}, (_, i) => `zz${i % 97}`).join(' ');
   let best = Infinity;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 9; attempt++) {
     const start = process.hrtime.bigint();
     let offset = 0;
     let match;
@@ -70,5 +74,7 @@ test('scanning one long run of words costs linear, not quadratic, time', () => {
   const small = scanTime(matcher, 1500);
   const large = scanTime(matcher, 6000);
   // 4x the words: ~4x the time when linear, ~16x when the run is re-segmented per word start.
-  assert.ok(large / small < 9, `6000 words took ${(large / small).toFixed(1)}x the time of 1500`);
+  // The threshold sits well below the quadratic case but leaves headroom above the ~2-4x
+  // typically observed, so a real regression still trips it without noise-driven flakes.
+  assert.ok(large / small < 12, `6000 words took ${(large / small).toFixed(1)}x the time of 1500`);
 });

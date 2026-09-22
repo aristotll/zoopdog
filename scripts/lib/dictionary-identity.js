@@ -36,27 +36,118 @@ function synonymTokens(def) {
   return def.split(',').map((token) => token.trim()).filter(Boolean);
 }
 
-// Case-insensitive equality, or a regular "s"/"es" plural relationship between the two --
-// e.g. "rumor"/"Rumors" and "other"/"others" match, but "ba"/"Cuba" and "an"/"Iran" do not,
-// because those pairs are never actually the same word with a plural suffix appended.
-function isPluralVariant(x, y) {
-  const lx = x.toLowerCase();
-  const ly = y.toLowerCase();
-  return lx === ly || `${lx}s` === ly || `${lx}es` === ly || `${ly}s` === lx || `${ly}es` === lx;
+// Strips a leading English infinitive marker ("to ") so "to smile" and "smile" compare equal --
+// vnedict2.json glosses a verb as "to <verb>" while a hand-maintained explain column tends to
+// give the bare word.
+function stripToPrefix(word) {
+  return word.replace(/^to\s+/i, '');
 }
 
-// True when some synonym token of `a` and some synonym token of `b` are the same word modulo
-// case or a plural suffix (see `isPluralVariant`) -- e.g. "others" is redundant with
-// "other, different person, people" because "other" is one of its bundled synonyms. Restricted
-// to plain ASCII text (see `isAsciiText`) so Chu Nom/CJK renderings are never folded.
-function isRedundantVariant(a, b) {
+// True when `token` is a multi-word phrase rather than a single word. Phrase containment (see
+// below) is trustworthy for multi-word needles unconditionally: a single short word like "go"
+// is often the first word of an unrelated, longer phrase ("go away (imperative)"), so folding
+// on single-word containment alone risks false positives that a multi-word phrase does not --
+// see `allowSingleWordContainment` for the narrower case where it is still worth the risk.
+function isMultiWord(token) {
+  return /\s/.test(token.trim());
+}
+
+// Case-insensitive, word-boundary containment: true when `needle` occurs inside `haystack` as
+// one or more whole words (bounded by non-alphanumeric characters or the string ends),
+// optionally followed by a plural "s"/"es" suffix -- e.g. "on the side" is contained in
+// "on the side of".
+function containsAsPhrase(haystack, needle) {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escaped}(es|s)?($|[^a-zA-Z0-9])`, 'i');
+  return pattern.test(haystack);
+}
+
+// Like `containsAsPhrase`, but only matches at the very start of `haystack` -- e.g. "not" is a
+// prefix of "not correct", but "clearly" is NOT a prefix of "understand clearly" (it is the last
+// word, modifying "understand", not a standalone gloss). Restricting a single-word needle to the
+// prefix position is what keeps that second case from being folded away: a word at the end of an
+// unrelated longer phrase is far more likely to be a modifier of that phrase's own head word
+// than a genuine restatement of it.
+function containsAsPrefixWord(haystack, needle) {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escaped}(es|s)?($|[^a-zA-Z0-9])`, 'i');
+  return pattern.test(haystack);
+}
+
+// Regular English suffixes that turn one word into a related one without changing its core
+// meaning enough to count as a different gloss: plural "s"/"es" ("rumor"/"Rumors") and the
+// adjective-to-adverb "ly" ("recent"/"Recently").
+const RELATED_WORD_SUFFIXES = ['s', 'es', 'ly'];
+
+// True when `root` plus a suffix from `RELATED_WORD_SUFFIXES` equals `variant`.
+function isSuffixedFormOf(root, variant) {
+  return RELATED_WORD_SUFFIXES.some((suffix) => `${root}${suffix}` === variant);
+}
+
+// True when two synonym tokens are effectively the same gloss: equal modulo case, a regular
+// suffix relationship between the two (see `isSuffixedFormOf`), or one is a phrase wholly
+// contained in the other -- each check runs after stripping a leading "to " infinitive marker
+// from both sides. A multi-word needle is checked at any position (see `containsAsPhrase`; e.g.
+// "on the side" in "on the side of"). A single-word needle is far riskier -- it is only checked
+// when `allowSingleWordContainment` says the surrounding group already has enough other senses
+// that dropping one generic word is unlikely to lose real meaning, and even then only at the
+// prefix position (see `containsAsPrefixWord`), so "not" folds into "not correct" but "clearly"
+// does not fold into "understand clearly" (there it is a modifier of "understand", not a
+// restatement of "clearly, distinctly").
+function isSynonymMatch(x, y, allowSingleWordContainment) {
+  const nx = stripToPrefix(x.toLowerCase());
+  const ny = stripToPrefix(y.toLowerCase());
+  if (nx === ny || isSuffixedFormOf(nx, ny) || isSuffixedFormOf(ny, nx)) {
+    return true;
+  }
+  if (isMultiWord(ny) && containsAsPhrase(nx, ny)) {
+    return true;
+  }
+  if (isMultiWord(nx) && containsAsPhrase(ny, nx)) {
+    return true;
+  }
+  if (!allowSingleWordContainment) {
+    return false;
+  }
+  if (!isMultiWord(ny) && containsAsPrefixWord(nx, ny)) {
+    return true;
+  }
+  return !isMultiWord(nx) && containsAsPrefixWord(ny, nx);
+}
+
+// True when some synonym token of `a` and some synonym token of `b` are the same gloss modulo
+// case, a plural suffix, or phrase containment (see `isSynonymMatch`) -- e.g. "others" is
+// redundant with "other, different person, people" because "other" is one of its bundled
+// synonyms, and "on the side" is redundant with "on the side of, on the part of" because it is
+// a prefix of the first bundled synonym. Restricted to plain ASCII text (see `isAsciiText`) so
+// Chu Nom/CJK renderings are never folded.
+//
+// `allowSingleWordContainment` extends that containment check to single-word needles too (e.g.
+// "not" folds into "not correct") -- callers only pass true once a group already has several
+// other senses for the same headword, so a lone short word like "đi" -> "go" is never at risk of
+// being swallowed by an unrelated "go away (imperative)" sense that happens to start with it.
+function isRedundantVariant(a, b, allowSingleWordContainment) {
   if (!isAsciiText(a) || !isAsciiText(b)) {
     return false;
   }
   const tokensA = synonymTokens(a);
   const tokensB = synonymTokens(b);
-  return tokensA.some((tokenA) => tokensB.some((tokenB) => isPluralVariant(tokenA, tokenB)));
+  return tokensA.some((tokenA) =>
+    tokensB.some((tokenB) => isSynonymMatch(tokenA, tokenB, allowSingleWordContainment))
+  );
 }
+
+// Two senses are eligible to fold together when their pos tags agree, or either side simply
+// has none recorded -- an empty pos never asserts "this is a different part of speech", so it
+// must not block folding a bare hand-maintained gloss (pos "") into vnedict2.json's tagged one
+// (e.g. "smile" folds into the existing "to smile" (pos "verb")). Two distinct non-empty tags
+// (e.g. "n" vs "v") still keep their senses apart.
+function posCompatible(a, b) {
+  return a === b || a === '' || b === '';
+}
+
+// See `allowSingleWordContainment` on `isRedundantVariant`.
+const MIN_SENSES_FOR_SINGLE_WORD_FOLD = 3;
 
 function assertSourceEntries(entries) {
   if (!Array.isArray(entries)) {
@@ -124,17 +215,35 @@ function groupEntries(sourceEntries) {
         continue;
       }
 
-      // Fold plural/case variants of an already-kept sense (same pos) into a single entry,
-      // keeping whichever text is longer -- e.g. "rumor" and "Rumors" collapse to "Rumors".
+      // A group with several senses already (e.g. a Nom rendering plus two or more distinct
+      // English glosses) can afford to fold a lone generic word like "not" into a longer sense
+      // that already contains it ("not correct") -- see `isRedundantVariant`'s
+      // `allowSingleWordContainment` parameter for the "go"/"go away (imperative)" false
+      // positive this stays off for otherwise.
+      const allowSingleWordContainment = group.senseOrder.length >= MIN_SENSES_FOR_SINGLE_WORD_FOLD;
+
+      // Fold plural/case variants of an already-kept, pos-compatible sense into a single entry,
+      // keeping whichever text carries more bundled synonyms (see `synonymTokens`) -- e.g.
+      // "other, different person, people" (3) beats "others" (1) even though it isn't the
+      // longer string by some other measure, so a single matching token never lets a shorter
+      // bundle evict a richer one. Ties (most commonly two single-token defs, e.g.
+      // "rumor"/"Rumors") fall back to raw text length. Whichever pos tag is non-empty wins,
+      // since an empty tag carries no information to keep.
       const variantIndex = group.senseOrder.findIndex(
-        (sense) => sense.pos === pos && isRedundantVariant(sense.def, def)
+        (sense) => posCompatible(sense.pos, pos)
+          && isRedundantVariant(sense.def, def, allowSingleWordContainment)
       );
       if (variantIndex !== -1) {
         const existing = group.senseOrder[variantIndex];
         group.senseSeen.add(senseKey);
-        if (def.length > existing.def.length) {
-          group.senseOrder[variantIndex] = {def, pos, headword};
-        }
+        const richnessDef = synonymTokens(def).length;
+        const richnessExisting = synonymTokens(existing.def).length;
+        const defWins = richnessDef !== richnessExisting
+          ? richnessDef > richnessExisting
+          : def.length > existing.def.length;
+        const mergedDef = defWins ? def : existing.def;
+        const mergedPos = existing.pos !== '' ? existing.pos : pos;
+        group.senseOrder[variantIndex] = {def: mergedDef, pos: mergedPos, headword: existing.headword};
         continue;
       }
 
@@ -181,11 +290,12 @@ function verifyLossless(sourceEntries, groups) {
 
   for (const [key, expectedList] of expected) {
     const actualList = actualByKey.get(key) || [];
+    const allowSingleWordContainment = actualList.length >= MIN_SENSES_FOR_SINGLE_WORD_FOLD;
     for (const {def, pos} of expectedList) {
       const senseKey = definitionKey(def, pos);
       const reachable = actualList.some((sense) =>
-        sense.pos === pos
-          && (definitionKey(sense.def, sense.pos) === senseKey || isRedundantVariant(sense.def, def))
+        definitionKey(sense.def, sense.pos) === senseKey
+          || (posCompatible(sense.pos, pos) && isRedundantVariant(sense.def, def, allowSingleWordContainment))
       );
       if (!reachable) {
         throw new Error(`Lossy grouping detected for key "${key}": missing sense ${senseKey}`);
