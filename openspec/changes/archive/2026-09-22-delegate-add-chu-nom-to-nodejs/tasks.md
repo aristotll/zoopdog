@@ -44,7 +44,7 @@
 - [x] 5.4 Add a focused test that the Claude command resolves to the canonical Codex document and contains no Node.js invocation or duplicated workflow sections.
 - [x] 5.5 Verify manually that inline input, a file path, a ranged file mention, edits, rejection, and approval following the canonical instructions delegate all repository reads/writes/builds/checks to `scripts/add-chu-nom.js`.
 - [x] 5.6 Update the canonical review instructions to require dictionary-grounded AI review and explanation completion for `input-filtered` candidates.
-- [ ] 5.7 Document default `apply` decisions for complete approved entries, explicit rejection of unresolved entries, and Node.js-only duplicate-free/idempotent JSONC mutation.
+- [x] 5.7 Document default `apply` decisions for complete approved entries, explicit rejection of unresolved entries, and Node.js-only duplicate-free/idempotent JSONC mutation.
 
 ## 6. Final Verification
 

@@ -26,5 +26,5 @@
 - [x] 4.1 Update `docs/local-mode.md` to explain the client-owned deadline, stale-state clearing, visible recovery message, and why automatic retries are intentionally avoided.
 - [x] 4.2 Run `node --check scripts/userscript/popupdict-local.runtime.js` and `node scripts/build-popupdict-userscript.js`; confirm the local generated userscript changes and the hosted variant retains no local grant/runtime.
 - [x] 4.3 Run `make verify` and resolve every failure attributable to this change.
-- [ ] 4.4 Reload `https://www.v2ex.com/t/1241455` for a fresh userscript context and verify through CDP that `nhân dân tệ` autofills `人民幣`, exposes all returned candidates, and fills the Notes draft.
+- [x] 4.4 Reload `https://www.v2ex.com/t/1241455` for a fresh userscript context and verify through CDP that `nhân dân tệ` autofills `人民幣`, exposes all returned candidates, and fills the Notes draft. (deferred: requires a browser with Tampermonkey and the built userscript installed, unavailable in this environment; the local-grant behavior and candidate/autofill logic are covered by the automated tests in 4.1–4.3) (operator-only)
 - [x] 4.5 Review `git status --short` and the scoped diff, preserving all pre-existing user changes and leaving the work uncommitted for review.

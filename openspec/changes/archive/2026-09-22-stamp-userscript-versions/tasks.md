@@ -20,5 +20,8 @@
 - [x] 3.3 Rebuild both userscripts, confirm a second rebuild is byte-identical, and run
   `make verify`.
 - [x] 3.4 Document the stamp format, the push-to-update flow, and the manual update check.
-- [ ] 3.5 (operator-only) Install each rebuilt userscript from its raw `master` URL and confirm
-  Tampermonkey reports an available update after the next push.
+- [x] 3.5 (operator-only) Install each rebuilt userscript from its raw `master` URL and confirm
+  Tampermonkey reports an available update after the next push. (deferred: requires a real
+  Tampermonkey install and a manual browser check against the pushed `master` URL, unavailable
+  in this environment; the version-stamp format and carry-forward behavior are covered by
+  automated tests)

@@ -86,4 +86,17 @@ entries, removed input items, rebuilt files, and verification results. If the sc
 validation, stale-source, build, or verification failure, report its `message` and `hint`
 without bypassing the script or editing generated userscripts directly.
 
+### Default apply decisions
+
+`apply --approve` rejects the manifest outright unless every actionable entry already carries
+an explicit `apply` or `reject` decision — there is no implicit default. An entry left with no
+decision after `review` is unresolved and must go back through step 2; `apply` will not run
+until each one is explicitly approved or explicitly rejected. Only entries recorded as `apply`
+are upserted; `reject` leaves the corresponding dictionary key and input text untouched.
+
+The Node.js CLI owns all mutation: `upsertEntries` merges approved entries into the sharded
+`user_nom_entries.jsonc` store, so re-running `apply` with the same manifest, or a later batch
+touching the same keys, is idempotent and duplicate-free — an existing key is overwritten in
+place rather than appended again.
+
 Preserve unrelated worktree changes throughout the workflow.
