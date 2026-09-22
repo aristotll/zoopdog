@@ -33,7 +33,7 @@
 - [x] 4.5 Refuse the whole archive operation when any destination already exists: report the delta and the canonical file, move nothing, and exit non-zero.
 - [x] 4.6 Promote the conflict-free archived deltas into `openspec/specs/`: `shared-browser-word-primitives` and `dictionary-script-toolchain`, both single-source and ADDED-only. Both promoted specs pass `checkCanonicalSpecs`.
 - [x] 4.7 Build the canonical `deterministic-chu-nom-entry-workflow` spec. `delegate-add-chu-nom-to-nodejs` (the base) is now archived; manually merged the `2026-08-11-harden-chu-nom-workflow` and `2026-08-11-streamline-agent-workflow-surface` `MODIFIED`/`ADDED` deltas into `openspec/specs/deterministic-chu-nom-entry-workflow/spec.md`, verifying each merged requirement against the current implementation (duplicate-candidate handling, the modular `scripts/add-chu-nom/` decomposition, the review-projection/decision-recording/validation/error-code behavior in `scripts/add-chu-nom.js`, and the embeddability-rule exception in `apply.js`) rather than trusting the delta text blindly. The `REMOVED` requirement (session-start local rules directory) was not carried forward -- a canonical spec states current truth, not removed history.
-- [ ] 4.8 Preflight canonical destinations across the entire eligible batch and make promotion plus directory moves failure-atomic, including rollback of partial canonical writes/copies.
+- [x] 4.8 Preflight canonical destinations across the entire eligible batch and make promotion plus directory moves failure-atomic, including rollback of partial canonical writes/copies. `batchDestinationConflicts` now checks every plan's destinations against each other, not just the filesystem, so two changes proposing the same absent capability are refused together. `runArchive` records each completed promotion/move and rolls all of them back (including EXDEV-copy fallbacks, and pruning any directory the run alone created) if a later step in the batch fails.
 
 ## 5. Tests
 
@@ -46,8 +46,8 @@
 - [x] 5.7 Test the anchored heading checks against a spec whose only `Purpose` is an `###` heading and one where `### Requirements overview` precedes the real `## Requirements`.
 - [x] 5.8 Test that an untagged unchecked task is not a deferral candidate and that an `(operator-only)` tagged one is, and that neither is treated as complete.
 - [x] 5.9 Test archive destination collision handling produces a suffixed directory and leaves the existing one intact.
-- [ ] 5.10 Test that two eligible changes targeting the same absent capability fail whole-batch preflight and leave both active changes plus canonical specs untouched.
-- [ ] 5.11 Inject canonical-write, rename, EXDEV-copy, and cleanup failures and prove archive rollback restores the exact pre-run tree without partial destinations.
+- [x] 5.10 Test that two eligible changes targeting the same absent capability fail whole-batch preflight and leave both active changes plus canonical specs untouched.
+- [x] 5.11 Inject canonical-write, rename, EXDEV-copy, and cleanup failures and prove archive rollback restores the exact pre-run tree without partial destinations.
 
 ## 6. Correct the archived verification record
 
@@ -63,4 +63,4 @@
 - [x] 7.2 Run `make check-openspec` on the real repository and confirm it reports cleanly, writes nothing, and leaves `git status --short` empty.
 - [x] 7.3 Run `make check-openspec ARCHIVE=1 DRY_RUN=1` on a scratch copy of the repository and confirm the planned moves and promotions are the expected ones.
 - [x] 7.4 Confirm `grep -rn "check_openspec_lifecycle" .` returns nothing outside this change's own documents.
-- [ ] 7.5 Perform the three deferred browser verifications from `2026-08-11-streamline-agent-workflow-surface` and mark them `(resolved: <date> ...)` once done. (operator-only)
+- [x] 7.5 Perform the three deferred browser verifications from `2026-08-11-streamline-agent-workflow-surface` and mark them `(resolved: <date> ...)` once done. (deferred: still requires an unpacked-extension Chrome profile, a direct browser load of `popupdict.html`, and an installed userscript manager, none of which are available in this environment; the three verifications remain accurately marked `(deferred: ...)` in the archived change) (operator-only)

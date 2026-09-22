@@ -367,26 +367,103 @@ function archivePlan(root, changes, stamp) {
   }));
 }
 
-function runArchive(root, plans, {dryRun}) {
+// Every destination a batch would write to or move a change directory to, checked against
+// both the filesystem (an already-existing canonical spec, an already-archived change) and
+// every other plan in the same batch -- two eligible changes proposing the same absent
+// capability would otherwise both pass the filesystem check (neither destination exists yet
+// when it runs) and the second write would silently clobber the first during execution.
+function batchDestinationConflicts(plans) {
+  const seenBy = new Map();
+  const conflicts = [];
+  const record = (destination, source, kind) => {
+    if (fs.existsSync(destination)) {
+      conflicts.push({source, destination, kind, reason: 'already exists'});
+      return;
+    }
+    const prior = seenBy.get(destination);
+    if (prior) {
+      conflicts.push({source, destination, kind, reason: `also targeted by ${rel(repoPaths.rootDir, prior)}`});
+      return;
+    }
+    seenBy.set(destination, source);
+  };
   for (const {change, destination, promotions} of plans) {
-    for (const {capability, delta, destination: specPath} of promotions) {
-      if (dryRun) {
+    for (const {delta, destination: specPath} of promotions) {
+      record(specPath, delta, 'promotion');
+    }
+    record(destination, change.dir, 'archive-move');
+  }
+  return conflicts;
+}
+
+// Applies every promotion write and directory move in the batch, recording each completed
+// step so a failure partway through can be undone in reverse -- the batch is total or absent,
+// never a partial archive with some changes moved and others not, or some canonical specs
+// written and others missing.
+function runArchive(root, plans, {dryRun}) {
+  if (dryRun) {
+    for (const {change, destination, promotions} of plans) {
+      for (const {delta, destination: specPath} of promotions) {
         console.log(`Would promote ${rel(root, delta)} -> ${rel(root, specPath)}`);
-        continue;
       }
-      fs.mkdirSync(path.dirname(specPath), {recursive: true});
-      fs.writeFileSync(specPath, promoteDeltaText(
-        fs.readFileSync(delta, 'utf8'),
-        {capability, changeName: change.name}
-      ));
-      console.log(`Promoted spec delta to ${rel(root, specPath)}`);
-    }
-    if (dryRun) {
       console.log(`Would archive ${rel(root, change.dir)} -> ${rel(root, destination)}`);
-      continue;
     }
-    moveDirectory(change.dir, destination);
-    console.log(`Archived completed OpenSpec change: ${rel(root, destination)}`);
+    return;
+  }
+
+  // Removes `dir` and then each now-empty parent, up to and including `stopAt` itself but
+  // never above it, so a rollback leaves no directory behind that this run alone created.
+  const pruneEmptyAncestors = (dir, stopAt) => {
+    let current = dir;
+    while (current === stopAt || current.startsWith(`${stopAt}${path.sep}`)) {
+      if (!fs.existsSync(current) || fs.readdirSync(current).length > 0) {
+        return;
+      }
+      fs.rmdirSync(current);
+      if (current === stopAt) {
+        return;
+      }
+      current = path.dirname(current);
+    }
+  };
+
+  const completed = [];
+  const rollback = () => {
+    for (const step of completed.reverse()) {
+      try {
+        if (step.kind === 'promotion') {
+          fs.rmSync(step.specPath, {force: true});
+          pruneEmptyAncestors(path.dirname(step.specPath), repoPaths.resolveIn(root, 'openspecSpecs'));
+        } else {
+          moveDirectory(step.destination, step.source);
+          pruneEmptyAncestors(path.dirname(step.destination), repoPaths.resolveIn(root, 'openspecArchive'));
+        }
+      } catch (rollbackError) {
+        console.error(`Rollback step failed for ${step.kind} at ${rel(root, step.specPath || step.destination)}: ${rollbackError.message}`);
+      }
+    }
+  };
+
+  try {
+    for (const {change, destination, promotions} of plans) {
+      for (const {capability, delta, destination: specPath} of promotions) {
+        fs.mkdirSync(path.dirname(specPath), {recursive: true});
+        fs.writeFileSync(specPath, promoteDeltaText(
+          fs.readFileSync(delta, 'utf8'),
+          {capability, changeName: change.name}
+        ));
+        completed.push({kind: 'promotion', specPath});
+        console.log(`Promoted spec delta to ${rel(root, specPath)}`);
+      }
+      moveDirectory(change.dir, destination);
+      completed.push({kind: 'archive-move', source: change.dir, destination});
+      console.log(`Archived completed OpenSpec change: ${rel(root, destination)}`);
+    }
+  } catch (error) {
+    console.error(`Archive step failed: ${error.message}`);
+    console.error('Rolling back the batch to its pre-archive state...');
+    rollback();
+    throw error;
   }
 }
 
@@ -440,18 +517,21 @@ function run(argv, root = repoPaths.rootDir) {
 
   if (values.archive) {
     const plans = archivePlan(base, eligible, todayStamp());
-    const conflicts = plans.flatMap(({promotions}) =>
-      promotions.filter(({destination}) => fs.existsSync(destination)));
+    const conflicts = batchDestinationConflicts(plans);
 
     if (conflicts.length > 0) {
-      console.error('Refusing to archive: a canonical spec already exists for a promoted delta.');
-      for (const {delta, destination} of conflicts) {
-        console.error(`  ${rel(base, delta)} -> ${rel(base, destination)} (already exists)`);
+      console.error('Refusing to archive: destination conflicts found across the batch.');
+      for (const {source, destination, reason} of conflicts) {
+        console.error(`  ${rel(base, source)} -> ${rel(base, destination)} (${reason})`);
       }
-      console.error('  Merge the delta into the canonical spec by hand, then re-run.');
+      console.error('  Merge the delta into the canonical spec by hand, or resolve the batch, then re-run.');
       return 1;
     }
-    runArchive(base, plans, {dryRun: values['dry-run']});
+    try {
+      runArchive(base, plans, {dryRun: values['dry-run']});
+    } catch (_error) {
+      return 1;
+    }
   } else {
     for (const change of eligible) {
       console.log(`Archive-eligible: ${change.name}`);
@@ -511,6 +591,9 @@ module.exports = {
   operatorQueue,
   lifecycleReport,
   archiveDestination,
+  archivePlan,
+  batchDestinationConflicts,
+  runArchive,
   todayStamp,
   run
 };

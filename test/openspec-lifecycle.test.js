@@ -268,6 +268,96 @@ test('an existing canonical spec is never clobbered and blocks the archive', (t)
   assert.deepEqual(snapshot(root), before, 'a refused archive moves and writes nothing');
 });
 
+test('two eligible changes targeting the same absent capability fail whole-batch preflight', (t) => {
+  const root = makeRoot(t);
+  makeChange(root, 'first-change', {capability: 'shared-capability'});
+  makeChange(root, 'second-change', {capability: 'shared-capability'});
+  const before = snapshot(root);
+
+  const {status, output} = runCli(root, ['--archive']);
+
+  assert.equal(status, 1);
+  assert.match(output, /Refusing to archive: destination conflicts found across the batch/);
+  assert.match(output, /openspec\/specs\/shared-capability\/spec\.md \(also targeted by/);
+  assert.deepEqual(snapshot(root), before,
+    'neither active change directory nor any canonical spec is touched when the batch is refused');
+});
+
+test('an injected failure partway through a batch rolls back every completed step', (t) => {
+  const root = makeRoot(t);
+  makeChange(root, 'aaa-first-change', {capability: 'aaa-capability'});
+  makeChange(root, 'zzz-second-change', {capability: 'zzz-capability'});
+  const before = snapshot(root);
+
+  const report = lifecycle.lifecycleReport(root);
+  const eligible = report.changes.filter((change) => change.eligible);
+  assert.equal(eligible.length, 2);
+  const plans = lifecycle.archivePlan(root, eligible, lifecycle.todayStamp());
+  assert.deepEqual(lifecycle.batchDestinationConflicts(plans), []);
+
+  // The first change in the (alphabetically first) plan promotes and moves successfully;
+  // the second's directory move is made to fail after its own promotion already landed, to
+  // prove rollback undoes every completed step across the whole batch, not just the one that
+  // failed.
+  const realRename = fs.renameSync;
+  let renameCalls = 0;
+  fs.renameSync = (...args) => {
+    renameCalls += 1;
+    if (renameCalls === 2) {
+      throw new Error('injected move failure');
+    }
+    return realRename(...args);
+  };
+
+  try {
+    assert.throws(() => lifecycle.runArchive(root, plans, {dryRun: false}), /injected move failure/);
+  } finally {
+    fs.renameSync = realRename;
+  }
+
+  assert.deepEqual(snapshot(root), before,
+    'a mid-batch failure restores the exact pre-archive tree: no change stays half-moved and no canonical spec is left behind');
+});
+
+test('an EXDEV rename falls back to copy, and a failure in that fallback still rolls back the batch', (t) => {
+  const root = makeRoot(t);
+  makeChange(root, 'aaa-first-change', {capability: 'aaa-capability'});
+  makeChange(root, 'zzz-second-change', {capability: 'zzz-capability'});
+  const before = snapshot(root);
+
+  const report = lifecycle.lifecycleReport(root);
+  const plans = lifecycle.archivePlan(root, report.changes.filter((c) => c.eligible), lifecycle.todayStamp());
+
+  const realRename = fs.renameSync;
+  const realCpSync = fs.cpSync;
+  let renameCalls = 0;
+  let cpCalls = 0;
+  fs.renameSync = (...args) => {
+    renameCalls += 1;
+    if (renameCalls === 2) {
+      const error = new Error('cross-device link');
+      error.code = 'EXDEV';
+      throw error;
+    }
+    return realRename(...args);
+  };
+  fs.cpSync = (...args) => {
+    cpCalls += 1;
+    throw new Error('injected copy failure');
+  };
+
+  try {
+    assert.throws(() => lifecycle.runArchive(root, plans, {dryRun: false}), /injected copy failure/);
+  } finally {
+    fs.renameSync = realRename;
+    fs.cpSync = realCpSync;
+  }
+
+  assert.equal(cpCalls, 1, 'the EXDEV fallback was actually exercised');
+  assert.deepEqual(snapshot(root), before,
+    'a failure inside the EXDEV copy-then-remove fallback also rolls back the whole batch');
+});
+
 test('canonical heading checks are anchored and depth-independent', (t) => {
   const root = makeRoot(t);
 
