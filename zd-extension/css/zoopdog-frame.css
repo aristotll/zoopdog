@@ -50,6 +50,11 @@ html {
   padding: 2px 4px;
   border-radius: 5px 5px 5px 5px;
 }
+#zoopdog-popup-body ul li .zoopdog-headword {
+  color: #5bb1b7;
+  font-style: italic;
+  margin-right: 4px;
+}
 .zd-definition:not(:last-child) ul {
   border-bottom: 1px solid #5bb1b7;
   padding-bottom: 20px !important;

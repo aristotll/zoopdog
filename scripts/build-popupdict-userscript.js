@@ -7,9 +7,10 @@ const {
   toDictionaryEntries
 } = require('./user-nom-entries');
 const {readUserNomOrder, applyUserNomOrderToDefinitions} = require('./user-nom-order');
-const {cleanText, normalizeTerm} = require('./lib/text');
+const {normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
-const {definitionKey, readJson} = require('./lib/sources');
+const {readJson} = require('./lib/sources');
+const {groupEntries} = require('./lib/dictionary-identity');
 const repoPaths = require('./lib/paths');
 const {
   readRuntime,
@@ -43,53 +44,29 @@ function isCjkDefinition(definition) {
   return cjkPattern.test(definition[0]) && !/[A-Za-z]/.test(definition[0]);
 }
 
+// Grouping/collision resolution is centralized in scripts/lib/dictionary-identity.js so this
+// builder and the extension's (scripts/build-extension-vnedict-json.js) can never disagree
+// about which normalized key a headword collision like `Ba Lê` / `ba lê` belongs to, or which
+// senses survive it. What stays private to this builder is presentation: floating CJK-only
+// (Chu Nom) definitions ahead of glosses, and the userscript's compact array encoding --
+// `dictionary[key] = [[headwords, senses]]`, where each sense is `[def, pos]` or
+// `[def, pos, headword]` (headword present only when it differs from `headwords[0]`).
 function buildDictionary(entries) {
   const dictionary = {};
   let maxWords = 1;
 
-  for (const entry of entries) {
-    const key = normalizeTerm(entry.vn);
+  for (const group of groupEntries(entries)) {
+    maxWords = Math.max(maxWords, group.key.split(/\s+/).length);
 
-    if (!key) {
-      continue;
-    }
+    const asTuple = (sense) => (sense.headword
+      ? [sense.def, sense.pos, sense.headword]
+      : [sense.def, sense.pos]);
+    const isCjk = (sense) => isCjkDefinition([sense.def, sense.pos]);
 
-    maxWords = Math.max(maxWords, key.split(/\s+/).length);
+    const senses = group.en.filter(isCjk).map(asTuple)
+      .concat(group.en.filter((sense) => !isCjk(sense)).map(asTuple));
 
-    const definitions = (entry.en || [])
-      .map((item) => [
-        cleanText(item.def),
-        cleanText(item.pos)
-      ])
-      .filter((item) => item[0] || item[1]);
-
-    if (!dictionary[key]) {
-      dictionary[key] = [[cleanText(entry.vn), []]];
-    }
-
-    const existingDefinitions = dictionary[key][0][1];
-    const seenDefinitions = new Set(
-      existingDefinitions.map((item) => definitionKey(item[0], item[1]))
-    );
-
-    const orderedDefinitions = definitions.filter(isCjkDefinition).concat(
-      definitions.filter((definition) => !isCjkDefinition(definition))
-    );
-
-    for (const definition of orderedDefinitions) {
-      const defKey = definitionKey(definition[0], definition[1]);
-
-      if (seenDefinitions.has(defKey)) {
-        continue;
-      }
-
-      seenDefinitions.add(defKey);
-      if (isCjkDefinition(definition)) {
-        existingDefinitions.unshift(definition);
-      } else {
-        existingDefinitions.push(definition);
-      }
-    }
+    dictionary[group.key] = [[group.headwords, senses]];
   }
 
   return {dictionary, maxWords};

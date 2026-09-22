@@ -11,6 +11,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const {
   METADATA_SCHEMA_VERSION,
   buildMetadata,
+  groupEntries,
   mergeUserNomEntriesIntoEntries,
   serializeRuntimeDictionary,
   validateEntry
@@ -39,10 +40,10 @@ const {
 } = require('../zd-extension/js/zd-browser-runtime');
 
 test('runtime dictionary builder emits deterministic compact bytes and exact metadata', () => {
-  const entries = [
+  const entries = groupEntries([
     {vn: 'xin chào', en: [{def: 'hello', pos: 'int'}]},
     {vn: 'chó', en: [{def: 'dog', pos: ''}]}
-  ];
+  ]);
   const bytes = serializeRuntimeDictionary(entries);
   const again = serializeRuntimeDictionary(entries);
   const metadata = buildMetadata(bytes);
@@ -57,22 +58,35 @@ test('runtime dictionary builder emits deterministic compact bytes and exact met
 });
 
 test('runtime dictionary revision changes when content changes', () => {
-  const before = serializeRuntimeDictionary([
+  const before = serializeRuntimeDictionary(groupEntries([
     {vn: 'chó', en: [{def: 'dog', pos: ''}]}
-  ]);
-  const after = serializeRuntimeDictionary([
+  ]));
+  const after = serializeRuntimeDictionary(groupEntries([
     {vn: 'chó', en: [{def: 'hound', pos: ''}]}
-  ]);
+  ]));
 
   assert.notEqual(buildMetadata(before).revision, buildMetadata(after).revision);
 });
 
-test('runtime dictionary builder rejects malformed entries before writing', () => {
+test('runtime dictionary builder rejects malformed grouped rows before writing', () => {
   assert.throws(
-    () => serializeRuntimeDictionary([{vn: 'chó', en: [{def: 3, pos: ''}]}]),
-    /definition/i
+    () => serializeRuntimeDictionary([{key: 'chó', headwords: ['chó'], en: [{def: 3, pos: ''}]}]),
+    TypeError
   );
-  assert.throws(() => serializeRuntimeDictionary({vn: 'chó'}), /array/i);
+  assert.throws(() => serializeRuntimeDictionary([{vn: 'chó', en: []}]), TypeError);
+});
+
+test('groupEntries preserves both display variants on a capitalization collision', () => {
+  const groups = groupEntries([
+    {vn: 'Ba Lê', en: [{def: 'Paris (proper name)', pos: 'n'}]},
+    {vn: 'ba lê', en: [{def: 'ballet', pos: 'n'}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].headwords, ['Ba Lê', 'ba lê']);
+  assert.deepEqual(groups[0].en, [
+    {def: 'Paris (proper name)', pos: 'n'},
+    {def: 'ballet', pos: 'n', headword: 'ba lê'}
+  ]);
 });
 
 // The hand-maintained entries are the authority on a term's Chu Nom, and the extension is
@@ -159,12 +173,11 @@ test('the repository runtime dictionary carries the hand-maintained entries', ()
 
   const byKey = new Map();
   for (const entry of runtime) {
-    const key = entry.vn.normalize('NFC').toLocaleLowerCase('vi-VN').replace(/\s+/gu, ' ');
-    if (!byKey.has(key)) {
-      byKey.set(key, new Set());
+    if (!byKey.has(entry.key)) {
+      byKey.set(entry.key, new Set());
     }
     for (const item of entry.en) {
-      byKey.get(key).add(item.def);
+      byKey.get(entry.key).add(item.def);
     }
   }
 
@@ -177,7 +190,7 @@ test('the repository runtime dictionary carries the hand-maintained entries', ()
 });
 
 function fixtureBytes(definition = 'dog') {
-  return JSON.stringify([{vn: 'chó', en: [{def: definition, pos: ''}]}]);
+  return JSON.stringify(groupEntries([{vn: 'chó', en: [{def: definition, pos: ''}]}]));
 }
 
 function fixtureMetadata(bytes = fixtureBytes()) {
@@ -207,7 +220,7 @@ test('runtime metadata and payload validators reject wrong schema, count and ent
   const bytes = fixtureBytes();
   assert.deepEqual(validateMetadata(fixtureMetadata(bytes)), fixtureMetadata(bytes));
   assert.throws(
-    () => validateMetadata({...fixtureMetadata(bytes), schemaVersion: 2}),
+    () => validateMetadata({...fixtureMetadata(bytes), schemaVersion: 1}),
     (error) => error instanceof RuntimeError && error.code === ERRORS.METADATA_INVALID.code
   );
   assert.throws(
@@ -217,6 +230,11 @@ test('runtime metadata and payload validators reject wrong schema, count and ent
   assert.throws(
     () => parseDictionary('[{"vn":"chó","en":[{"def":3,"pos":""}]}]', fixtureMetadata(bytes)),
     (error) => error instanceof RuntimeError && error.code === ERRORS.PAYLOAD_INVALID.code
+  );
+  assert.throws(
+    () => parseDictionary('[{"vn":"chó","en":[]}]', fixtureMetadata(bytes)),
+    (error) => error instanceof RuntimeError && error.code === ERRORS.PAYLOAD_INVALID.code,
+    'the old per-headword {vn, en} shape must never be accepted as a grouped row'
   );
 });
 
@@ -340,6 +358,103 @@ test('digest mismatch blocks replacement while no-digest mode is explicit', asyn
   assert.equal(reducedResult.verification, 'shape-and-count');
 });
 
+// Task 4.3: an installed row still carrying schema-1 metadata (one row per source headword,
+// {vn, en}, no `key`/`headwords`) must never be treated as current -- it always triggers a
+// full replace rather than mixing schemas in the same table.
+test('a schema-1 installed database always upgrades to a schema-2 grouped replace', async () => {
+  const bytes = fixtureBytes();
+  const metadata = fixtureMetadata(bytes);
+  const legacyMetadata = {schemaVersion: 1, revision: metadata.revision, entryCount: 1};
+  const adapter = createAdapter({
+    metadata: legacyMetadata,
+    entries: [{vn: 'chó', en: [{def: 'dog', pos: ''}]}]
+  });
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => metadata,
+    fetchDictionaryText: async () => bytes,
+    digest: async () => metadata.revision
+  });
+
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.READY_REFRESHED);
+  assert.equal(adapter.state.replacements, 1);
+  assert.deepEqual(adapter.state.entries, JSON.parse(bytes));
+  assert.equal(adapter.state.metadata.schemaVersion, METADATA_SCHEMA_VERSION);
+});
+
+// Task 4.3: a collision lookup round-trips every headword and every tagged sense through the
+// exact wire format (JSON bytes + metadata) the coordinator validates.
+test('a normalized-key collision survives validation with every headword and tagged sense', async () => {
+  const groups = groupEntries([
+    {vn: 'Ba Lê', en: [{def: 'Paris (proper name)', pos: 'n'}]},
+    {vn: 'ba lê', en: [{def: 'ballet', pos: 'n'}]}
+  ]);
+  const bytes = serializeRuntimeDictionary(groups);
+  const metadata = buildMetadata(bytes);
+  const adapter = createAdapter();
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => metadata,
+    fetchDictionaryText: async () => bytes,
+    digest: async () => metadata.revision
+  });
+
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.READY_REFRESHED);
+  assert.equal(adapter.state.entries.length, 1);
+  const [entry] = adapter.state.entries;
+  assert.deepEqual(entry.headwords, ['Ba Lê', 'ba lê']);
+  assert.deepEqual(entry.en, [
+    {def: 'Paris (proper name)', pos: 'n'},
+    {def: 'ballet', pos: 'n', headword: 'ba lê'}
+  ]);
+});
+
+// Task 4.3: an ordinary (non-colliding) lookup carries exactly one headword and no `headword`
+// tag on any sense.
+test('an ordinary lookup carries one headword and no redundant sense tags', async () => {
+  const groups = groupEntries([{vn: 'nhà', en: [{def: 'house', pos: 'n'}]}]);
+  const bytes = serializeRuntimeDictionary(groups);
+  const metadata = buildMetadata(bytes);
+  const adapter = createAdapter();
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => metadata,
+    fetchDictionaryText: async () => bytes,
+    digest: async () => metadata.revision
+  });
+
+  await coordinator.ensureReady();
+  assert.deepEqual(adapter.state.entries, [
+    {key: 'nhà', headwords: ['nhà'], en: [{def: 'house', pos: 'n'}]}
+  ]);
+});
+
+// Task 4.3: the extension runtime builder and the popup-userscript builder must resolve the
+// same normalized-key collision to the same headwords and the same senses -- they both call
+// scripts/lib/dictionary-identity.js's groupEntries rather than keeping separate merge logic.
+test('the extension and popup-userscript builders agree on a collision fixture', () => {
+  const {buildDictionary} = require('../scripts/build-popupdict-userscript');
+  const fixture = [
+    {vn: 'Ba Lê', en: [{def: 'Paris (proper name)', pos: 'n'}]},
+    {vn: 'ba lê', en: [{def: 'ballet', pos: 'n'}]}
+  ];
+
+  const extensionGroups = groupEntries(fixture);
+  const {dictionary: popupDictionary} = buildDictionary(fixture);
+
+  assert.equal(extensionGroups.length, 1);
+  const [extensionGroup] = extensionGroups;
+  const [[popupHeadwords, popupSenses]] = popupDictionary[extensionGroup.key];
+
+  assert.deepEqual(popupHeadwords, extensionGroup.headwords);
+  assert.deepEqual(
+    popupSenses.map(([def, pos, headword]) => (headword ? {def, pos, headword} : {def, pos})),
+    extensionGroup.en
+  );
+});
+
 function createFakeDexie({entries, metadata, failBulkAdd = false}) {
   let rows = structuredClone(entries);
   let record = metadata ? {...metadata, key: 'dictionary'} : undefined;
@@ -439,7 +554,7 @@ test('extension popup exposes refresh state and disables reload while pending', 
 });
 
 function validResults() {
-  return [{vn: 'chó', en: [{def: 'dog', pos: 'noun'}]}];
+  return [{key: 'chó', headwords: ['chó'], en: [{def: 'dog', pos: 'noun'}]}];
 }
 
 test('popup protocol accepts only closed, bounded parent messages', () => {

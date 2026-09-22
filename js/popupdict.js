@@ -187,6 +187,14 @@ function initializePopupDictionary() {
     entries: '++,vn,en',
     metadata: '&key',
   })
+  // Schema v4: rows moved from one-per-source-headword ({vn, en}) to one grouped row per
+  // normalized key ({key, headwords, en}); see zd-dictionary-runtime.js's
+  // ZD_DICTIONARY_METADATA_SCHEMA_VERSION bump. `key` is the unique lookup identity; the
+  // multi-entry `*headwords` index lets a prefix/exact search match any display variant.
+  db.version(4).stores({
+    entries: '&key,*headwords',
+    metadata: '&key',
+  })
 
   const jsonURL = 'zd-extension/js/vnedict.json'
   const metadataURL = 'zd-extension/js/vnedict.meta.json'
@@ -357,19 +365,19 @@ function initializePopupDictionary() {
     }
 
     try {
-      const keysArray = await db.entries.where('vn').startsWithIgnoreCase(`${searchTerm} `).uniqueKeys()
+      const keysArray = await db.entries.where('headwords').startsWithIgnoreCase(`${searchTerm} `).uniqueKeys()
       if (!lookupTasks.isCurrent(task)) return false
       keysArray.sort((a, b) => b.length - a.length)
       const range = keysArray.length ? keysArray[0].split(' ').length : 1
       const candidates = generateCandidates(origin.context, range)
-      const results = await db.entries.where('vn').anyOfIgnoreCase(candidates).toArray()
+      const results = await db.entries.where('headwords').anyOfIgnoreCase(candidates).distinct().toArray()
       if (!lookupTasks.isCurrent(task)) return false
       if (!results.length) {
         oldWord = null
         return false
       }
-      results.sort((a, b) => b.vn.split(' ').length - a.vn.split(' ').length)
-      const numOfWordsToHighlight = results[0].vn.split(' ').length
+      results.sort((a, b) => b.headwords[0].split(' ').length - a.headwords[0].split(' ').length)
+      const numOfWordsToHighlight = results[0].headwords[0].split(' ').length
       await self.popup.inject()
       if (!lookupTasks.isCurrent(task)) return false
       self.highlighter.on(origin.node, origin.begin, numOfWordsToHighlight)

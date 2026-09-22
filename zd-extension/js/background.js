@@ -10,6 +10,11 @@ function createDb() {
   const db = new Dexie('entries');
   db.version(2).stores({entries: '++,vn,en'});
   db.version(3).stores({entries: '++,vn,en', metadata: '&key'});
+  // Schema v4: rows moved from one-per-source-headword ({vn, en}) to one grouped row per
+  // normalized key ({key, headwords, en}); see zd-dictionary-runtime.js's
+  // ZD_DICTIONARY_METADATA_SCHEMA_VERSION bump. `key` is the unique lookup identity; the
+  // multi-entry `*headwords` index lets a prefix/exact search match any display variant.
+  db.version(4).stores({entries: '&key,*headwords', metadata: '&key'});
   return db;
 }
 
@@ -103,14 +108,14 @@ async function handleMessage(message) {
 
   if (message.type === 'initial-search') {
     await ensureSearchReady();
-    const keys = await db.entries.where('vn').startsWithIgnoreCase(`${message.term} `).uniqueKeys();
+    const keys = await db.entries.where('headwords').startsWithIgnoreCase(`${message.term} `).uniqueKeys();
     keys.sort((a, b) => b.length - a.length);
     return {type: 'range', range: keys.length ? keys[0].split(' ').length : 1};
   }
   if (message.type === 'second-search') {
     await ensureSearchReady();
-    const results = await db.entries.where('vn').anyOfIgnoreCase(message.candidates || []).toArray();
-    results.sort((a, b) => b.vn.split(' ').length - a.vn.split(' ').length);
+    const results = await db.entries.where('headwords').anyOfIgnoreCase(message.candidates || []).distinct().toArray();
+    results.sort((a, b) => b.headwords[0].split(' ').length - a.headwords[0].split(' ').length);
     return {type: 'results', results};
   }
   if (message.type === 'reload-db') {

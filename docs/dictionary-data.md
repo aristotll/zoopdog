@@ -29,10 +29,51 @@ Hoisting from `user_nom_order.jsonc` preserves whole source rows. When a preferr
 exists only inside a grouped cell (`巴|芭|𠀧|爸`), the build emits a separate exact row ahead of
 that untouched group. This guarantees that every surface shows the local preference first.
 
-The target writes compact `zd-extension/js/vnedict.json` and
-`zd-extension/js/vnedict.meta.json`. The sidecar records the exact JSON byte hash and entry
-count used to refresh browser IndexedDB safely. Both files are generated and must be committed
-together; never copy either one by hand.
+The target writes compact `zd-extension/js/vnedict.json`, `zd-extension/js/vnedict.meta.json`,
+and `zd-extension/js/vnedict.collisions.json`. The metadata sidecar records the exact JSON byte
+hash, schema version, and entry count used to refresh browser IndexedDB safely. All three files
+are generated (gitignored, built on demand and published alongside the userscripts); never copy
+any of them by hand.
+
+### Entry identity and normalized-key collisions
+
+`zd-extension/js/vnedict.json` stores one grouped row per normalized lookup key, not one row per
+source headword. Grouping is centralized in `scripts/lib/dictionary-identity.js` and shared
+between this builder and `scripts/build-popupdict-userscript.js`, so both consumers resolve a
+collision like `Ba Lê` (Paris) / `ba lê` (ballet) exactly the same way. A row looks like:
+
+```json
+{
+  "key": "ba lê",
+  "headwords": ["Ba Lê", "ba lê"],
+  "en": [
+    {"def": "Paris", "pos": ""},
+    {"def": "ballet", "pos": "", "headword": "ba lê"}
+  ]
+}
+```
+
+- `key` is the normalized identity (NFC, `vi-VN` lowercase, collapsed whitespace) used for
+  lookup; it is never displayed.
+- `headwords` is every distinct display form that normalized to `key`, in first-source-occurrence
+  order. `headwords[0]` is the primary display form.
+- `en` is every distinct `(def, pos)` sense, in first-source-occurrence order, losslessly
+  preserving every source definition. A sense carries a `headword` field only when it originated
+  from a display form other than `headwords[0]` -- a single-headword group (the common case)
+  carries no `headword` field on any sense at all.
+
+`zd-extension/js/vnedict.collisions.json` is a compact, versioned report of every normalized key
+with more than one headword (`{schemaVersion, totalKeys, collisionCount, collisions: [{key,
+headwordCount, senseCount}]}`) -- counts only, never the definitions themselves, so it is safe to
+read by default. The same counts print to the console as `key=headwordCount/senseCount` lines
+when `make rebuild-extension-vnedict-json` finds any collisions.
+
+Browsers persist rows via `zd-dictionary-runtime.js`'s coordinator; its metadata schema version
+(`ZD_DICTIONARY_METADATA_SCHEMA_VERSION`, currently 2) must match this builder's
+`METADATA_SCHEMA_VERSION`. A mismatch (e.g. a browser that still has schema-1, one-row-per-headword
+data from before this change) makes the coordinator treat the installed rows as unusable, so it
+always performs a full `entries.clear()` + `bulkAdd()` replace rather than mixing old and new row
+shapes in the same IndexedDB table.
 
 ## Userscripts
 

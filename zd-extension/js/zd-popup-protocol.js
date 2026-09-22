@@ -22,16 +22,31 @@ function isBoundedText(value) {
   return typeof value === 'string' && value.length <= MAX_TEXT_LENGTH;
 }
 
+// A sense's `headword` is present only when it differs from the result's primary headword
+// (`headwords[0]`) -- see scripts/lib/dictionary-identity.js -- so both the 2- and 3-key
+// shapes are valid.
 function isDefinition(value) {
-  return hasOnlyKeys(value, ['def', 'pos'])
-    && isBoundedText(value.def)
-    && isBoundedText(value.pos);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 2) {
+    if (!hasOnlyKeys(value, ['def', 'pos'])) return false;
+  } else if (keys.length === 3) {
+    if (!hasOnlyKeys(value, ['def', 'headword', 'pos'])) return false;
+    if (!isBoundedText(value.headword) || value.headword.length === 0) return false;
+  } else {
+    return false;
+  }
+  return isBoundedText(value.def) && isBoundedText(value.pos);
 }
 
 function isResult(value) {
-  return hasOnlyKeys(value, ['en', 'vn'])
-    && isBoundedText(value.vn)
-    && value.vn.length > 0
+  return hasOnlyKeys(value, ['en', 'headwords', 'key'])
+    && isBoundedText(value.key)
+    && value.key.length > 0
+    && Array.isArray(value.headwords)
+    && value.headwords.length > 0
+    && value.headwords.length <= MAX_DEFINITIONS
+    && value.headwords.every((headword) => isBoundedText(headword) && headword.length > 0)
     && Array.isArray(value.en)
     && value.en.length <= MAX_DEFINITIONS
     && value.en.every(isDefinition);

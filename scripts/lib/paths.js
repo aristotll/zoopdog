@@ -10,6 +10,7 @@ const relative = Object.freeze({
   dictionary: 'zd-extension/db_src/vnedict2.json',
   runtimeDictionary: 'zd-extension/js/vnedict.json',
   runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',
+  runtimeDictionaryCollisions: 'zd-extension/js/vnedict.collisions.json',
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
   userNomEntries: 'zd-extension/db_src/user_nom_entries',
   userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',

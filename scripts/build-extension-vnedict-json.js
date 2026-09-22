@@ -8,8 +8,18 @@ const {normalizeTerm} = require('./lib/text');
 const {definitionKey} = require('./lib/sources');
 const {readUserNomEntries} = require('./user-nom-entries');
 const {readUserNomOrder, buildNomOrderIndex, hoistPreferredRows} = require('./user-nom-order');
+const {
+  groupEntries,
+  validateGroupedEntries,
+  buildCollisionReport,
+  formatCollisionDiagnostics
+} = require('./lib/dictionary-identity');
 
-const METADATA_SCHEMA_VERSION = 1;
+// Bumped from 1 -> 2 with the move from one row per source headword to one grouped row per
+// normalized lookup key (see openspec/changes/normalize-dictionary-entry-identity). The runtime
+// coordinator treats a schema-version mismatch as "not usable," so browsers holding the old
+// per-headword rows always get a full replace rather than a mix of old and new row shapes.
+const METADATA_SCHEMA_VERSION = 2;
 
 function validateEntry(entry, index) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -133,11 +143,11 @@ function mergeUserNomEntriesIntoEntries(entries, userEntries) {
   return merged;
 }
 
+// `entries` here are already grouped rows ({key, headwords, en}), produced by
+// `scripts/lib/dictionary-identity.js`. Kept as a separate step from grouping so callers that
+// already have grouped rows (tests, other tooling) can serialize them directly.
 function serializeRuntimeDictionary(entries) {
-  if (!Array.isArray(entries)) {
-    throw new TypeError('Runtime dictionary source must be an array');
-  }
-  entries.forEach(validateEntry);
+  validateGroupedEntries(entries);
   return JSON.stringify(entries);
 }
 
@@ -157,29 +167,42 @@ function buildRuntimeDictionary({
   sourcePath = absolute.dictionary,
   dictionaryPath = absolute.runtimeDictionary,
   metadataPath = absolute.runtimeDictionaryMetadata,
+  collisionsPath = absolute.runtimeDictionaryCollisions,
   orderPath = absolute.userNomOrder,
   userNomPath = absolute.userNomEntries
 } = {}) {
   const entries = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
   const merged = mergeUserNomEntriesIntoEntries(entries, readUserNomEntries(userNomPath));
   const reordered = applyUserNomOrderToEntries(entries, readUserNomOrder(orderPath));
-  const dictionaryBytes = serializeRuntimeDictionary(entries);
+  // Grouping (scripts/lib/dictionary-identity.js) runs last, once per build, after every
+  // source row (base dictionary + hand-maintained Chu Nom + display order) has settled into
+  // its final `{vn, en}` shape -- so a normalized-key collision is resolved exactly once, on
+  // the fully-merged data, rather than per source.
+  const groups = groupEntries(entries);
+  const report = buildCollisionReport(groups);
+  const dictionaryBytes = serializeRuntimeDictionary(groups);
   const metadata = buildMetadata(dictionaryBytes);
   atomicWrite(dictionaryPath, dictionaryBytes);
   atomicWrite(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
-  return {dictionaryPath, metadataPath, metadata, merged, reordered};
+  atomicWrite(collisionsPath, `${JSON.stringify(report, null, 2)}\n`);
+  return {dictionaryPath, metadataPath, collisionsPath, metadata, report, merged, reordered};
 }
 
 function main() {
   const result = buildRuntimeDictionary();
   console.log(`Built ${result.dictionaryPath}`);
   console.log(`Built ${result.metadataPath}`);
+  console.log(`Built ${result.collisionsPath}`);
   console.log(`Revision ${result.metadata.revision} (${result.metadata.entryCount} entries)`);
   if (result.merged) {
     console.log(`Merged ${result.merged} hand-maintained Chu Nom entries`);
   }
   if (result.reordered) {
     console.log(`Applied Chu Nom display order to ${result.reordered} entries`);
+  }
+  if (result.report.collisionCount) {
+    console.log(`${result.report.collisionCount} normalized-key collisions (key=headwordCount/senseCount):`);
+    formatCollisionDiagnostics(result.report).forEach((line) => console.log(`  ${line}`));
   }
 }
 
@@ -196,3 +219,9 @@ module.exports = {
   serializeRuntimeDictionary,
   validateEntry
 };
+
+// Re-exported so callers that only need the grouping step (e.g. the popup-userscript builder,
+// tests) do not have to import scripts/lib/dictionary-identity.js separately.
+module.exports.groupEntries = groupEntries;
+module.exports.buildCollisionReport = buildCollisionReport;
+module.exports.formatCollisionDiagnostics = formatCollisionDiagnostics;

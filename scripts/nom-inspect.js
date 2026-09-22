@@ -59,11 +59,14 @@ function popupLookup(term) {
     return null;
   }
 
-  const [vn, definitions] = rows[0];
+  const [headwords, definitions] = rows[0];
   return {
     key,
-    vn,
-    definitions: definitions.map(([def, pos]) => ({def, pos}))
+    vn: headwords.join(' / '),
+    headwords,
+    definitions: definitions.map(([def, pos, headword]) => (
+      headword ? {def, pos, headword} : {def, pos}
+    ))
   };
 }
 

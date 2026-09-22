@@ -30,3 +30,4 @@ gen
 # and published as GitHub Release assets alongside the userscripts, not committed (~7MB per edit).
 /zd-extension/js/vnedict.json
 /zd-extension/js/vnedict.meta.json
+/zd-extension/js/vnedict.collisions.json
