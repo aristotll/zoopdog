@@ -10,15 +10,48 @@
 //   {
 //     key: string,          // normalized lookup identity (NFC, vi-VN lowercase, collapsed ws)
 //     headwords: string[],  // ordered, deduped display variants, first source occurrence wins
-//     en: [{def, pos, headword?}]  // ordered, lossless, deduped senses; `headword` is present
-//                                  // only when it differs from `headwords[0]` (the primary
-//                                  // display form), so a single-headword group carries no
-//                                  // redundant association at all.
+//     en: [{def, pos, headword?}]  // ordered, deduped senses; `headword` is present only when
+//                                  // it differs from `headwords[0]` (the primary display
+//                                  // form), so a single-headword group carries no redundant
+//                                  // association at all. Case/plural variants of the same sense
+//                                  // (e.g. "rumor" and "Rumors") are folded into the longer one.
 //   }
 const GROUPED_SCHEMA_VERSION = 1;
 
 const {cleanText, normalizeTerm} = require('./text');
 const {definitionKey} = require('./sources');
+
+// Plain ASCII text only -- excludes Chu Nom/CJK renderings and any gloss that carries a Han
+// synonym alongside it (e.g. "修練 (修练)"). Every character in every such string counts as a
+// "boundary" for the containment check below, which would otherwise treat one Nom candidate as
+// a redundant "variant" of another merely because their characters overlap, silently dropping a
+// hand-maintained rendering that a downstream consumer expects to find verbatim.
+function isAsciiText(str) {
+  return /^[\x00-\x7f]*$/.test(str);
+}
+
+// Case-insensitive, word-boundary containment: true when `needle` occurs inside `haystack`
+// bounded by non-alphanumeric characters (or the string ends), optionally followed by a plural
+// "s"/"es" suffix -- e.g. "rumor" is contained in "Rumors", but "ba" is not contained in "Cuba"
+// and "an" is not contained in "Iran".
+function containsAsWordOrPlural(haystack, needle) {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escaped}(es|s)?($|[^a-zA-Z0-9])`, 'i');
+  return pattern.test(haystack);
+}
+
+// True when `a` and `b` are the same definition modulo case, or one is a plural/word-boundary
+// variant containing the other (see `containsAsWordOrPlural`). Restricted to plain ASCII text
+// (see `isAsciiText`) so Chu Nom/CJK renderings are never folded.
+function isRedundantVariant(a, b) {
+  if (!isAsciiText(a) || !isAsciiText(b)) {
+    return false;
+  }
+  if (a.toLowerCase() === b.toLowerCase()) {
+    return true;
+  }
+  return containsAsWordOrPlural(a, b) || containsAsWordOrPlural(b, a);
+}
 
 function assertSourceEntries(entries) {
   if (!Array.isArray(entries)) {
@@ -85,6 +118,21 @@ function groupEntries(sourceEntries) {
       if (group.senseSeen.has(senseKey)) {
         continue;
       }
+
+      // Fold plural/case variants of an already-kept sense (same pos) into a single entry,
+      // keeping whichever text is longer -- e.g. "rumor" and "Rumors" collapse to "Rumors".
+      const variantIndex = group.senseOrder.findIndex(
+        (sense) => sense.pos === pos && isRedundantVariant(sense.def, def)
+      );
+      if (variantIndex !== -1) {
+        const existing = group.senseOrder[variantIndex];
+        group.senseSeen.add(senseKey);
+        if (def.length > existing.def.length) {
+          group.senseOrder[variantIndex] = {def, pos, headword};
+        }
+        continue;
+      }
+
       group.senseSeen.add(senseKey);
       group.senseOrder.push({def, pos, headword});
     }
@@ -109,28 +157,32 @@ function groupEntries(sourceEntries) {
 }
 
 // Defence in depth: every distinct (def, pos) pair reachable from the source rows for a given
-// normalized key must still be reachable, by identity, from that key's grouped senses.
+// normalized key must still be reachable from that key's grouped senses, either by identity or
+// because a kept sense is a case/plural variant that subsumes it (see `isRedundantVariant`) --
+// that intentional folding is what keeps generated userscripts smaller.
 function verifyLossless(sourceEntries, groups) {
   const expected = new Map();
   for (const entry of sourceEntries) {
     const key = normalizeTerm(entry.vn);
     if (!key) continue;
-    const set = expected.get(key) || new Set();
+    const list = expected.get(key) || [];
     for (const definition of entry.en) {
-      set.add(definitionKey(cleanText(definition.def), cleanText(definition.pos)));
+      list.push({def: cleanText(definition.def), pos: cleanText(definition.pos)});
     }
-    expected.set(key, set);
+    expected.set(key, list);
   }
 
-  const actual = new Map(groups.map((group) => [
-    group.key,
-    new Set(group.en.map((sense) => definitionKey(sense.def, sense.pos)))
-  ]));
+  const actualByKey = new Map(groups.map((group) => [group.key, group.en]));
 
-  for (const [key, expectedSet] of expected) {
-    const actualSet = actual.get(key) || new Set();
-    for (const senseKey of expectedSet) {
-      if (!actualSet.has(senseKey)) {
+  for (const [key, expectedList] of expected) {
+    const actualList = actualByKey.get(key) || [];
+    for (const {def, pos} of expectedList) {
+      const senseKey = definitionKey(def, pos);
+      const reachable = actualList.some((sense) =>
+        sense.pos === pos
+          && (definitionKey(sense.def, sense.pos) === senseKey || isRedundantVariant(sense.def, def))
+      );
+      if (!reachable) {
         throw new Error(`Lossy grouping detected for key "${key}": missing sense ${senseKey}`);
       }
     }

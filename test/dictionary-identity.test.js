@@ -70,6 +70,55 @@ test('keeps stable first-source-occurrence order across three-way collisions', (
   assert.deepEqual(groups[0].en.map((sense) => sense.headword), [undefined, 'đỗ', 'ĐỖ']);
 });
 
+test('folds a plural/case variant of the same sense into the longer form', () => {
+  const groups = groupEntries([
+    {vn: 'tin đồn', en: [{def: 'rumor', pos: ''}]},
+    {vn: 'tin đồn', en: [{def: 'Rumors', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'Rumors', pos: ''}]);
+});
+
+test('folds a plural/case variant regardless of which one appears first', () => {
+  const groups = groupEntries([
+    {vn: 'tin đồn', en: [{def: 'Rumors', pos: ''}]},
+    {vn: 'tin đồn', en: [{def: 'rumor', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'Rumors', pos: ''}]);
+});
+
+test('does not fold unrelated definitions that merely share characters', () => {
+  const groups = groupEntries([
+    {vn: 'Cu Ba', en: [{def: 'Cuba', pos: ''}, {def: 'ba', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'Cuba', pos: ''},
+    {def: 'ba', pos: ''}
+  ]);
+});
+
+test('does not fold a Chu Nom rendering into a longer gloss that happens to contain it', () => {
+  const groups = groupEntries([
+    {vn: 'tu luyện', en: [{def: '修練 (修练)', pos: ''}]},
+    {vn: 'tu luyện', en: [{def: '修練', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: '修練 (修练)', pos: ''},
+    {def: '修練', pos: ''}
+  ]);
+});
+
+test('does not fold variants across different parts of speech', () => {
+  const groups = groupEntries([
+    {vn: 'rumors', en: [{def: 'rumor', pos: 'n'}, {def: 'Rumors', pos: 'v'}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'rumor', pos: 'n'},
+    {def: 'Rumors', pos: 'v'}
+  ]);
+});
+
 test('skips rows with an empty normalized headword', () => {
   const groups = groupEntries([
     {vn: '   ', en: [{def: 'whitespace only', pos: ''}]},
