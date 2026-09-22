@@ -153,20 +153,46 @@ function buildMetadata(dictionaryBytes) {
   };
 }
 
+// The dictionary and its metadata sidecar are read together by every consumer (the runtime
+// coordinator, the shipped-identity verification), so a rebuild must publish them as one unit:
+// if the metadata write fails after the dictionary write already landed, the dictionary is
+// rolled back to whatever it held before this run, so the pair on disk is always either the
+// previous complete pair or the new complete pair -- never a mix of the two.
+function publishDictionaryAndMetadata(dictionaryPath, dictionaryBytes, metadataPath, metadataBytes, {write = atomicWrite} = {}) {
+  const previousDictionary = fs.existsSync(dictionaryPath) ? fs.readFileSync(dictionaryPath) : null;
+  write(dictionaryPath, dictionaryBytes);
+  try {
+    write(metadataPath, metadataBytes);
+  } catch (error) {
+    if (previousDictionary === null) {
+      fs.rmSync(dictionaryPath, {force: true});
+    } else {
+      write(dictionaryPath, previousDictionary);
+    }
+    throw error;
+  }
+}
+
 function buildRuntimeDictionary({
   sourcePath = absolute.dictionary,
   dictionaryPath = absolute.runtimeDictionary,
   metadataPath = absolute.runtimeDictionaryMetadata,
   orderPath = absolute.userNomOrder,
-  userNomPath = absolute.userNomEntries
+  userNomPath = absolute.userNomEntries,
+  write
 } = {}) {
   const entries = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
   const merged = mergeUserNomEntriesIntoEntries(entries, readUserNomEntries(userNomPath));
   const reordered = applyUserNomOrderToEntries(entries, readUserNomOrder(orderPath));
   const dictionaryBytes = serializeRuntimeDictionary(entries);
   const metadata = buildMetadata(dictionaryBytes);
-  atomicWrite(dictionaryPath, dictionaryBytes);
-  atomicWrite(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+  publishDictionaryAndMetadata(
+    dictionaryPath,
+    dictionaryBytes,
+    metadataPath,
+    `${JSON.stringify(metadata, null, 2)}\n`,
+    write ? {write} : undefined
+  );
   return {dictionaryPath, metadataPath, metadata, merged, reordered};
 }
 
@@ -193,6 +219,7 @@ module.exports = {
   buildMetadata,
   buildRuntimeDictionary,
   mergeUserNomEntriesIntoEntries,
+  publishDictionaryAndMetadata,
   serializeRuntimeDictionary,
   validateEntry
 };

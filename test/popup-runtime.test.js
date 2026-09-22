@@ -75,6 +75,60 @@ test('runtime dictionary builder rejects malformed entries before writing', () =
   assert.throws(() => serializeRuntimeDictionary({vn: 'chó'}), /array/i);
 });
 
+test('a failed metadata publication leaves the previous matching dictionary/metadata pair intact', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'zoopdog-runtime-publish-'));
+  const dictionaryPath = path.join(dir, 'vnedict.json');
+  const metadataPath = path.join(dir, 'vnedict.meta.json');
+  const {atomicWrite} = require('../scripts/lib/fsutil');
+  const {publishDictionaryAndMetadata} = require('../scripts/build-extension-vnedict-json');
+
+  const previousBytes = serializeRuntimeDictionary([{vn: 'chó', en: [{def: 'dog', pos: ''}]}]);
+  const previousMetadata = `${JSON.stringify({schemaVersion: 1, revision: 'old', entryCount: 1}, null, 2)}\n`;
+  atomicWrite(dictionaryPath, previousBytes);
+  atomicWrite(metadataPath, previousMetadata);
+
+  const nextBytes = serializeRuntimeDictionary([{vn: 'mèo', en: [{def: 'cat', pos: ''}]}]);
+  const nextMetadata = `${JSON.stringify({schemaVersion: 1, revision: 'new', entryCount: 1}, null, 2)}\n`;
+  let calls = 0;
+  const failOnSecondWrite = (target, content) => {
+    calls += 1;
+    if (calls === 2) throw new Error('injected publication failure');
+    atomicWrite(target, content);
+  };
+
+  assert.throws(
+    () => publishDictionaryAndMetadata(dictionaryPath, nextBytes, metadataPath, nextMetadata, {write: failOnSecondWrite}),
+    /injected publication failure/
+  );
+
+  assert.equal(fs.readFileSync(dictionaryPath, 'utf8'), previousBytes);
+  assert.equal(fs.readFileSync(metadataPath, 'utf8'), previousMetadata);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
+test('a failed metadata publication with no prior dictionary leaves neither file behind', () => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'zoopdog-runtime-publish-'));
+  const dictionaryPath = path.join(dir, 'vnedict.json');
+  const metadataPath = path.join(dir, 'vnedict.meta.json');
+  const {publishDictionaryAndMetadata} = require('../scripts/build-extension-vnedict-json');
+
+  const bytes = serializeRuntimeDictionary([{vn: 'mèo', en: [{def: 'cat', pos: ''}]}]);
+  const metadata = `${JSON.stringify({schemaVersion: 1, revision: 'new', entryCount: 1}, null, 2)}\n`;
+  const failingWrite = (target, content) => {
+    if (target === metadataPath) throw new Error('injected publication failure');
+    fs.writeFileSync(target, content);
+  };
+
+  assert.throws(
+    () => publishDictionaryAndMetadata(dictionaryPath, bytes, metadataPath, metadata, {write: failingWrite}),
+    /injected publication failure/
+  );
+
+  assert.equal(fs.existsSync(dictionaryPath), false);
+  assert.equal(fs.existsSync(metadataPath), false);
+  fs.rmSync(dir, {recursive: true, force: true});
+});
+
 // The hand-maintained entries are the authority on a term's Chu Nom, and the extension is
 // the surface that reads `zd-extension/js/vnedict.json` -- so they have to reach it the same
 // way they already reach both userscripts.
@@ -277,6 +331,34 @@ test('coordinator coalesces concurrent readiness calls into one replacement', as
   const [firstResult, secondResult] = await Promise.all([first, second]);
   assert.equal(firstResult.state, STATES.READY_REFRESHED);
   assert.deepEqual(secondResult, firstResult);
+  assert.equal(adapter.state.replacements, 1);
+});
+
+test('a force request during an in-flight ordinary call still forces exactly one replacement', async () => {
+  const bytes = fixtureBytes();
+  const metadata = fixtureMetadata(bytes);
+  const adapter = createAdapter({metadata, entries: JSON.parse(bytes)});
+  let resolveMetadata;
+  const metadataPromise = new Promise((resolve) => { resolveMetadata = resolve; });
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => metadataPromise,
+    fetchDictionaryText: async () => bytes,
+    digest: async () => metadata.revision
+  });
+
+  // The installed row is already current, so an ordinary call alone would resolve to
+  // `ready-current` and never touch the adapter.
+  const ordinary = coordinator.ensureReady();
+  const forced = coordinator.ensureReady({force: true});
+  const forcedAgain = coordinator.ensureReady({force: true});
+  assert.equal(forced, forcedAgain, 'concurrent force requests coalesce into one queued run');
+
+  resolveMetadata(metadata);
+  const [ordinaryResult, forcedResult] = await Promise.all([ordinary, forced]);
+
+  assert.equal(ordinaryResult.state, STATES.READY_CURRENT);
+  assert.equal(forcedResult.state, STATES.READY_REFRESHED);
   assert.equal(adapter.state.replacements, 1);
 });
 

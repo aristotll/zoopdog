@@ -130,7 +130,8 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
   if (!adapter || typeof adapter.readState !== 'function' || typeof adapter.replace !== 'function') {
     throw new TypeError('Dictionary coordinator requires a database adapter');
   }
-  let inFlight = null;
+  let current = null;
+  let queuedForce = null;
 
   async function run(force) {
     let installed = null;
@@ -208,12 +209,28 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
     return result;
   }
 
-  function ensureReady({force = false} = {}) {
-    if (inFlight) return inFlight;
-    inFlight = run(force).finally(() => {
-      inFlight = null;
+  function startRun(force) {
+    const promise = run(force);
+    current = {promise, forced: force};
+    promise.finally(() => {
+      if (current && current.promise === promise) current = null;
     });
-    return inFlight;
+    return promise;
+  }
+
+  // A force request that arrives while an ordinary (non-forced) run is already in flight
+  // cannot join it -- that run may resolve to `ready-current` and skip the replacement the
+  // caller asked for. Queue exactly one forced follow-up run instead of starting a second one
+  // in parallel, and coalesce any further force requests into that same queued follow-up.
+  function ensureReady({force = false} = {}) {
+    if (!current) return startRun(force);
+    if (!force || current.forced) return current.promise;
+    if (queuedForce) return queuedForce;
+    queuedForce = current.promise.catch(() => {}).then(() => startRun(true));
+    queuedForce.finally(() => {
+      queuedForce = null;
+    });
+    return queuedForce;
   }
 
   return {ensureReady};
