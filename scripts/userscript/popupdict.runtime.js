@@ -4,7 +4,9 @@
 // @author      Zoopdog Contributors
 // @namespace   https://github.com/tabidots/zoopdog
 // @match       *://*/*
-// @grant       GM_addStyle__ZOOPDOG_LOCAL_GRANTS__
+// @grant       GM_addStyle
+// @grant       GM_setValue
+// @grant       GM_getValue__ZOOPDOG_LOCAL_GRANTS__
 // @run-at      document-idle
 // @version     __ZOOPDOG_VERSION__
 // @updateURL   __ZOOPDOG_UPDATE_URL__
@@ -32,6 +34,133 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // scripts/userscript/popupdict-local.runtime.js -- see docs/local-mode.md. It is only
   // concatenated into the -local build; the calls below are guarded so this file stays
   // fully functional without it.
+
+  // Offline Nom-review queue -- see
+  // docs/superpowers/specs/2026-09-23-offline-nom-review-queue-design.md. This runs in BOTH
+  // builds but only does anything when zooRenderLocalActions is absent (the non-local build):
+  // the -local build already has a real add-entry flow against the reader server and doesn't
+  // need an offline queue. It needs no network grant -- flagging just writes to GM storage, and
+  // exporting only ever runs as a same-origin fetch from the reader's own /control page.
+  var ZOO_NOM_REVIEW_QUEUE_KEY = 'zoopdog_nom_review_queue';
+
+  function zooReadNomReviewQueue() {
+    if (typeof GM_getValue !== 'function') return [];
+    try {
+      var raw = GM_getValue(ZOO_NOM_REVIEW_QUEUE_KEY, '[]');
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function zooWriteNomReviewQueue(entries) {
+    if (typeof GM_setValue !== 'function') return;
+    GM_setValue(ZOO_NOM_REVIEW_QUEUE_KEY, JSON.stringify(entries));
+  }
+
+  function zooQueueNomReview(vi, button) {
+    if (!vi) return;
+    var queue = zooReadNomReviewQueue();
+    var already = queue.some(function(entry) { return entry.vi === vi; });
+    if (!already) {
+      queue.push({ vi: vi, ts: Date.now() });
+      zooWriteNomReviewQueue(queue);
+    }
+    if (button) {
+      var original = button.textContent;
+      button.textContent = 'Đã đánh dấu ✓';
+      button.disabled = true;
+      window.setTimeout(function() {
+        button.textContent = original;
+        button.disabled = false;
+      }, 1500);
+    }
+  }
+
+  function zooRenderNomReviewAction(vn) {
+    return '<button type="button" class="zd-action-btn" data-zd-action="queue-nom-review" data-zd-vi="' +
+      escapeHtml(vn) + '">+ Đánh dấu Nôm</button>';
+  }
+
+  // True only on the reader's own phone-remote page (scripts/reader/static/control.html in
+  // book-translator), reachable either on the machine running it or from another device on the
+  // same LAN. Being on that exact page already proves the server answered -- no separate
+  // reachability probe is needed the way zooProbeLocalMode needs one for arbitrary pages.
+  function zooOnReaderControlPage() {
+    if (!window.location || window.location.pathname !== '/control') return false;
+    var host = window.location.hostname || '';
+    return host === '127.0.0.1' || host === 'localhost' ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);
+  }
+
+  function zooRenderNomReviewExportPanel(queue) {
+    var panel = document.createElement('section');
+    panel.id = 'zoopdog-nom-review-export';
+    panel.style.cssText = 'background:#1f1f24;border:1px solid #33333b;border-radius:1rem;' +
+      'padding:1rem;margin:1rem auto;max-width:30rem;display:grid;gap:0.75rem;' +
+      'color:#f2f2f5;font:1.15rem/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;';
+
+    var heading = document.createElement('h1');
+    heading.style.cssText = 'margin:0;font-size:0.95rem;font-weight:600;letter-spacing:0.08em;' +
+      'text-transform:uppercase;color:#9a9aa3;';
+    heading.textContent = 'Hàng đợi Nôm cần review';
+    panel.appendChild(heading);
+
+    var list = document.createElement('ul');
+    list.style.cssText = 'margin:0;padding-left:1.25rem;';
+    queue.forEach(function(entry) {
+      var item = document.createElement('li');
+      item.textContent = entry.vi;
+      list.appendChild(item);
+    });
+    panel.appendChild(list);
+
+    var error = document.createElement('p');
+    error.style.cssText = 'margin:0;color:#ff6b6b;font-size:1rem;display:none;';
+    panel.appendChild(error);
+
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Export ' + queue.length + ' từ';
+    button.style.cssText = 'min-height:3rem;font:inherit;font-size:1.1rem;color:#f2f2f5;' +
+      'background:#2b2b33;border:1px solid #33333b;border-radius:0.75rem;cursor:pointer;';
+    button.addEventListener('click', function() {
+      button.disabled = true;
+      error.style.display = 'none';
+      var words = queue.map(function(entry) { return entry.vi; });
+      fetch(window.location.origin + '/v1/nom/entries/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words: words })
+      }).then(function(response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json().catch(function() { return {}; });
+      }).then(function() {
+        zooWriteNomReviewQueue(zooReadNomReviewQueue().filter(function(entry) {
+          return words.indexOf(entry.vi) === -1;
+        }));
+        panel.remove();
+      }).catch(function(err) {
+        error.textContent = 'Export thất bại: ' + err.message;
+        error.style.display = 'block';
+        button.disabled = false;
+      });
+    });
+    panel.appendChild(button);
+
+    document.body.appendChild(panel);
+  }
+
+  function zooMaybeRenderNomReviewExportPanel() {
+    if (typeof zooRenderLocalActions === 'function') return;
+    if (!zooOnReaderControlPage()) return;
+    var queue = zooReadNomReviewQueue();
+    if (!queue.length) return;
+    zooRenderNomReviewExportPanel(queue);
+  }
 
   function addStyle(css) {
     if (typeof GM_addStyle === 'function') {
@@ -492,7 +621,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       '<ul>',
       renderDefinitionItems(definitions),
       '</ul>',
-      typeof zooRenderLocalActions === 'function' ? zooRenderLocalActions(vn) : '',
+      typeof zooRenderLocalActions === 'function' ? zooRenderLocalActions(vn) : zooRenderNomReviewAction(vn),
       '</div>'
     ].join('');
   }
@@ -582,6 +711,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     addStyle("__ZOOPDOG_CSS__");
     if (typeof zooProbeLocalMode === 'function') zooProbeLocalMode();
     if (typeof zooWireSelectionBar === 'function') zooWireSelectionBar();
+    zooMaybeRenderNomReviewExportPanel();
 
     var highlighter = new Highlighter();
     var popup = new ResultPopup();
@@ -597,6 +727,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
         zooOpenNomModal(vi);
       } else if (action === 'set-order') {
         zooOpenNomOrderModal(vi);
+      } else if (action === 'queue-nom-review') {
+        zooQueueNomReview(vi, button);
       }
     });
 

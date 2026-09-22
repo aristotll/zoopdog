@@ -106,10 +106,12 @@ function readRuntimeSources(localMode) {
   return parts.join('\n\n');
 }
 
+// GM_setValue/GM_getValue are granted to both builds (see
+// __ZOOPDOG_CSS__'s sibling grant line in popupdict.runtime.js): the non-local build uses them
+// for the offline Nom-review queue (docs/superpowers/specs/2026-09-23-offline-nom-review-queue-design.md),
+// which needs no network access. Only GM_xmlhttpRequest/@connect stay local-only.
 const LOCAL_GRANT_LINES = '\n' + [
   '// @grant       GM_xmlhttpRequest',
-  '// @grant       GM_setValue',
-  '// @grant       GM_getValue',
   '// @connect     127.0.0.1',
   '// @connect     localhost'
 ].join('\n');
