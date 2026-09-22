@@ -26,6 +26,7 @@ endif
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json nom-annotate nom-popup \
+	rebuild-extension-package verify-extension-package \
 	check-openspec verify verify-scripts verify-browser verify-add-chu-nom
 
 help:
@@ -41,6 +42,8 @@ help:
 	@echo "make rebuild-cycle-local-userscripts  # watch user entries, rebuild (Local) on change; runs until stopped"
 	@echo "make rebuild-extension-dict           # regenerate db_src/vnedict.json from db_src/vnedict.txt"
 	@echo "make rebuild-extension-vnedict-json"
+	@echo "make rebuild-extension-package  # rebuild zd-extension.zip from current sources (atomic)"
+	@echo "make verify-extension-package   # verify zd-extension.zip without mutating it"
 	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
 	@echo "make nom-popup TERM='...'     # what the popup dictionary would show for TERM"
 	@echo "make check-openspec    # report OpenSpec lifecycle state; writes nothing"
@@ -97,6 +100,16 @@ rebuild-extension-dict:
 rebuild-extension-vnedict-json:
 	$(NODE) scripts/build-extension-vnedict-json.js
 
+# Regenerates the runtime dictionary first so the packaged archive never ships a stale
+# js/vnedict.json/vnedict.meta.json pair (see design.md decision 5). Atomic: on any failure
+# (planning, encoding, or publish) the existing zd-extension.zip is left untouched.
+rebuild-extension-package: rebuild-extension-vnedict-json
+	$(NODE) scripts/build-extension-package.js build
+
+# Never mutates zd-extension.zip or the checkout; safe to run as part of `make verify`.
+verify-extension-package:
+	$(NODE) scripts/build-extension-package.js verify
+
 # Reads the same dictionary sources the userscript builders do (see scripts/nom-inspect.js),
 # so the answer here never drifts from what a rebuilt userscript would actually show -- no
 # rebuild or browser install needed to check one word or sentence.
@@ -117,7 +130,7 @@ check-openspec:
 # Enumerated rather than listed file-by-file so a new script joins verification without a
 # Makefile edit. The extracted userscript runtime is checked as code too, which a template
 # literal never was.
-verify: verify-scripts verify-browser
+verify: verify-scripts verify-browser verify-extension-package
 
 # Generated userscripts and vnedict.json go stale whenever the dictionary sources or runtimes
 # change, and the tests compare against them. A first failure therefore rebuilds them and

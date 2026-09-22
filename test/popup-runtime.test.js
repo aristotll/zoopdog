@@ -760,7 +760,7 @@ test('runtime dictionary build is wired, documented and uses one atomic writer',
 test('make verify syntax-checks first-party browser modules', () => {
   const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
 
-  assert.match(makefile, /^verify:\s+verify-scripts\s+verify-browser$/mu);
+  assert.match(makefile, /^verify:\s+verify-scripts\s+verify-browser\s+verify-extension-package$/mu);
   assert.match(makefile, /^verify-browser:/mu);
   assert.match(makefile, /find js zd-extension\/js -name '\*\.js'/u);
   assert.match(makefile, /! -path '\*\/lib\/\*'/u);
