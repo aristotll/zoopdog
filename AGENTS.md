@@ -85,6 +85,17 @@ Each of these owns its subject; this file does not repeat them.
 
 - Check `git status --short` before editing and before the final response.
 - Do not revert unrelated user changes.
+- **Never run `git checkout --`, `git stash`, or any other discard on
+  `zd-extension/db_src/user_nom_entries/**` (or its generated downstream: `zoopdog-*.user.js`,
+  `zd-extension/js/vnedict.json`) because it looked unexpectedly modified during a test run.**
+  This repository's working directory is routinely shared with other concurrent Claude sessions
+  (interactive or background) editing the hand-maintained Chu Nom shard store live, typically
+  through `/add-chu-nom`. An unexpected diff there during your own work is very likely someone
+  else's in-progress edit, not pollution from your own process — discarding it destroys their
+  work. If a test fails because of dictionary-derived content, rebuild the generated artifact
+  (`make rebuild-userscripts`, `make rebuild-extension-vnedict-json`) to catch up to current
+  data instead of reverting anything, or just leave it and rerun later. This has caused real
+  data loss before — treat it as a hard rule, not a judgment call.
 - Keep commits scoped: source edits plus their generated artifacts belong together.
 - Mention any build or verification commands that could not be run because local tooling is
   missing.
