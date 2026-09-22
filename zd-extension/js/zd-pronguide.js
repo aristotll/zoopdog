@@ -41,8 +41,13 @@ Array.from(document.querySelectorAll("span[audio]")).forEach(phoneme => {
 })
 
 function initializePronunciationGuide() {
-  if (location.hash) document.querySelector(`a[href='${location.hash}']`).classList.add("active")
-  else document.querySelector(`a[href='#consonants']`).classList.add("active")
+  // An invalid or stale URL fragment (bookmarked, hand-typed, or left over from a page
+  // restructure) has no matching anchor; querySelector then returns null, and calling
+  // .classList.add on it used to throw before the guide finished loading. Fall back to the
+  // default "consonants" anchor instead of crashing initialization.
+  var activeAnchor = (location.hash) ? document.querySelector(`a[href='${location.hash}']`) : null
+  if (!activeAnchor) activeAnchor = document.querySelector(`a[href='#consonants']`)
+  if (activeAnchor) activeAnchor.classList.add("active")
 
   Array.from(document.querySelectorAll("dt.zd")).forEach(example => {
     var source = example.innerHTML

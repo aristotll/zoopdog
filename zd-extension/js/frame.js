@@ -27,9 +27,13 @@ function sendSize(ofWhat) {
 function renderResults(message) {
   popupBody.style.width = '0px';
   popupBody.innerHTML = myTemplate({results: message.results});
+  // Falls back to Hanoi for an unrecognized dialect (a malformed or stale message) instead of
+  // dereferencing `.zd` off `undefined`, matching the total-result contract the pronunciation
+  // core now guarantees for every entry it does return.
+  const dialect = ['hanoi', 'quangnam', 'saigon'].includes(message.dialect) ? message.dialect : 'hanoi';
   Array.from(document.getElementsByClassName('zd-pronunciation')).forEach((element) => {
     const source = element.textContent;
-    element.innerHTML = pronunciationGuide(source)[message.dialect].zd;
+    element.innerHTML = pronunciationGuide(source)[dialect].zd;
   });
   drawTonesAndGradients();
   sendSize(popupBody);

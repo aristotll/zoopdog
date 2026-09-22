@@ -51,6 +51,7 @@ const STATIC_ENTRIES = Object.freeze([
   'js/showframe.js',
   'js/zd-browser-runtime.js',
   'js/zd-popup-protocol.js',
+  'js/zd-pron-core.js',
   'js/zd-pron-data.js',
   'js/zd-pron-drawtones.js',
   'js/zd-pron-functions.js',

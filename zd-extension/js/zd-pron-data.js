@@ -250,6 +250,11 @@ const numbers = {
   "1000000000":   {hanoi: "tỷ",         quangnam: "tỷ",         saigon: "tỷ"}
 }
 
+// The tens-place word ("hai mươi", "ba mươi", ...): distinct from numbers["10"] ("mười"),
+// which is only correct for an exact multiple of ten in the tens place (10, 110, 1010, the
+// teens' leading "mười" in "mười lăm", etc). Dialect-invariant, like numbers["10"] itself.
+const TENS_WORD = {hanoi: "mươi", quangnam: "mươi", saigon: "mươi"}
+
 const zoopdogSymbols = {
   // CONSONANTS
   "ʔɓ": "b",
@@ -288,4 +293,22 @@ const zoopdogSymbols = {
   "ɛ": "ĕ",
 
   "ɜ": "ə" // minor ɤ also gets simplified to ə
+}
+
+// Present only under Node, matching zd-words.js: a classic <script> has no `module`, and
+// `typeof` on an undeclared name is safe.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    wordUnitsRegex,
+    dialects,
+    vowelTable,
+    toneTable,
+    toneCodes,
+    tones,
+    rimesToIPA,
+    initialsToIPA,
+    numbers,
+    TENS_WORD,
+    zoopdogSymbols
+  }
 }

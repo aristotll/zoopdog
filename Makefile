@@ -31,7 +31,7 @@ endif
 .PHONY: help add-chu-nom-plan add-chu-nom-review add-chu-nom-apply add-chu-nom-recover import-chu-nom \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
-	rebuild-extension-dict rebuild-extension-vnedict-json nom-annotate nom-popup \
+	rebuild-extension-dict rebuild-extension-vnedict-json rebuild-realwords-lexicon nom-annotate nom-popup \
 	rebuild-extension-package verify-extension-package \
 	check-openspec verify verify-scripts verify-browser verify-add-chu-nom
 
@@ -49,6 +49,7 @@ help:
 	@echo "make rebuild-cycle-local-userscripts  # watch user entries, rebuild (Local) on change; runs until stopped"
 	@echo "make rebuild-extension-dict           # regenerate db_src/vnedict.json from db_src/vnedict.txt"
 	@echo "make rebuild-extension-vnedict-json"
+	@echo "make rebuild-realwords-lexicon  # regenerate zd-extension/js/realwords.js from its db_src source"
 	@echo "make rebuild-extension-package  # rebuild zd-extension.zip from current sources (atomic)"
 	@echo "make verify-extension-package   # verify zd-extension.zip without mutating it"
 	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
@@ -113,6 +114,9 @@ rebuild-extension-dict:
 
 rebuild-extension-vnedict-json:
 	$(NODE) scripts/build-extension-vnedict-json.js
+
+rebuild-realwords-lexicon:
+	$(NODE) scripts/build-realwords-lexicon.js
 
 # Regenerates the runtime dictionary first so the packaged archive never ships a stale
 # js/vnedict.json/vnedict.meta.json pair (see design.md decision 5). Atomic: on any failure
