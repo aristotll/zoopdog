@@ -82,9 +82,10 @@ function containsAsPrefixWord(haystack, needle) {
 }
 
 // Regular English suffixes that turn one word into a related one without changing its core
-// meaning enough to count as a different gloss: plural "s"/"es" ("rumor"/"Rumors") and the
-// adjective-to-adverb "ly" ("recent"/"Recently").
-const RELATED_WORD_SUFFIXES = ['s', 'es', 'ly'];
+// meaning enough to count as a different gloss: plural "s"/"es" ("rumor"/"Rumors"), the
+// adjective-to-adverb "ly" ("recent"/"Recently"), and the verb-to-gerund "ing"
+// ("block"/"blocking").
+const RELATED_WORD_SUFFIXES = ['s', 'es', 'ly', 'ing'];
 
 // True when `root` plus a suffix from `RELATED_WORD_SUFFIXES` equals `variant`.
 function isSuffixedFormOf(root, variant) {

@@ -134,6 +134,21 @@ test('folds a parenthetical gloss with its unparenthesized equivalent', () => {
   assert.deepEqual(groups[0].en, [{def: 'English (language)', pos: ''}]);
 });
 
+test('folds a gerund sense into a synonym bundle that already contains its verb form', () => {
+  const groups = groupEntries([
+    {vn: 'chặn', en: [
+      {def: '浱', pos: ''},
+      {def: 'blocking', pos: ''},
+      {def: 'to block, stop', pos: 'verb'}
+    ]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '浱', pos: ''},
+    {def: 'to block, stop', pos: 'verb'}
+  ]);
+});
+
 test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
   const groups = groupEntries([
     {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},
