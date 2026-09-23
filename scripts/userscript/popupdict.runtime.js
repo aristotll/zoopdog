@@ -42,6 +42,22 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // need an offline queue. It needs no network grant -- flagging just writes to GM storage, and
   // exporting only ever runs as a same-origin fetch from the reader's own /control page.
   var ZOO_NOM_REVIEW_QUEUE_KEY = 'zoopdog_nom_review_queue';
+  // A whole paragraph captured as "context" would bloat GM storage and the review file for no
+  // benefit -- a reviewer needs enough surrounding text to judge the term's sense, not the
+  // entire page. Matches book-translator's own MAX_CONTEXT_LENGTH in nom_review_queue.py.
+  var ZOO_NOM_REVIEW_CONTEXT_MAX = 500;
+
+  // The sentence/paragraph the flagged term was hovered in, so a reviewer isn't judging a bare
+  // word out of context later. `node` is the Highlighter's origin text node (the match start);
+  // its nearest block-level ancestor's whole text is a good enough proxy for "the sentence" --
+  // splitting out one real sentence would need real tokenization this runtime doesn't have.
+  function zooExtractNomReviewContext(node) {
+    if (!node || typeof zdContainerBoundary !== 'function') return '';
+    var boundary = zdContainerBoundary(node);
+    var text = boundary && boundary.textContent ? boundary.textContent : '';
+    text = text.replace(/\s+/g, ' ').trim();
+    return text.slice(0, ZOO_NOM_REVIEW_CONTEXT_MAX);
+  }
 
   function zooReadNomReviewQueue() {
     if (typeof GM_getValue !== 'function') return [];
@@ -68,10 +84,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // button that looks clickable but does nothing is worse than one that honestly can't be
   // pressed. It re-renders enabled again only if the term is later exported/cleared from the
   // queue and this popup is reopened.
-  function zooQueueNomReview(vi, button) {
+  function zooQueueNomReview(vi, context, button) {
     if (!vi || zooIsNomReviewQueued(vi)) return;
     var queue = zooReadNomReviewQueue();
-    queue.push({ vi: vi, ts: Date.now() });
+    queue.push({ vi: vi, context: context || '', ts: Date.now() });
     zooWriteNomReviewQueue(queue);
     if (button) {
       button.textContent = 'Đã đánh dấu ✓';
@@ -117,6 +133,12 @@ __ZOOPDOG_RUNTIME_SOURCES__
     queue.forEach(function(entry) {
       var item = document.createElement('li');
       item.textContent = entry.vi;
+      if (entry.context) {
+        var contextLine = document.createElement('div');
+        contextLine.style.cssText = 'color:#9a9aa3;font-size:0.9rem;';
+        contextLine.textContent = entry.context;
+        item.appendChild(contextLine);
+      }
       list.appendChild(item);
     });
     panel.appendChild(list);
@@ -134,10 +156,15 @@ __ZOOPDOG_RUNTIME_SOURCES__
       button.disabled = true;
       error.style.display = 'none';
       var words = queue.map(function(entry) { return entry.vi; });
+      var entries = queue.map(function(entry) {
+        return { word: entry.vi, context: entry.context || '' };
+      });
       // The reader server's whole API speaks query-string params, even on POST -- see
-      // control.html's own api() helper -- so this follows suit instead of a JSON body.
-      var url = window.location.origin + '/v1/nom/entries/import?words=' +
-        encodeURIComponent(words.join(','));
+      // control.html's own api() helper -- but `context` is a sentence-length string that
+      // routinely contains commas, so it can't ride the old comma-list convention the way
+      // `nom`/`explain` do. A single JSON-encoded query param carries the whole batch instead.
+      var url = window.location.origin + '/v1/nom/entries/import?entries=' +
+        encodeURIComponent(JSON.stringify(entries));
       fetch(url, { method: 'POST' }).then(function(response) {
         if (!response.ok) throw new Error('HTTP ' + response.status);
         return response.json().catch(function() { return {}; });
@@ -731,7 +758,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       } else if (action === 'set-order') {
         zooOpenNomOrderModal(vi);
       } else if (action === 'queue-nom-review') {
-        zooQueueNomReview(vi, button);
+        zooQueueNomReview(vi, zooExtractNomReviewContext(highlighter.node), button);
       }
     });
 
