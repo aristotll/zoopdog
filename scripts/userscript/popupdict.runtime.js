@@ -192,6 +192,155 @@ __ZOOPDOG_RUNTIME_SOURCES__
     zooRenderNomReviewExportPanel(queue);
   }
 
+  // A hovered/selected term the dictionary recognizes gets its flag button from
+  // zooRenderNomReviewAction, inside the lookup popup -- but that popup only ever appears for a
+  // term already in ZOO_DICTIONARY. Most of what is worth flagging for a Chữ Nôm entry is
+  // exactly the opposite: a term the dictionary does NOT have yet, so no popup ever shows and
+  // there is nothing to click. This selection bar covers that gap by reacting to the browser's
+  // own native text selection instead of a dictionary hit -- select any short span (a word or a
+  // short phrase, not a dictionary lookup) and a small floating button appears next to it.
+  //
+  // This also is the only way to flag anything at all on mobile Safari: selecting text there
+  // hands the whole gesture to the OS's own callout (Copy/Look Up/...), which a userscript
+  // cannot add a custom item to, and it never fires 'contextmenu' or 'mousedown' the way a
+  // desktop selection does. What it does still fire, on both platforms, is 'selectionchange' as
+  // the selection is made and 'touchend'/'mouseup' once the gesture ends -- so this bar is
+  // positioned from the selection's own bounding rect and shown from those events, entirely
+  // independent of whatever the OS callout is doing on top of it.
+  var ZOO_NOM_REVIEW_SELECTION_MAX_CHARS = 60;
+  var zooNomReviewSelectionBarEl = null;
+
+  // Named distinctly from the -local build's own zooTrimSelectionPunctuation/zooDebounce
+  // (scripts/userscript/popupdict-local.runtime.js): both files share one IIFE in the -local
+  // build, and this selection bar never runs there anyway (see the guard in
+  // zooWireNomReviewSelectionBar below), so a name collision would just be confusing to read.
+  function zooTrimNomReviewSelection(value) {
+    return String(value || '').trim().replace(/\p{Cf}/gu, '')
+      .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
+  }
+
+  function zooNomReviewDebounce(fn, wait) {
+    var timer = null;
+    var wrapped = function() {
+      var args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function() { fn.apply(null, args); }, wait);
+    };
+    wrapped.cancel = function() { clearTimeout(timer); };
+    return wrapped;
+  }
+
+  function zooEnsureNomReviewSelectionBar() {
+    if (zooNomReviewSelectionBarEl) return zooNomReviewSelectionBarEl;
+    var bar = document.createElement('div');
+    bar.id = 'zoopdog-nom-review-selection-bar';
+    bar.style.cssText = 'position:fixed;z-index:2147483647;display:none;' +
+      'background:#1f1f24;border:1px solid #33333b;border-radius:0.5rem;padding:0.25rem;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    // mousedown, not click: a native text selection collapses on mousedown over a non-text
+    // control, which would otherwise clear the selection (and the bar with it, via the next
+    // selectionchange) before the click this button is waiting for ever fires.
+    bar.addEventListener('mousedown', function(event) { event.stopPropagation(); });
+    document.body.appendChild(bar);
+    zooNomReviewSelectionBarEl = bar;
+    return bar;
+  }
+
+  function zooHideNomReviewSelectionBar() {
+    if (zooNomReviewSelectionBarEl) zooNomReviewSelectionBarEl.style.display = 'none';
+  }
+
+  function zooShowNomReviewSelectionBar(rect, text, contextNode) {
+    var bar = zooEnsureNomReviewSelectionBar();
+    bar.textContent = '';
+
+    var queued = zooIsNomReviewQueued(text);
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.disabled = queued;
+    button.textContent = queued ? 'Đã đánh dấu ✓' : ('+ Đánh dấu Nôm: ' + text);
+    button.style.cssText = 'min-height:2.25rem;font:inherit;font-size:0.95rem;color:#f2f2f5;' +
+      'background:#2b2b33;border:1px solid #33333b;border-radius:0.4rem;cursor:pointer;' +
+      'padding:0 0.6rem;white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis;';
+    button.addEventListener('click', function(event) {
+      event.preventDefault();
+      zooQueueNomReview(text, zooExtractNomReviewContext(contextNode));
+      button.textContent = 'Đã đánh dấu ✓';
+      button.disabled = true;
+      window.setTimeout(zooHideNomReviewSelectionBar, 700);
+    });
+    bar.appendChild(button);
+
+    bar.style.display = 'block';
+    bar.style.left = Math.max(8, rect.left) + 'px';
+    bar.style.top = Math.max(8, rect.top - 44) + 'px';
+    var barRect = bar.getBoundingClientRect();
+    if (barRect.right > window.innerWidth) {
+      bar.style.left = Math.max(8, window.innerWidth - barRect.width - 8) + 'px';
+    }
+    if (rect.top - 44 < 0) {
+      bar.style.top = (rect.bottom + 8) + 'px';
+    }
+  }
+
+  function zooHandleNomReviewSelectionChange() {
+    // Defensive, same reasoning as the -local selection bar: this runs on arbitrary
+    // third-party pages that may carry other scripts/extensions mutating the DOM around the
+    // same selection mid-gesture.
+    try {
+      var selection = window.getSelection ? window.getSelection() : null;
+      if (!selection || selection.rangeCount === 0 || (selection.isCollapsed && !selection.toString())) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
+      var anchorNode = selection.anchorNode;
+      if (anchorNode && anchorNode.nodeType !== Node.ELEMENT_NODE) anchorNode = anchorNode.parentElement;
+      if (isExcludedTarget(anchorNode)) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
+      var text = zooTrimNomReviewSelection(selection.toString());
+      if (!text || text.length > ZOO_NOM_REVIEW_SELECTION_MAX_CHARS) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
+      var range = selection.getRangeAt(0);
+      var rect = range.getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
+      zooShowNomReviewSelectionBar(rect, text, range.commonAncestorContainer);
+    } catch (e) {
+      zooHideNomReviewSelectionBar();
+    }
+  }
+
+  function zooWireNomReviewSelectionBar() {
+    // Non-local build only -- the -local build already has its own richer selection bar
+    // (add/set-order straight against the reader server) wired by zooWireSelectionBar, and
+    // showing a second, different one alongside it would just be confusing.
+    if (typeof zooRenderLocalActions === 'function') return;
+    var debounced = zooNomReviewDebounce(zooHandleNomReviewSelectionChange, 180);
+    document.addEventListener('selectionchange', debounced);
+    // Same reasoning as the -local build's own listener pair: the gesture's end event
+    // (mouseup/touchend) fires once the selection is already final, so use it to show
+    // immediately instead of waiting out the debounce -- and cancel the pending debounced call
+    // so it doesn't re-render (and detach) the button a moment later. The debounced
+    // 'selectionchange' listener stays as the path for selections that don't end with
+    // mouseup/touchend, e.g. keyboard (Shift+Arrow) selection.
+    function immediate(event) {
+      if (event && event.target && event.target.closest &&
+          event.target.closest('#zoopdog-nom-review-selection-bar')) {
+        return;
+      }
+      debounced.cancel();
+      zooHandleNomReviewSelectionChange();
+    }
+    document.addEventListener('mouseup', immediate);
+    document.addEventListener('touchend', immediate);
+  }
+
   function addStyle(css) {
     if (typeof GM_addStyle === 'function') {
       GM_addStyle(css);
@@ -304,7 +453,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     return !!target.closest(
-      '#zoopdog-userscript-popup, #zoopdog-userscript-canvas, #zoopdog-userscript-modals, #zoopdog-userscript-selection-bar, input, textarea, select, option, button, script, style, [contenteditable="true"]'
+      '#zoopdog-userscript-popup, #zoopdog-userscript-canvas, #zoopdog-userscript-modals, #zoopdog-userscript-selection-bar, #zoopdog-nom-review-selection-bar, #zoopdog-nom-review-export, input, textarea, select, option, button, script, style, [contenteditable="true"]'
     );
   }
 
@@ -742,6 +891,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     if (typeof zooProbeLocalMode === 'function') zooProbeLocalMode();
     if (typeof zooWireSelectionBar === 'function') zooWireSelectionBar();
     zooMaybeRenderNomReviewExportPanel();
+    zooWireNomReviewSelectionBar();
 
     var highlighter = new Highlighter();
     var popup = new ResultPopup();
