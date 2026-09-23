@@ -23,13 +23,13 @@ test('removes exact duplicate source rows without losing distinct senses', () =>
   const groups = groupEntries([
     {vn: 'đi', en: [{def: 'to go', pos: 'v'}]},
     {vn: 'đi', en: [{def: 'to go', pos: 'v'}]},
-    {vn: 'đi', en: [{def: 'go away (imperative)', pos: 'v'}]}
+    {vn: 'đi', en: [{def: 'to walk unsteadily, stumble', pos: 'v'}]}
   ]);
   assert.equal(groups.length, 1);
   assert.equal(groups[0].headwords.length, 1);
   assert.deepEqual(groups[0].en, [
     {def: 'to go', pos: 'v'},
-    {def: 'go away (imperative)', pos: 'v'}
+    {def: 'to walk unsteadily, stumble', pos: 'v'}
   ]);
 });
 
@@ -206,6 +206,66 @@ test('does not fold phrases that differ by more than one suffixed word', () => {
   ]);
 });
 
+test('folds a full-sentence gloss into its matching bundle despite trailing punctuation', () => {
+  const groups = groupEntries([
+    {vn: 'diễn ra', en: [{def: 'to take place, occur, happen, unfold', pos: ''}]},
+    {vn: 'diễn ra', en: [{def: 'happened.', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'to take place, occur, happen, unfold', pos: ''}]);
+});
+
+test('folds a contraction sense into its base word', () => {
+  const groups = groupEntries([
+    {vn: 'chuyện gì', en: [{def: 'what (thing, issue)', pos: ''}]},
+    {vn: 'chuyện gì', en: [{def: "what's going on", pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'what (thing, issue)', pos: ''}]);
+});
+
+test('folds a middle-word sense via suffix morphology, not just literal substring match', () => {
+  const groups = groupEntries([
+    {vn: 'nghiện', en: [{def: 'addict', pos: ''}]},
+    {vn: 'nghiện', en: [{def: 'be addicted to', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'be addicted to', pos: ''}]);
+});
+
+test('folds a candidate into every existing sense it independently matches, not just the first', () => {
+  const groups = groupEntries([
+    {vn: 'cung cấp', en: [
+      {def: '供給 (供给)', pos: ''},
+      {def: 'supply (in a market)', pos: ''},
+      {def: 'provide', pos: ''}
+    ]},
+    {vn: 'cung cấp', en: [{def: 'to furnish, supply, provide', pos: 'verb'}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '供給 (供给)', pos: ''},
+    {def: 'to furnish, supply, provide', pos: 'verb'}
+  ]);
+});
+
+test('does not merge two existing senses together just because a bridging candidate matches both', () => {
+  const groups = groupEntries([
+    {vn: 'không phải', en: [
+      {def: '空沛', pos: ''},
+      {def: 'there is not, there are not', pos: ''},
+      {def: 'not correct', pos: ''}
+    ]},
+    {vn: 'không phải', en: [{def: 'not', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '空沛', pos: ''},
+    {def: 'there is not, there are not', pos: ''},
+    {def: 'not correct', pos: ''}
+  ]);
+});
+
 test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
   const groups = groupEntries([
     {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},
@@ -281,25 +341,80 @@ test('does not fold a word at the end of an unrelated phrase even with enough ot
   ]);
 });
 
-test('does not fold a lone generic word into a longer sense when the group has too few other senses', () => {
+test('folds a lone word into a single-token sense it prefixes, even with no other senses', () => {
   const groups = groupEntries([
     {vn: 'không đúng', en: [{def: 'not correct', pos: ''}]},
     {vn: 'không đúng', en: [{def: 'not', pos: ''}]}
   ]);
-  assert.deepEqual(groups[0].en, [
-    {def: 'not correct', pos: ''},
-    {def: 'not', pos: ''}
-  ]);
+  assert.deepEqual(groups[0].en, [{def: 'not correct', pos: ''}]);
 });
 
-test('does not fold a short word into an unrelated longer phrase that starts with it', () => {
+test('folds a lone word into an unrelated-looking phrase that it prefixes -- a single prefix hit is trusted outright', () => {
   const groups = groupEntries([
     {vn: 'đi', en: [{def: 'to go', pos: 'v'}]},
     {vn: 'đi', en: [{def: 'go away (imperative)', pos: 'v'}]}
   ]);
+  assert.deepEqual(groups[0].en, [{def: 'go away (imperative)', pos: 'v'}]);
+});
+
+test('folds a lone word into a phrase it suffixes once, when the word is not a risky one', () => {
+  const groups = groupEntries([
+    {vn: 'hầu cận', en: [{def: 'trusted servant', pos: ''}]},
+    {vn: 'hầu cận', en: [{def: 'Servant', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [{def: 'trusted servant', pos: ''}]);
+});
+
+test('does not fold a phrasal-verb particle suffix from just one corroborating phrase', () => {
+  const groups = groupEntries([
+    {vn: 'qua', en: [{def: 'after, by, through, over', pos: ''}]},
+    {vn: 'qua', en: [{def: 'to pass by, go across, cross over', pos: ''}]}
+  ]);
   assert.deepEqual(groups[0].en, [
-    {def: 'to go', pos: 'v'},
-    {def: 'go away (imperative)', pos: 'v'}
+    {def: 'after, by, through, over', pos: ''},
+    {def: 'to pass by, go across, cross over', pos: ''}
+  ]);
+});
+
+test('does not fold a lone adverb into a phrase it only suffixes once (no repeated corroboration)', () => {
+  const groups = groupEntries([
+    {vn: 'rõ', en: [
+      {def: '𤑟', pos: ''},
+      {def: 'clearly, distinctly', pos: ''},
+      {def: 'to know well, understand clearly', pos: 'verb'}
+    ]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: '𤑟', pos: ''},
+    {def: 'clearly, distinctly', pos: ''},
+    {def: 'to know well, understand clearly', pos: 'verb'}
+  ]);
+});
+
+test('folds a lone adverb into a phrase it suffixes once, when a generic verb precedes it', () => {
+  const groups = groupEntries([
+    {vn: 'bỗng', en: [{def: 'to act suddenly', pos: ''}]},
+    {vn: 'bỗng', en: [{def: 'suddenly', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [{def: 'to act suddenly', pos: ''}]);
+});
+
+test('folds a lone adverb into a phrase it suffixes once, when a pronoun precedes it', () => {
+  const groups = groupEntries([
+    {vn: 'cá nhân tôi', en: [{def: 'personally (I feel, think, etc)', pos: ''}]},
+    {vn: 'cá nhân tôi', en: [{def: 'I personally', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [{def: 'personally (I feel, think, etc)', pos: ''}]);
+});
+
+test('does not fold a lone adverb suffixing a phrase headed by a real content verb', () => {
+  const groups = groupEntries([
+    {vn: 'cẩn cáo', en: [{def: 'to inform respectfully', pos: ''}]},
+    {vn: 'cẩn cáo', en: [{def: 'respectfully, sincerely yours (letter closing form)', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'to inform respectfully', pos: ''},
+    {def: 'respectfully, sincerely yours (letter closing form)', pos: ''}
   ]);
 });
 

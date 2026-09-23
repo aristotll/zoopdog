@@ -54,21 +54,27 @@ function isAsciiText(str) {
   return /^[\x00-\x7f]*$/.test(str);
 }
 
-// Paren-depth-aware, unlike a plain `split(',')` -- a comma inside a parenthetical note (e.g.
-// "translation (of a book, etc.)") is not a synonym separator. Kept in sync with
+// Paren- and bracket-depth-aware, unlike a plain `split(',')` -- a comma inside a parenthetical
+// note (e.g. "translation (of a book, etc.)") or a bracketed classifier note (e.g.
+// "[CL for ears of corn, cabbages]") is not a synonym separator. Kept in sync with
 // `scripts/lib/dictionary-identity.js`'s `synonymTokens` deliberately; this audit's whole
 // premise is finding gaps in that module's *matching* rules, not its tokenizing.
 function synonymTokens(def) {
   const tokens = [];
-  let depth = 0;
+  let parenDepth = 0;
+  let bracketDepth = 0;
   let current = '';
   for (const ch of def) {
     if (ch === '(') {
-      depth += 1;
+      parenDepth += 1;
     } else if (ch === ')') {
-      depth = Math.max(0, depth - 1);
+      parenDepth = Math.max(0, parenDepth - 1);
+    } else if (ch === '[') {
+      bracketDepth += 1;
+    } else if (ch === ']') {
+      bracketDepth = Math.max(0, bracketDepth - 1);
     }
-    if (ch === ',' && depth === 0) {
+    if (ch === ',' && parenDepth === 0 && bracketDepth === 0) {
       tokens.push(current.trim());
       current = '';
     } else {
@@ -144,13 +150,73 @@ function isPhraseSuffixVariant(a, b) {
   return suffixedWordCount === 1;
 }
 
+// Semantically empty/placeholder verbs and personal pronouns: when an adverb ending in "-ly"
+// directly follows one of these ("act suddenly", "I personally"), the adverb itself carries the
+// phrase's whole meaning. Following a real content verb instead ("inform respectfully") it stays
+// a genuine modifier of that verb, not a restatement of it -- kept in sync with
+// `scripts/lib/dictionary-identity.js`'s own `isSuffixRiskyIn` deliberately, for the same reason
+// its suffix table is kept in sync: this audit's job is to catch gaps in that module's matching
+// rules, not to independently re-derive which words are "safe" to follow an adverb.
+const GENERIC_WORDS_BEFORE_ADVERB = new Set([
+  'act', 'do', 'be', 'get', 'become', 'feel', 'seem', 'sound', 'look',
+  'i', 'you', 'he', 'she', 'it', 'we', 'they'
+]);
+
+function endsWithRiskyAdverb(haystack, adverb) {
+  const words = haystack.split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] || '';
+  if (normalize(last) !== normalize(adverb)) {
+    return false;
+  }
+  const precedingWord = words.length >= 2 ? normalize(words[words.length - 2]) : '';
+  return !GENERIC_WORDS_BEFORE_ADVERB.has(precedingWord);
+}
+
 function looseContains(haystack, needle) {
   if (!needle || needle.length < MIN_LOOSE_NEEDLE_LENGTH || needle.length >= haystack.length) {
+    return false;
+  }
+  if (needle.endsWith('ly') && endsWithRiskyAdverb(haystack, needle)) {
     return false;
   }
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escaped}(es|s|ly|ing|ed)?($|[^a-zA-Z0-9])`, 'i');
   return pattern.test(haystack);
+}
+
+// A bracketed classifier/grammar note (e.g. "[CL for ears of corn, cabbages]") is metadata about
+// how the headword is used, not a synonym gloss -- it can happen to mention the same word a real
+// gloss uses ("corn"), but that is never a genuine restatement, so it must never satisfy or be
+// satisfied by any coverage check.
+function isClassifierNote(token) {
+  return token.trim().startsWith('[');
+}
+
+function tokenMatches(tokenA, tokenB) {
+  if (isClassifierNote(tokenA) || isClassifierNote(tokenB)) {
+    return false;
+  }
+  return tokenA === tokenB
+    || isSuffixedFormOf(tokenA, tokenB)
+    || isSuffixedFormOf(tokenB, tokenA)
+    || isPhraseSuffixVariant(tokenA, tokenB)
+    || looseContains(tokenA, tokenB)
+    || looseContains(tokenB, tokenA);
+}
+
+// True when EVERY token of `shortTokens` matches some token of `longTokens` -- i.e. `shortTokens`
+// contributes nothing that `longTokens` does not already say. This is deliberately stricter than
+// "some token pair overlaps": a pair like "sharp, biting, cutting" vs
+// "feeling a sharp pain, feeling a biting cold" shares two of its three words with the other side
+// but still isn't a duplicate -- "cutting" is real, additional content, so the shorter list is
+// enriching the entry, not restating it. Requiring full coverage of one whole side is what tells
+// "genuinely the same gloss, said differently" apart from "an overlapping but distinct list of
+// synonyms", and is what keeps this audit's findings meaningful instead of flagging every pair of
+// senses that merely shares a common word.
+function isFullyCovered(shortTokens, longTokens) {
+  return shortTokens.length > 0 && shortTokens.every((token) =>
+    longTokens.some((other) => tokenMatches(token, other))
+  );
 }
 
 function looseSynonymOverlap(defA, defB) {
@@ -159,16 +225,7 @@ function looseSynonymOverlap(defA, defB) {
   }
   const tokensA = synonymTokens(defA).map(normalize);
   const tokensB = synonymTokens(defB).map(normalize);
-  return tokensA.some((tokenA) =>
-    tokensB.some((tokenB) =>
-      tokenA === tokenB
-        || isSuffixedFormOf(tokenA, tokenB)
-        || isSuffixedFormOf(tokenB, tokenA)
-        || isPhraseSuffixVariant(tokenA, tokenB)
-        || looseContains(tokenA, tokenB)
-        || looseContains(tokenB, tokenA)
-    )
-  );
+  return isFullyCovered(tokensA, tokensB) || isFullyCovered(tokensB, tokensA);
 }
 
 function posCompatible(a, b) {
