@@ -195,11 +195,14 @@
   }
 
   // Wires a "Refresh all" button: results are listed under the note as
-  // "engines: translation" for reference, each with a Copy button.
+  // "engines: translation" for reference, each with a Copy button. Returns
+  // { run } so the modal that owns this button can also trigger it itself --
+  // it auto-runs right after the modal opens (see zooOpenNomModal), without
+  // making the modal's own show wait on it.
   function zooWireNotesAll(button, list, kind, getText, statusId) {
-    button.addEventListener('click', function() {
+    function run() {
       var text = getText();
-      if (!text) return;
+      if (!text || button.disabled) return;
       button.disabled = true;
       list.hidden = false;
       list.textContent = '';
@@ -237,7 +240,9 @@
       }).then(function() {
         button.disabled = false;
       });
-    });
+    }
+    button.addEventListener('click', run);
+    return { run: run };
   }
 
   // Drops punctuation from a machine-translated note. A hyphen or apostrophe
@@ -1117,7 +1122,7 @@
       explainInput.focus();
     });
 
-    zooWireNotesAll(
+    var notesAll = zooWireNotesAll(
       document.getElementById(ids.notesAll),
       document.getElementById(ids.notesAllList),
       'nom-notes',
@@ -1260,6 +1265,7 @@
 
     zooNomFormState = {
       refresh: refreshSuggestions,
+      notesAll: notesAll,
       reset: function() {
         nomEdits.reset();
         explainEdits.reset();
@@ -1289,6 +1295,9 @@
     document.getElementById(ids.saveBtn).hidden = false;
     document.getElementById(ids.saveBtn).textContent = 'Save';
     zooOpenModal(ids.backdrop);
+    // Fired off, not awaited: the modal is already showing, and the "Refresh
+    // all" list fills in on its own without holding up anything else here.
+    zooNomFormState.notesAll.run();
     zooNomFormState.refresh(term);
   }
 

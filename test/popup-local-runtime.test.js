@@ -38,6 +38,10 @@ function createHarness(request) {
   const document = {
     getElementById(id) { return elements.get(id) || null; },
     createElement() { return element(); },
+    // zooWireNotesAll's result rows append plain text nodes alongside the
+    // "engines: " <strong> label -- exercised now that zooOpenNomModal
+    // auto-runs "Refresh all" on open, not only by a manual button click.
+    createTextNode(data) { return {nodeType: 3, textContent: String(data)}; },
     addEventListener() {},
     querySelectorAll() { return []; }
   };

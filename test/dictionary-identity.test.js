@@ -149,6 +149,63 @@ test('folds a gerund sense into a synonym bundle that already contains its verb 
   ]);
 });
 
+test('folds a gerund sense into a synonym bundle via the silent-e spelling rule', () => {
+  const groups = groupEntries([
+    {vn: 'bao gồm', en: [
+      {def: 'to consist of, include, embrace, have, be made up of, comprise', pos: 'verb'}
+    ]},
+    {vn: 'bao gồm', en: [{def: 'including', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: 'to consist of, include, embrace, have, be made up of, comprise', pos: 'verb'}
+  ]);
+});
+
+test('folds a plural sense into the bare head word of a parenthesized gloss', () => {
+  const groups = groupEntries([
+    {vn: 'người dùng', en: [{def: 'user (person)', pos: ''}]},
+    {vn: 'người dùng', en: [{def: 'Users', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'user (person)', pos: ''}]);
+});
+
+test('does not split synonyms on a comma inside a parenthetical note', () => {
+  const groups = groupEntries([
+    {vn: 'bản dịch', en: [{def: 'translation (of a book, etc.)', pos: ''}]},
+    {vn: 'bản dịch', en: [{def: 'Translation', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [{def: 'translation (of a book, etc.)', pos: ''}]);
+});
+
+test('folds a past-participle phrase into a synonym bundle via the silent-e spelling rule', () => {
+  const groups = groupEntries([
+    {vn: 'dựa trên', en: [
+      {def: 'to found on, base on', pos: 'verb'},
+      {def: 'to rely on', pos: 'verb'}
+    ]},
+    {vn: 'dựa trên', en: [{def: 'based on', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: 'to found on, base on', pos: 'verb'},
+    {def: 'to rely on', pos: 'verb'}
+  ]);
+});
+
+test('does not fold phrases that differ by more than one suffixed word', () => {
+  const groups = groupEntries([
+    {vn: 'a', en: [{def: 'walk slowly', pos: ''}]},
+    {vn: 'a', en: [{def: 'walked quickly', pos: ''}]}
+  ]);
+  assert.deepEqual(groups[0].en, [
+    {def: 'walk slowly', pos: ''},
+    {def: 'walked quickly', pos: ''}
+  ]);
+});
+
 test('folds a plural sense into a comma-separated synonym bundle that already contains it', () => {
   const groups = groupEntries([
     {vn: 'người khác', en: [{def: 'other, different person, people', pos: ''}]},
@@ -185,6 +242,21 @@ test('folds a lone generic word into a longer sense once the group has enough ot
     {def: '空沛', pos: ''},
     {def: 'there is not, there are not', pos: ''},
     {def: 'not correct', pos: ''}
+  ]);
+});
+
+test('folds a lone word into a bundle where it is the repeated prefix of every synonym', () => {
+  const groups = groupEntries([
+    {vn: 'cho đến khi', en: [
+      {def: '朱𦤾崎', pos: ''},
+      {def: 'until when, until that time', pos: ''}
+    ]},
+    {vn: 'cho đến khi', en: [{def: 'until', pos: ''}]}
+  ]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].en, [
+    {def: '朱𦤾崎', pos: ''},
+    {def: 'until when, until that time', pos: ''}
   ]);
 });
 
