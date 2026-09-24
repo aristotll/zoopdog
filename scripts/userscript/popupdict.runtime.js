@@ -47,15 +47,53 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // entire page. Matches book-translator's own MAX_CONTEXT_LENGTH in nom_review_queue.py.
   var ZOO_NOM_REVIEW_CONTEXT_MAX = 500;
 
-  // The sentence/paragraph the flagged term was hovered in, so a reviewer isn't judging a bare
-  // word out of context later. `node` is the Highlighter's origin text node (the match start);
-  // its nearest block-level ancestor's whole text is a good enough proxy for "the sentence" --
-  // splitting out one real sentence would need real tokenization this runtime doesn't have.
-  function zooExtractNomReviewContext(node) {
+  var ZOO_NOM_REVIEW_SENTENCE_END_RE = /[.!?\u3002\uFF01\uFF1F\n]/;
+
+  // Character offset of (node, begin) inside `boundary`'s textContent, or -1 if `node` is not
+  // one of its text nodes.
+  function zooTextOffsetWithin(boundary, node, begin) {
+    if (!node || node.nodeType !== 3 || typeof begin !== 'number') return -1;
+    var walker = document.createTreeWalker(boundary, 4);
+    var offset = 0;
+    var cur;
+    while ((cur = walker.nextNode())) {
+      if (cur === node) return offset + begin;
+      offset += cur.data.length;
+    }
+    return -1;
+  }
+
+  // The sentence the flagged term sits in, so a reviewer isn't judging a bare word later.
+  // Anchored on the term's real position (the highlighter's text node + offset, else a search
+  // for `term` in the block) -- never the start of the block, which drops the term whenever it
+  // sits past the length cap in a long paragraph.
+  function zooExtractNomReviewContext(node, term, begin) {
     if (!node || typeof zdContainerBoundary !== 'function') return '';
     var boundary = zdContainerBoundary(node);
-    var text = boundary && boundary.textContent ? boundary.textContent : '';
-    text = text.replace(/\s+/g, ' ').trim();
+    var full = boundary && boundary.textContent ? boundary.textContent : '';
+    if (!full) return '';
+
+    var pos = zooTextOffsetWithin(boundary, node, begin);
+    if (pos < 0 && term) pos = full.toLowerCase().indexOf(String(term).toLowerCase());
+    if (pos < 0) pos = 0;
+
+    var termLength = term ? String(term).length : 1;
+    var start = 0;
+    for (var i = pos - 1; i >= 0; i--) {
+      if (ZOO_NOM_REVIEW_SENTENCE_END_RE.test(full.charAt(i))) { start = i + 1; break; }
+    }
+    var end = full.length;
+    for (var j = pos + termLength; j < full.length; j++) {
+      if (ZOO_NOM_REVIEW_SENTENCE_END_RE.test(full.charAt(j))) { end = j + 1; break; }
+    }
+
+    var half = Math.floor(ZOO_NOM_REVIEW_CONTEXT_MAX / 2);
+    if (end - start > ZOO_NOM_REVIEW_CONTEXT_MAX) {
+      start = Math.max(start, pos - half);
+      end = Math.min(end, Math.max(start + ZOO_NOM_REVIEW_CONTEXT_MAX, pos + termLength));
+    }
+
+    var text = full.slice(start, end).replace(/\s+/g, ' ').trim();
     return zooScrubLoneSurrogates(text.slice(0, ZOO_NOM_REVIEW_CONTEXT_MAX));
   }
 
@@ -334,7 +372,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       'padding:0 0.6rem;white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis;';
     button.addEventListener('click', function(event) {
       event.preventDefault();
-      zooQueueNomReview(text, zooExtractNomReviewContext(contextNode));
+      zooQueueNomReview(text, zooExtractNomReviewContext(contextNode, text));
       button.textContent = 'Đã đánh dấu ✓';
       button.disabled = true;
       zooNomReviewBarPressedUntil = 0;
@@ -589,6 +627,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     // scrolled, this highlight is stale" from "some unrelated widget on the
     // page fired a scroll event" -- see that listener below.
     this.node = node;
+    this.begin = begin;
 
     var boundary = zdContainerBoundary(node);
     var ranges = [];
@@ -986,7 +1025,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       } else if (action === 'set-order') {
         zooOpenNomOrderModal(vi);
       } else if (action === 'queue-nom-review') {
-        zooQueueNomReview(vi, zooExtractNomReviewContext(highlighter.node), button);
+        zooQueueNomReview(vi, zooExtractNomReviewContext(highlighter.node, vi, highlighter.begin), button);
       }
     });
 
