@@ -208,7 +208,40 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // positioned from the selection's own bounding rect and shown from those events, entirely
   // independent of whatever the OS callout is doing on top of it.
   var ZOO_NOM_REVIEW_SELECTION_MAX_CHARS = 60;
+  var ZOO_NOM_REVIEW_SELECTION_MAX_WORDS = 8;
+  var ZOO_NOM_REVIEW_SELECTION_MAX_NODES = 200;
   var zooNomReviewSelectionBarEl = null;
+  // While a press on the bar is in flight, selectionchange must not hide it -- see
+  // zooEnsureNomReviewSelectionBar.
+  var zooNomReviewBarPressedUntil = 0;
+
+  // Whether `range` covers more than `max` characters, decided by walking at most a few
+  // hundred text nodes from the range start rather than calling selection.toString(): that
+  // materializes the entire selected text, so an accidental select-all on a long page (a
+  // million-plus characters) cost tens of ms per selectionchange/mouseup/touchend, on the main
+  // thread, before the length limit was ever looked at -- which is what made the page hang.
+  function zooNomReviewSelectionTooLong(range, max) {
+    var start = range.startContainer;
+    var end = range.endContainer;
+    if (start === end && start.nodeType === 3) {
+      return (range.endOffset - range.startOffset) > max;
+    }
+    var walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT);
+    var first = start.nodeType === 3 ? start : (start.childNodes[range.startOffset] || start);
+    walker.currentNode = first;
+    var node = first.nodeType === 3 ? first : walker.nextNode();
+    var total = 0;
+    var visited = 0;
+    while (node && range.intersectsNode(node)) {
+      if (++visited > ZOO_NOM_REVIEW_SELECTION_MAX_NODES) return true;
+      var from = node === start ? range.startOffset : 0;
+      var to = node === end ? range.endOffset : node.data.length;
+      total += Math.max(0, to - from);
+      if (total > max) return true;
+      node = walker.nextNode();
+    }
+    return false;
+  }
 
   // Named distinctly from the -local build's own zooTrimSelectionPunctuation/zooDebounce
   // (scripts/userscript/popupdict-local.runtime.js): both files share one IIFE in the -local
@@ -241,12 +274,21 @@ __ZOOPDOG_RUNTIME_SOURCES__
     // control, which would otherwise clear the selection (and the bar with it, via the next
     // selectionchange) before the click this button is waiting for ever fires.
     bar.addEventListener('mousedown', function(event) { event.stopPropagation(); });
+    // Pressing the bar collapses the page selection, which fires selectionchange; the debounced
+    // handler then sees "nothing selected" and hides the bar. On a responsive page the click
+    // lands inside the 180ms debounce, but on a laggy one (right after a heavy selection) the
+    // timer fires first and removes the button out from under the click, so the tap does
+    // nothing. Marking the press keeps the bar alive until that click has had time to arrive.
+    function markPressed() { zooNomReviewBarPressedUntil = Date.now() + 1500; }
+    bar.addEventListener('touchstart', markPressed, {passive: true});
+    bar.addEventListener('pointerdown', markPressed);
     document.body.appendChild(bar);
     zooNomReviewSelectionBarEl = bar;
     return bar;
   }
 
-  function zooHideNomReviewSelectionBar() {
+  function zooHideNomReviewSelectionBar(force) {
+    if (!force && Date.now() < zooNomReviewBarPressedUntil) return;
     if (zooNomReviewSelectionBarEl) zooNomReviewSelectionBarEl.style.display = 'none';
   }
 
@@ -267,7 +309,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
       zooQueueNomReview(text, zooExtractNomReviewContext(contextNode));
       button.textContent = 'Đã đánh dấu ✓';
       button.disabled = true;
-      window.setTimeout(zooHideNomReviewSelectionBar, 700);
+      zooNomReviewBarPressedUntil = 0;
+      window.setTimeout(function() { zooHideNomReviewSelectionBar(true); }, 700);
     });
     bar.appendChild(button);
 
@@ -299,12 +342,19 @@ __ZOOPDOG_RUNTIME_SOURCES__
         zooHideNomReviewSelectionBar();
         return;
       }
-      var text = zooTrimNomReviewSelection(selection.toString());
-      if (!text || text.length > ZOO_NOM_REVIEW_SELECTION_MAX_CHARS) {
+      var range = selection.getRangeAt(0);
+      // Cheap bounded check first; only a selection already known to be short is ever turned
+      // into a string, so a runaway selection costs a few hundred node visits at most.
+      if (zooNomReviewSelectionTooLong(range, ZOO_NOM_REVIEW_SELECTION_MAX_CHARS * 2)) {
         zooHideNomReviewSelectionBar();
         return;
       }
-      var range = selection.getRangeAt(0);
+      var text = zooTrimNomReviewSelection(selection.toString());
+      if (!text || text.length > ZOO_NOM_REVIEW_SELECTION_MAX_CHARS ||
+          text.split(/\s+/).length > ZOO_NOM_REVIEW_SELECTION_MAX_WORDS) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
       var rect = range.getBoundingClientRect();
       if (!rect || (!rect.width && !rect.height)) {
         zooHideNomReviewSelectionBar();
