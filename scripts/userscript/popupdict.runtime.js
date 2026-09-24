@@ -56,7 +56,30 @@ __ZOOPDOG_RUNTIME_SOURCES__
     var boundary = zdContainerBoundary(node);
     var text = boundary && boundary.textContent ? boundary.textContent : '';
     text = text.replace(/\s+/g, ' ').trim();
-    return text.slice(0, ZOO_NOM_REVIEW_CONTEXT_MAX);
+    return zooScrubLoneSurrogates(text.slice(0, ZOO_NOM_REVIEW_CONTEXT_MAX));
+  }
+
+  // Drops UTF-16 surrogates that are not part of a valid pair. slice() counts code units, so
+  // cutting a context at 500 can split a character outside the BMP (rare CJK / Chu Nom
+  // extension characters) and leave half of it. JSON.stringify happily sends that as "\ud863",
+  // but the server decodes it into a string it cannot encode as UTF-8, and the whole export
+  // dies with a connection failure. Applied when the context is cut and again at export time,
+  // since entries queued before this fix may already hold one.
+  function zooScrubLoneSurrogates(text) {
+    var out = '';
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        var next = text.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          out += text.charAt(i) + text.charAt(i + 1);
+          i++;
+        }
+      } else if (code < 0xDC00 || code > 0xDFFF) {
+        out += text.charAt(i);
+      }
+    }
+    return out;
   }
 
   function zooReadNomReviewQueue() {
@@ -157,7 +180,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
       error.style.display = 'none';
       var words = queue.map(function(entry) { return entry.vi; });
       var entries = queue.map(function(entry) {
-        return { word: entry.vi, context: entry.context || '' };
+        return {
+          word: zooScrubLoneSurrogates(String(entry.vi || '')),
+          context: zooScrubLoneSurrogates(String(entry.context || ''))
+        };
       });
       // The whole queue rides in the POST body, same JSON array the older query-string form
       // carried: a queue of sentence-length contexts overflows a URL and the server answers 414.
