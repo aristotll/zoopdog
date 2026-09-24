@@ -159,13 +159,15 @@ __ZOOPDOG_RUNTIME_SOURCES__
       var entries = queue.map(function(entry) {
         return { word: entry.vi, context: entry.context || '' };
       });
-      // The reader server's whole API speaks query-string params, even on POST -- see
-      // control.html's own api() helper -- but `context` is a sentence-length string that
-      // routinely contains commas, so it can't ride the old comma-list convention the way
-      // `nom`/`explain` do. A single JSON-encoded query param carries the whole batch instead.
-      var url = window.location.origin + '/v1/nom/entries/import?entries=' +
-        encodeURIComponent(JSON.stringify(entries));
-      fetch(url, { method: 'POST' }).then(function(response) {
+      // The whole queue rides in the POST body, same JSON array the older query-string form
+      // carried: a queue of sentence-length contexts overflows a URL and the server answers 414.
+      // (The server still accepts the old `entries=` / `words=` query forms for older installs.)
+      var url = window.location.origin + '/v1/nom/entries/import';
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entries)
+      }).then(function(response) {
         if (!response.ok) throw new Error('HTTP ' + response.status);
         return response.json().catch(function() { return {}; });
       }).then(function() {
