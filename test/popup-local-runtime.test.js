@@ -171,6 +171,23 @@ test('empty candidates stay empty while failures show recovery guidance and re-e
   assert.match(harness.elements.get(ids.status).textContent, /Reload the page/i);
 });
 
+test('the Chữ Nôm refresh button asks for the zoopdog order and refills the field', async () => {
+  const requests = [];
+  const harness = createHarness((options) => requests.push(options));
+  const ids = harness.context.ZOO_MODAL_IDS.nom;
+  Object.keys(ids).forEach((key) => harness.add(ids[key]));
+  harness.context.zooWireNomForm();
+  harness.elements.get(ids.vi).value = 'mới';
+  harness.elements.get(ids.nomRefresh).dispatch('click');
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /kind=nom/);
+  assert.match(requests[0].url, /order=zoopdog/);
+  requests[0].onload({status: 200, responseText: JSON.stringify({candidates: ['乙', '甲']})});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.elements.get(ids.nom).value, '乙');
+  assert.equal(harness.elements.get(ids.suggestions).children[0].value, '乙');
+});
+
 test('selection rect falls back to composed ranges only for shadow-root text', () => {
   const {context} = createHarness(() => {});
   const shadowRect = {width: 40, height: 10, left: 5, top: 6};

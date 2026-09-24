@@ -127,6 +127,15 @@
     });
   }
 
+  // Same lookup as zooFetchSuggestions('nom', ...) but in the dictionary's own
+  // order instead of the server's Chinese-word ranking.
+  function zooFetchNomZoopdogOrder(text) {
+    if (!text) return Promise.resolve([]);
+    return zooGetJSON('/v1/suggest', { kind: 'nom', text: text, order: 'zoopdog' }).then(function(data) {
+      return data.candidates || [];
+    });
+  }
+
   function zooFetchNotesRefresh(kind, text, engineIndex) {
     if (!text) return Promise.resolve({ candidates: [], engine: '' });
     var params = { kind: kind, text: text, refresh: '1' };
@@ -676,6 +685,7 @@
       replaceRow: 'zoopdog-nom-replace-row',
       replace: 'zoopdog-nom-replace',
       explain: 'zoopdog-nom-explain',
+      nomRefresh: 'zoopdog-nom-nom-refresh',
       notesRefresh: 'zoopdog-nom-notes-refresh',
       notesClear: 'zoopdog-nom-notes-clear',
       notesStrip: 'zoopdog-nom-notes-strip',
@@ -1093,6 +1103,22 @@
     });
     document.getElementById(ids.replace).addEventListener('change', resetPreview);
 
+    document.getElementById(ids.nomRefresh).addEventListener('click', function() {
+      var vi = document.getElementById(ids.vi).value.trim();
+      if (!vi) return;
+      var isCurrent = guard.begin();
+      zooFetchNomZoopdogOrder(vi).then(function(candidates) {
+        if (!isCurrent() || !candidates.length) return;
+        zooFillDatalist(ids.suggestions, candidates);
+        if (!nomEdits.edited) {
+          zooSetAutofillDefaultLive(nomInput, candidates[0], function() { return nomEdits.edited; });
+        }
+        resetPreview();
+      }, function() {
+        zooSetModalStatus(ids.status, zooLocalRequestRecoveryMessage(), true);
+      });
+    });
+
     var nextNotesEngine = zooCreateEngineRotator();
     document.getElementById(ids.notesRefresh).addEventListener('click', function() {
       var vi = document.getElementById(ids.vi).value.trim();
@@ -1499,7 +1525,10 @@
       '<p id="', nomIds.existingInfo, '" class="zd-modal-hint" hidden></p>',
       '<label>Vietnamese term<input id="', nomIds.vi, '" type="text" required></label>',
       '<label>Ch\u1EEF N\u00F4m',
+      '<span class="zd-field-row">',
       '<input id="', nomIds.nom, '" type="text" required list="', nomIds.suggestions, '">',
+      '<button type="button" id="', nomIds.nomRefresh, '" class="zd-field-button" title="Suggest in zoopdog dictionary order">\u21BB</button>',
+      '</span>',
       '<datalist id="', nomIds.suggestions, '"></datalist>',
       '</label>',
       '<label id="', nomIds.replaceRow, '" class="zd-modal-checkbox-row" hidden>',
