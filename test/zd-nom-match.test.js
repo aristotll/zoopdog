@@ -84,6 +84,16 @@ test('zdNomRunWords stops a run at a comma, not at extra spaces', () => {
   assert.deepEqual(secondRun.map(function(w) { return text.substring(w.start, w.end); }), ['hai', 'ba']);
 });
 
+test('zero-width characters between words (Immersive Translate) do not end a run', () => {
+  const text = 'kiến \u200b\u200btrúc';
+  const words = zdNomRunWords(text, 0);
+  assert.deepEqual(words.map(function(w) { return text.substring(w.start, w.end); }), ['kiến', 'trúc']);
+
+  const matcher = zdCreateNomMatcher({'kiến trúc': '建築', 'kiến': '見', 'trúc': '竹'});
+  assert.equal(matcher.findNomMatch(text, 0).nom, '建築');
+  assert.equal(matcher.findNomMatch(text, 0).length, text.length);
+});
+
 test('zdNomWordMatchesAt returns every match length at a position, shortest first', () => {
   const termIndex = zdNomBuildIndex({'mới có': '買固', 'mới': '買 / 貝', 'có': '固'});
   const text = 'mới có duyên';

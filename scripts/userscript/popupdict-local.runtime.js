@@ -583,7 +583,10 @@
     var backdrop = document.getElementById(id);
     backdrop.hidden = false;
     var panel = backdrop.querySelector('.zd-modal');
-    if (panel) panel.scrollTop = 0;
+    if (panel) {
+      panel.scrollTop = 0;
+      panel.removeAttribute('data-zd-dirty');
+    }
     zooRestoreModalPosition(id, panel);
   }
 
@@ -630,6 +633,22 @@
         if (!backdrop.hidden) zooCloseModal(backdrop.id);
       });
     });
+    // The modals are click-through (pointer-events: none on the backdrop) so the
+    // page stays usable beside them. A modal the user never typed into -- e.g.
+    // opened from a mis-selected word -- closes when they press elsewhere on the
+    // page; one with edits stays, so an errant click cannot discard typing.
+    document.addEventListener('input', function(event) {
+      var panel = event.target && event.target.closest && event.target.closest('.zd-modal');
+      if (panel) panel.setAttribute('data-zd-dirty', '');
+    }, true);
+    document.addEventListener('mousedown', function(event) {
+      if (event.target && event.target.closest && event.target.closest('.zd-modal, #zoopdog-userscript-selection-bar')) return;
+      document.querySelectorAll('.zd-modal-backdrop').forEach(function(backdrop) {
+        if (backdrop.hidden) return;
+        var panel = backdrop.querySelector('.zd-modal');
+        if (!panel || !panel.hasAttribute('data-zd-dirty')) zooCloseModal(backdrop.id);
+      });
+    }, true);
   }
 
   function zooMakeModalDraggable(modalId) {

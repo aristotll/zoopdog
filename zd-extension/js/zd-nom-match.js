@@ -66,6 +66,11 @@ function zdNomIsWhitespace(ch) {
 var ZD_NOM_HAS_OWN = Object.prototype.hasOwnProperty;
 var ZD_NOM_LOWER_UNSAFE_PATTERN = /[\u03a3\ud800-\udfff]/;
 var ZD_NOM_WHITESPACE_RUN_PATTERN = /\s/g;
+// Invisible joiners that page translators (Immersive Translate) sprinkle between words. `\s`
+// does not cover them, so without this a gap like " \u200b\u200b" ended every run.
+function zdNomIsZeroWidthCode(code) {
+  return (code >= 0x200b && code <= 0x200d) || code === 0x2060 || code === 0xfeff;
+}
 
 // Lowercases `str` one character at a time, the way the term index was originally keyed. A
 // whole-string toLowerCase() agrees with that for everything except the Greek capital sigma
@@ -151,10 +156,11 @@ function zdNomRunWords(text, start) {
       i++;
     }
     words.push({start: wordStart, end: i});
-    // The gap must be plain U+0020 spaces only: any other whitespace ends the run.
+    // The gap must be plain U+0020 spaces only (zero-width joiners are invisible, so ignored):
+    // any other whitespace ends the run.
     var onlySpaces = true;
-    while (i < len && zdNomIsWhitespaceCode(text.charCodeAt(i))) {
-      if (text.charCodeAt(i) !== 32) {
+    while (i < len && (zdNomIsWhitespaceCode(text.charCodeAt(i)) || zdNomIsZeroWidthCode(text.charCodeAt(i)))) {
+      if (text.charCodeAt(i) !== 32 && !zdNomIsZeroWidthCode(text.charCodeAt(i))) {
         onlySpaces = false;
       }
       i++;
