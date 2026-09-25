@@ -705,6 +705,7 @@
       replace: 'zoopdog-nom-replace',
       explain: 'zoopdog-nom-explain',
       nomRefresh: 'zoopdog-nom-nom-refresh',
+      viSearch: 'zoopdog-nom-vi-search',
       notesRefresh: 'zoopdog-nom-notes-refresh',
       notesClear: 'zoopdog-nom-notes-clear',
       notesStrip: 'zoopdog-nom-notes-strip',
@@ -1121,6 +1122,11 @@
       input.addEventListener('input', resetPreview);
     });
     document.getElementById(ids.replace).addEventListener('change', resetPreview);
+
+    document.getElementById(ids.viSearch).addEventListener('click', function() {
+      var term = document.getElementById(ids.vi).value.trim();
+      if (term) window.open('https://www.google.com/search?q=' + encodeURIComponent(term), '_blank', 'noopener');
+    });
 
     document.getElementById(ids.nomRefresh).addEventListener('click', function() {
       var vi = document.getElementById(ids.vi).value.trim();
@@ -1542,7 +1548,12 @@
       '<form id="', nomIds.form, '" class="zd-modal">',
       '<h2 id="', nomIds.title, '">Add Ch\u1EEF N\u00F4m entry</h2>',
       '<p id="', nomIds.existingInfo, '" class="zd-modal-hint" hidden></p>',
-      '<label>Vietnamese term<input id="', nomIds.vi, '" type="text" required></label>',
+      '<label>Vietnamese term',
+      '<span class="zd-field-row">',
+      '<input id="', nomIds.vi, '" type="text" required>',
+      '<button type="button" id="', nomIds.viSearch, '" class="zd-field-button" title="Search this term on Google (new tab)" aria-label="Search on Google">\uD83D\uDD0D</button>',
+      '</span>',
+      '</label>',
       '<label>Ch\u1EEF N\u00F4m',
       '<span class="zd-field-row">',
       '<input id="', nomIds.nom, '" type="text" required list="', nomIds.suggestions, '">',
