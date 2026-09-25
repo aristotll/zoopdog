@@ -1237,10 +1237,14 @@ __ZOOPDOG_RUNTIME_SOURCES__
       window.addEventListener('click', clickListener);
     }
 
+    var shiftRelay = zdCreateShiftRelay(window, function() {
+      highlighter.toggleLock();
+      popup.toggleLock();
+    });
+
     window.addEventListener('keydown', function(event) {
       if (event.which === 16) {
-        highlighter.toggleLock();
-        popup.toggleLock();
+        shiftRelay.press();
       }
     });
   }

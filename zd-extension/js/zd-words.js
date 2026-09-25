@@ -133,13 +133,75 @@ function zdRecoverTextNodeFromWholePage(x, y) {
   return zdTextNodeAtPoint(document.body, x, y);
 }
 
+// Shift pins the popup, but the key press goes to whichever window has keyboard focus while the
+// popup on screen belongs to the script instance running in the frame under the pointer (115.com
+// renders its whole file list in an iframe and keeps focus in the parent page). Every window of a
+// frame tree runs its own instance, so a press is relayed to the other instances by postMessage.
+// A nonce per press keeps a message that comes back around the tree from toggling twice.
+function zdCreateShiftRelay(win, onShift) {
+  const TYPE = 'zoopdog-shift-relay';
+  const seen = new Set();
+
+  function post(target, nonce) {
+    try {
+      target.postMessage({type: TYPE, nonce: nonce}, '*');
+    } catch (error) {
+      // A frame that is being torn down: nothing to relay to.
+    }
+  }
+
+  function relay(nonce) {
+    if (win.parent && win.parent !== win) {
+      post(win.parent, nonce);
+    }
+    for (let i = 0; i < win.frames.length; i++) {
+      post(win.frames[i], nonce);
+    }
+  }
+
+  function accept(nonce) {
+    if (seen.has(nonce)) {
+      return false;
+    }
+    seen.add(nonce);
+    if (seen.size > 64) {
+      seen.delete(seen.values().next().value);
+    }
+    return true;
+  }
+
+  win.addEventListener('message', function(event) {
+    const data = event.data;
+    if (!data || data.type !== TYPE || typeof data.nonce !== 'string' || !accept(data.nonce)) {
+      return;
+    }
+    onShift();
+    relay(data.nonce);
+  });
+
+  return {
+    press: function() {
+      const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      accept(nonce);
+      onShift();
+      relay(nonce);
+    }
+  };
+}
+
+// Global isFinite, not Number.isFinite: some pages (115.com) delete the ES2015 statics of
+// Number from their own realm, which is the one a userscript runs in.
+function zdIsFiniteNumber(value) {
+  return typeof value === 'number' && isFinite(value);
+}
+
 // Point resolution differs per engine and per caller. The extension passes client coordinates
 // only; the website page also has page coordinates, and there are documents where the client
 // pair resolves to nothing while the page pair resolves correctly. Trying the page pair second
 // gives every consumer the fallback that previously existed on the website alone.
 function zdCaretFromPoint(mouse) {
   const points = [[mouse.x, mouse.y]];
-  if (Number.isFinite(mouse.pageX) && Number.isFinite(mouse.pageY) &&
+  if (zdIsFiniteNumber(mouse.pageX) && zdIsFiniteNumber(mouse.pageY) &&
       (mouse.pageX !== mouse.x || mouse.pageY !== mouse.y)) {
     points.push([mouse.pageX, mouse.pageY]);
   }
@@ -399,6 +461,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ZD_WORD_CHAR_RE,
     zdIsWordChar,
     zdCaretFromPoint,
+    zdCreateShiftRelay,
     zdNextTextNode,
     zdContainerBoundary,
     zdGatherFollowingContext,
