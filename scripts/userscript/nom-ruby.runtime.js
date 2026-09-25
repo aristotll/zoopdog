@@ -58,12 +58,21 @@
   // both reach the same observer instance.
   var observer;
   var observedShadowRoots = new WeakSet();
+  // The webfont is its own sheet: the -local build embeds the whole font here (~14MB of base64),
+  // which every document that parses it pays for -- so it is added only once a ruby is about to
+  // be created (ensureFontFace), never to a page with nothing to annotate, and never again per
+  // shadow root: a document-level @font-face already applies inside shadow trees.
+  function fontFaceCss() {
+    return [
+      '@font-face {',
+      "  font-family: 'Zoopdog Nom Na Tong';",
+      "  src: __ZOOPDOG_NOM_FONT_SRC__;",
+      '  font-display: swap;',
+      '}'
+    ].join('\n');
+  }
+
   var rubyCss = [
-    '@font-face {',
-    "  font-family: 'Zoopdog Nom Na Tong';",
-    "  src: __ZOOPDOG_NOM_FONT_SRC__;",
-    '  font-display: swap;',
-    '}',
     'ruby.zoopdog-nom-ruby { ruby-position: over; }',
     'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt {',
     '  color: #B6638F;',
@@ -74,6 +83,21 @@
     '  user-select: none;',
     '}'
   ].join('\n');
+
+  var fontFaceAdded = false;
+
+  // The font src is a github raw-styled URL in the committed build (small file, but blocked by
+  // font-src CSP on sites like YouTube -- document.fonts then reports this family as "error" and
+  // every rare Nom glyph silently falls back to invisible tofu in sans-serif) and a `data:` URI
+  // embedding the whole font in the -local build (large file, but immune to font-src since there
+  // is no network fetch to block). See docs/build.md.
+  function ensureFontFace() {
+    if (fontFaceAdded) {
+      return;
+    }
+    fontFaceAdded = true;
+    addStyle(fontFaceCss());
+  }
 
   // Eudict's caption overlay caps each language row at a few lines' height (`max-height: 3.6em`,
   // `overflow: hidden`). A ruby line is taller than a plain one, so an annotated row no longer
@@ -392,6 +416,7 @@
   }
 
   function createRuby(matchedText, reading, nom) {
+    ensureFontFace();
     var ruby = doc.createElement('ruby');
     ruby.className = 'zoopdog-nom-ruby';
     ruby.title = 'Chu Nom: ' + nom;
@@ -551,11 +576,6 @@
       return;
     }
 
-    // The font src in rubyCss is a github raw-styled URL in the committed build (small file,
-    // but blocked by font-src CSP on sites like YouTube -- document.fonts then reports this
-    // family as "error" and every rare Nom glyph silently falls back to invisible tofu in
-    // sans-serif) and a `data:` URI embedding the whole font in the -local build (large file,
-    // but immune to font-src since there is no network fetch to block). See docs/build.md.
     addStyle(rubyCss);
 
     newNodes.add(doc.body);

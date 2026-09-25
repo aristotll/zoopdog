@@ -346,17 +346,70 @@ test('a closed shadow root is left alone rather than throwing', () => {
   assert.doesNotThrow(() => dom.tick());
 });
 
+function headStyles(dom) {
+  return dom.document.getElementsByTagName('head')[0].childNodes
+    .filter((node) => node.tagName === 'STYLE')
+    .map((node) => node.textContent);
+}
+
 test('injects the Nom Na Tong webfont for Chu Nom ruby text', () => {
   const dom = runRuntime(NOM_MAP);
-  const styles = dom.document.getElementsByTagName('head')[0].childNodes
-    .filter((node) => node.tagName === 'STYLE')
-    .map((node) => node.textContent)
-    .join('\n');
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
+  const styles = headStyles(dom).join('\n');
 
   assert.match(styles, /@font-face/);
   assert.match(styles, /font-family:\s*'Zoopdog Nom Na Tong'/);
   assert.match(styles, /NomNaTong-Regular\.ttf/);
   assert.match(styles, /ruby\.zoopdog-nom-ruby > rt\.zoopdog-nom-rt[\s\S]*font-family:\s*'Zoopdog Nom Na Tong'/);
+});
+
+// The -local build embeds the whole font (~14MB of base64) in that @font-face. Every page and
+// iframe the userscript runs in used to parse it, annotated or not; now only a document that
+// actually shows an annotation pays for it, and only once.
+test('a page with nothing to annotate never receives the webfont', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('nothing here in english'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
+
+  assert.doesNotMatch(headStyles(dom).join('\n'), /@font-face/);
+});
+
+test('the webfont is injected once, however many annotations follow', () => {
+  const dom = runRuntime(NOM_MAP);
+  for (let i = 0; i < 3; i++) {
+    const paragraph = dom.document.createElement('p');
+    paragraph.appendChild(dom.document.createTextNode('của bạn'));
+    dom.body.appendChild(paragraph);
+    dom.tick();
+  }
+
+  const fontFaces = headStyles(dom).filter((css) => /@font-face/.test(css));
+  assert.equal(fontFaces.length, 1);
+});
+
+// A document-level @font-face is visible to shadow trees, so a shadow root only needs the
+// ruby/rt rules; repeating the font there parsed the ~14MB font once per watched shadow root.
+test('a watched shadow root gets the ruby rules but not another copy of the webfont', () => {
+  const dom = runRuntime(NOM_MAP);
+  const host = dom.document.createElement('app-video-captions');
+  dom.body.appendChild(host);
+  const shadow = host.attachShadow({mode: 'open'});
+  const line = dom.document.createElement('span');
+  line.appendChild(dom.document.createTextNode('của bạn'));
+  shadow.appendChild(line);
+  dom.tick();
+
+  const shadowStyles = shadow.childNodes
+    .filter((node) => node.tagName === 'STYLE')
+    .map((node) => node.textContent)
+    .join('\n');
+  assert.match(shadowStyles, /ruby\.zoopdog-nom-ruby/);
+  assert.doesNotMatch(shadowStyles, /@font-face/);
 });
 
 test('folds decomposed text before matching', () => {
