@@ -82,13 +82,19 @@ dev/reinstall loop decoupled from the github auto-update cadence.
 | Preview/diff rendering | `zooRenderEntryDiff` and the `zooEntryDiff*` helpers |
 | Suggestion/debounce/edit-tracking plumbing | `zooFetchSuggestions`, `zooFetchNotesRefresh`, `zooDebounce`, `zooTrackEdits`, `zooCreateRaceGuard` |
 
-All of this is a from-scratch port of the reader's own `scripts/reader/static/reader_nom.js`,
+All of this is a port of the reader's own `scripts/reader/static/reader_nom.js`,
 `reader_nom_order.js`, `reader_entry_diff.js`, and the `shared/entry_forms.js` /
 `shared/suggest.js` / `shared/modal.js` modules (all in the `book-translator` repo) — same
-fields, same suggestion lookups, same preview → confirm flow, just re-hosted on
-`GM_xmlhttpRequest` since this runs on someone else's page, not a same-origin app. When the
-reader's own modals change shape, this is the code to bring in sync by hand; there is no shared
-module between the two repos.
+fields, same preview → confirm flow, just re-hosted on `GM_xmlhttpRequest` since this runs on
+someone else's page, not a same-origin app.
+
+**The modals' logic is server-driven, so it is not duplicated here.** What each modal shows —
+the candidates in the requested order, the stored entry, the title and "already recorded" line,
+the default pick, the refresh-button order toggle, the preview diff rows, and the grouping of
+"Refresh all" answers — is decided by the book-translator server (`docs/server_driven_entry_modals.md`
+there) and this userscript only renders the answer. Only DOM building, event wiring and the
+shadow-root/page-specific mechanics live here. When a rule changes, change it on the server once;
+there is nothing to hand-sync in this file except the rendering of a new field.
 
 ## Reachability and endpoints
 
@@ -99,8 +105,17 @@ module between the two repos.
 - `GET /v1/suggest?kind=nom&text=...` — Chữ Nôm candidates for the "Add entry" field's datalist.
 - `GET /v1/suggest?kind=nom-notes&text=...` — a live-translated Notes draft. Fetched in parallel,
   never blocking the fields above — see "Known slow paths" below.
-- `GET /v1/nom/entry?vi=...` — whether a term is already recorded, to switch the modal into
-  update mode.
+- `GET /v1/nom/form?vi=...[&order=zoopdog|default]` — the whole "Add Chữ Nôm entry" state for a
+  term in one request: `candidates`, the stored entry, `title`, `existing_info`, `is_update`, and
+  `next_order`. The ↻ button sends the previous reply's `next_order`, so one click gives the
+  zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
+  server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
+- `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
+  reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
+  the "Refresh all" list just draws. `translations` (the raw per-engine list) stays for old clients.
+- Every preview reply (`preview=1`) carries `diff` — `{changed, rows}` with the character-level
+  narrowing already done (`scripts/entry_diff.py`); `zooRenderEntryDiff` only draws segments.
+- `GET /v1/nom/entry?vi=...` — kept for older callers; the modal no longer uses it.
 - `POST /v1/nom/entries?vi=...&nom=...[&explain=...][&preview=1][&replace=1]` — write a
   new/extended/corrected entry. Extends by default (never drops an existing rendering), so
   the "Add" path skips the preview step entirely; only an *update* (term already on file)
@@ -110,7 +125,9 @@ module between the two repos.
   "Replace the stored spelling instead of adding a variant" checkbox, shown only once the
   term is recognized as an update.
 - `GET /v1/nom/order?vi=...&scope=global` — the term's known renderings plus whatever order is
-  already recorded, for the "Set order" picker.
+  already recorded, for the "Set order" picker, with the modal's `title`, `existing_info`,
+  `current_hint` and default `pick` (the recorded first choice, else the second rendering) already
+  written by the server.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
   This one *replaces* the preference, so it always goes through preview → confirm.
 

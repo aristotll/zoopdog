@@ -15,6 +15,8 @@ function element() {
   const node = {
     children: [],
     classList: {add() {}, remove() {}},
+    setAttribute() {},
+    closest() { return null; },
     dataset: {},
     hidden: false,
     value: '',
@@ -126,6 +128,13 @@ test('opening or editing a term clears generated Nôm state before the request s
   assert.equal(nom.dataset.autofillDefault, undefined);
 });
 
+// The server's /v1/nom/form answer: what the modal renders for a term.
+function nomForm(candidates, nextOrder) {
+  return JSON.stringify({
+    candidates, next_order: nextOrder || 'zoopdog', is_update: false, title: 'Add Chữ Nôm entry', existing_info: ''
+  });
+}
+
 test('an older candidate response cannot overwrite a newer term', async () => {
   const requests = [];
   const harness = createHarness((options) => requests.push(options));
@@ -135,10 +144,8 @@ test('an older candidate response cannot overwrite a newer term', async () => {
   harness.context.zooNomFormState.refresh('cũ');
   harness.context.zooNomFormState.refresh('mới');
   const respond = (text, candidates) => requests
-    .filter((request) => request.url.includes('kind=nom') && request.url.includes('text=' + encodeURIComponent(text)))
-    .forEach((request) => request.onload({status: 200, responseText: JSON.stringify({candidates})}));
-  requests.filter((request) => request.url.includes('/v1/nom/entry') && request.url.includes('vi=m%E1%BB%9Bi'))
-    .forEach((request) => request.onload({status: 200, responseText: '{"exists":false}'}));
+    .filter((request) => request.url.includes('/v1/nom/form') && request.url.includes('vi=' + encodeURIComponent(text)))
+    .forEach((request) => request.onload({status: 200, responseText: nomForm(candidates)}));
   respond('mới', ['新']);
   await new Promise((resolve) => setImmediate(resolve));
   respond('cũ', ['舊']);
@@ -147,7 +154,7 @@ test('an older candidate response cannot overwrite a newer term', async () => {
   assert.equal(harness.elements.get(ids.suggestions).children[0].value, '新');
   requests.forEach((request) => request.onload({
     status: 200,
-    responseText: request.url.includes('/v1/suggest') ? '{"candidates":[]}' : '{"exists":false}'
+    responseText: request.url.includes('/v1/nom/form') ? nomForm([]) : '{"candidates":[]}'
   }));
 });
 
@@ -180,12 +187,20 @@ test('the Chữ Nôm refresh button asks for the zoopdog order and refills the f
   harness.elements.get(ids.vi).value = 'mới';
   harness.elements.get(ids.nomRefresh).dispatch('click');
   assert.equal(requests.length, 1);
-  assert.match(requests[0].url, /kind=nom/);
+  assert.match(requests[0].url, /\/v1\/nom\/form/);
   assert.match(requests[0].url, /order=zoopdog/);
-  requests[0].onload({status: 200, responseText: JSON.stringify({candidates: ['乙', '甲']})});
+  requests[0].onload({status: 200, responseText: nomForm(['乙', '甲'], 'default')});
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(harness.elements.get(ids.nom).value, '乙');
   assert.equal(harness.elements.get(ids.suggestions).children[0].value, '乙');
+  // Second click toggles back to the default ranking; third is zoopdog order again.
+  harness.elements.get(ids.nomRefresh).dispatch('click');
+  assert.equal(requests.length, 2);
+  assert.doesNotMatch(requests[1].url, /order=zoopdog/);
+  requests[1].onload({status: 200, responseText: nomForm(['甲', '乙'], 'zoopdog')});
+  await new Promise((resolve) => setImmediate(resolve));
+  harness.elements.get(ids.nomRefresh).dispatch('click');
+  assert.match(requests[2].url, /order=zoopdog/);
 });
 
 test('selection rect falls back to composed ranges only for shadow-root text', () => {
@@ -223,4 +238,46 @@ test('selection rect falls back to composed ranges only for shadow-root text', (
   assert.equal(seen.length, 1);
   // Browser without getComposedRanges keeps the old behaviour.
   assert.equal(context.zooComposedSelection({}, container), null);
+});
+
+test('the update preview draws the server diff: changed segment marked, text never parsed as markup', () => {
+  const {context} = createHarness(() => {});
+  const list = element();
+  const changed = context.zooRenderEntryDiff(list, {
+    changed: 1,
+    rows: [
+      {kind: 'key', field: 'VI', badge: 'entry', value: 'Sư thúc'},
+      {kind: 'change', field: 'Chữ Nôm', badge: 'locked',
+        old: [{text: 'a', changed: false}, {text: '<b>x</b>', changed: true}], new: []},
+      {kind: 'context', field: 'Note', badge: 'unchanged', value: ''}
+    ]
+  });
+  assert.equal(changed, 1);
+  assert.equal(list.hidden, false);
+  assert.equal(list.children.length, 3);
+  const old = list.children[1].children[1];
+  assert.equal(old.children[1].children[1].textContent, '<b>x</b>', 'changed run is its own node, set as text');
+  assert.equal(list.children[1].children[2].children[1].children[0].textContent, '(empty)');
+  assert.equal(context.zooRenderEntryDiff(element(), {changed: 0, rows: []}), 0);
+});
+
+test('the Chữ Nôm order modal renders the title, hint and default pick the server wrote', async () => {
+  const requests = [];
+  const harness = createHarness((options) => requests.push(options));
+  const ids = harness.context.ZOO_MODAL_IDS.order;
+  Object.keys(ids).forEach((key) => harness.add(ids[key]));
+  harness.context.zooWireNomOrderForm();
+  harness.elements.get(ids.vi).value = 'ba';
+  harness.elements.get(ids.caseSensitive).dispatch('change');
+  assert.match(requests[0].url, /\/v1\/nom\/order/);
+  requests[0].onload({status: 200, responseText: JSON.stringify({
+    exists: false, order: [], variants: ['巴', '𠀧', '三'], title: 'Set Chữ Nôm order', existing_info: '',
+    current_hint: 'Currently shown as ruby: 巴 · 3 renderings known', pick: '𠀧'
+  })});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.elements.get(ids.nom).value, '𠀧');
+  assert.equal(harness.elements.get(ids.title).textContent, 'Set Chữ Nôm order');
+  assert.equal(harness.elements.get(ids.current).textContent, 'Currently shown as ruby: 巴 · 3 renderings known');
+  assert.equal(harness.elements.get(ids.existingInfo).hidden, true);
+  assert.equal(harness.elements.get(ids.suggestions).children.length, 3);
 });

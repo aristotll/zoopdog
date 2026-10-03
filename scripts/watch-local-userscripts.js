@@ -92,8 +92,21 @@ function checkAndRebuild(previousHash) {
   return currentHash;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Resolves after `ms`, or as soon as `wakeUp` is called, so a stop signal ends the wait at once.
+function interruptibleSleep(ms) {
+  let timer;
+  let wakeUp;
+  const promise = new Promise((resolve) => {
+    wakeUp = resolve;
+    timer = setTimeout(resolve, ms);
+  });
+  return {
+    promise,
+    wakeUp: () => {
+      clearTimeout(timer);
+      wakeUp();
+    }
+  };
 }
 
 // Runs until the process is signaled to stop. The first cycle only records a baseline -- it
@@ -101,8 +114,12 @@ function sleep(ms) {
 // match the current entries.
 async function main() {
   let running = true;
+  let currentSleep = null;
   const stop = () => {
     running = false;
+    if (currentSleep) {
+      currentSleep.wakeUp();
+    }
   };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
@@ -111,7 +128,9 @@ async function main() {
   console.log('[watch-local-userscripts] watching for changes, checking every 60s');
 
   while (running) {
-    await sleep(CHECK_INTERVAL_MS);
+    currentSleep = interruptibleSleep(CHECK_INTERVAL_MS);
+    await currentSleep.promise;
+    currentSleep = null;
     if (!running) {
       break;
     }

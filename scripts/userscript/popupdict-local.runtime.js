@@ -127,12 +127,16 @@
     });
   }
 
-  // Same lookup as zooFetchSuggestions('nom', ...) but in the dictionary's own
-  // order instead of the server's Chinese-word ranking.
-  function zooFetchNomZoopdogOrder(text) {
-    if (!text) return Promise.resolve([]);
-    return zooGetJSON('/v1/suggest', { kind: 'nom', text: text, order: 'zoopdog' }).then(function(data) {
-      return data.candidates || [];
+  // Everything the Ch\u1EEF N\u00F4m modal shows for a term, decided by the server
+  // (`/v1/nom/form`): candidates in the requested order, the prior entry, the modal title and
+  // info text, and `next_order` -- the order the refresh button asks for next, so the toggle
+  // between zoopdog order and the default ranking lives there and not here.
+  function zooFetchNomForm(text, order) {
+    var params = { vi: text };
+    if (order) params.order = order;
+    return zooGetJSON('/v1/nom/form', params).then(function(form) {
+      if (!form || !Array.isArray(form.candidates)) throw new Error('bad /v1/nom/form answer');
+      return form;
     });
   }
 
@@ -145,37 +149,14 @@
     });
   }
 
-  // Asks every refresh engine at once (`refresh=all`): one entry per engine,
-  // an engine with no answer carrying an empty candidate list.
+  // Asks every refresh engine at once (`refresh=all`). The server answers with the
+  // finished `rows` ({engines, text[, skipped]}), already grouped and folded; an engine
+  // with no answer is in a trailing row with empty text.
   function zooFetchNotesAll(kind, text) {
     if (!text) return Promise.resolve([]);
     return zooGetJSON('/v1/suggest', { kind: kind, text: text, refresh: 'all' }).then(function(data) {
-      return data.translations || [];
+      return data.rows || [];
     });
-  }
-
-  // Engines that produced the same text (ignoring case) share one row, in first-seen order;
-  // engines with no answer share a single trailing row with empty text.
-  function zooGroupNotesAll(translations) {
-    var rows = [];
-    var byText = {};
-    var failed = null;
-    translations.forEach(function(item) {
-      var text = item.candidates && item.candidates.length ? item.candidates[0] : '';
-      if (!text) {
-        if (!failed) failed = { engines: [], text: '' };
-        failed.engines.push(item.engine);
-        return;
-      }
-      var key = text.toLowerCase();
-      if (!Object.prototype.hasOwnProperty.call(byText, key)) {
-        byText[key] = { engines: [], text: text };
-        rows.push(byText[key]);
-      }
-      byText[key].engines.push(item.engine);
-    });
-    if (failed) rows.push(failed);
-    return rows;
   }
 
   // GM_setClipboard first (works on any page), then the async clipboard API,
@@ -218,8 +199,7 @@
       var pending = document.createElement('li');
       pending.textContent = 'Asking every engine...';
       list.appendChild(pending);
-      zooFetchNotesAll(kind, text).then(function(translations) {
-        var rows = zooGroupNotesAll(translations);
+      zooFetchNotesAll(kind, text).then(function(rows) {
         if (!rows.length) rows = [{ engines: [], text: '' }];
         list.textContent = '';
         rows.forEach(function(row) {
@@ -227,7 +207,7 @@
           var label = document.createElement('strong');
           label.textContent = row.engines.length ? row.engines.join(', ') + ': ' : '';
           li.appendChild(label);
-          li.appendChild(document.createTextNode(row.text || (row.engines.length ? '(no answer)' : 'No engine answered.')));
+          li.appendChild(document.createTextNode(row.text || (row.skipped ? '(skipped: limited quota)' : row.engines.length ? '(no answer)' : 'No engine answered.')));
           if (row.text) {
             var copy = document.createElement('button');
             copy.type = 'button';
@@ -419,89 +399,57 @@
       .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
   }
 
-  // -- entry-diff preview (mirrors reader_entry_diff.js) --
+  // -- entry-diff preview (draws the server's `diff`, like reader_entry_diff.js) --
+  //
+  // The server builds the rows (field labels, badges, the character-level narrowing --
+  // scripts/entry_diff.py in book-translator) and every preview response carries them as
+  // `diff`: {changed, rows}. This only draws segments, with textContent, so a stored value
+  // can never inject markup.
 
-  var ZOO_ENTRY_DIFF_FIELD_LABELS = { nom: 'Ch\u1EEF N\u00F4m', explain: 'Note' };
-
-  function zooEntryDiffFieldLabel(field) {
-    var key = String(field || '');
-    return ZOO_ENTRY_DIFF_FIELD_LABELS[key] || key.toUpperCase();
+  function zooDiffEl(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   }
 
-  function zooEntryDiffSplit(from, to) {
-    var before = Array.from(String(from || ''));
-    var after = Array.from(String(to || ''));
-    var head = 0;
-    while (head < before.length && head < after.length && before[head] === after[head]) head += 1;
-    var tail = 0;
-    while (
-      tail < before.length - head &&
-      tail < after.length - head &&
-      before[before.length - 1 - tail] === after[after.length - 1 - tail]
-    ) {
-      tail += 1;
+  function zooDiffLine(kind, mark, segments) {
+    var line = zooDiffEl('div', 'zd-entry-diff-line zd-entry-diff-' + kind);
+    var markEl = zooDiffEl('span', 'zd-entry-diff-mark', mark);
+    markEl.setAttribute('aria-hidden', 'true');
+    var text = zooDiffEl(kind === 'old' ? 'del' : 'ins');
+    if (!segments.length) text.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
+    segments.forEach(function(segment) {
+      text.appendChild(segment.changed ? zooDiffEl('mark', '', segment.text) : document.createTextNode(segment.text));
+    });
+    line.appendChild(markEl);
+    line.appendChild(text);
+    return line;
+  }
+
+  function zooEntryDiffRow(row) {
+    var item = zooDiffEl('li', 'zd-entry-diff-row');
+    var head = zooDiffEl('div', 'zd-entry-diff-field', row.field);
+    if (row.badge) {
+      var kind = row.badge === 'locked' || row.badge === 'new' ? ' zd-entry-diff-badge-' + row.badge : '';
+      head.appendChild(zooDiffEl('span', 'zd-entry-diff-badge' + kind, row.badge));
     }
-    return {
-      head: before.slice(0, head).join(''),
-      tail: tail ? before.slice(before.length - tail).join('') : '',
-      fromMiddle: before.slice(head, before.length - tail).join(''),
-      toMiddle: after.slice(head, after.length - tail).join('')
-    };
-  }
-
-  function zooEntryDiffLineHtml(kind, mark, text, split, side) {
-    var tag = kind === 'old' ? 'del' : 'ins';
-    var inner;
-    if (!text) {
-      inner = '<span class="zd-entry-diff-empty">(empty)</span>';
-    } else if (split && (split.head || split.tail)) {
-      var middle = side === 'old' ? split.fromMiddle : split.toMiddle;
-      inner = escapeHtml(split.head) + (middle ? '<mark>' + escapeHtml(middle) + '</mark>' : '') + escapeHtml(split.tail);
-    } else {
-      inner = escapeHtml(text);
+    item.appendChild(head);
+    if (row.kind === 'change') {
+      if (row.old) item.appendChild(zooDiffLine('old', '\u2212', row.old));
+      item.appendChild(zooDiffLine('new', '+', row.new));
+      return item;
     }
-    return '<div class="zd-entry-diff-line zd-entry-diff-' + kind + '">' +
-      '<span class="zd-entry-diff-mark" aria-hidden="true">' + mark + '</span>' +
-      '<' + tag + '>' + inner + '</' + tag + '>' +
-      '</div>';
-  }
-
-  function zooEntryDiffBadge(change) {
-    if (change.locked) return '<span class="zd-entry-diff-badge zd-entry-diff-badge-locked">locked</span>';
-    if (!change.from) return '<span class="zd-entry-diff-badge zd-entry-diff-badge-new">new</span>';
-    return '';
-  }
-
-  function zooEntryDiffChangeRow(change) {
-    var item = document.createElement('li');
-    item.className = 'zd-entry-diff-row';
-    var from = String(change.from || '');
-    var to = String(change.to || '');
-    var split = from && to ? zooEntryDiffSplit(from, to) : null;
-    zooSetHTML(item,
-      '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(change.field)) + zooEntryDiffBadge(change) + '</div>' +
-      (from ? zooEntryDiffLineHtml('old', '\u2212', from, split, 'old') : '') +
-      zooEntryDiffLineHtml('new', '+', to, split, 'new'));
-    return item;
-  }
-
-  function zooEntryDiffKeyRow(key) {
-    var item = document.createElement('li');
-    item.className = 'zd-entry-diff-row zd-entry-diff-key';
-    zooSetHTML(item,
-      '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(key.field)) + '<span class="zd-entry-diff-badge">entry</span></div>' +
-      '<div class="zd-entry-diff-line"><span class="zd-entry-diff-mark" aria-hidden="true">\u00B7</span>' +
-      '<span class="zd-entry-diff-keyterm">' + escapeHtml(key.value) + '</span></div>');
-    return item;
-  }
-
-  function zooEntryDiffContextRow(entry) {
-    var item = document.createElement('li');
-    item.className = 'zd-entry-diff-row zd-entry-diff-context';
-    zooSetHTML(item,
-      '<div class="zd-entry-diff-field">' + escapeHtml(zooEntryDiffFieldLabel(entry.field)) + '<span class="zd-entry-diff-badge">unchanged</span></div>' +
-      '<div class="zd-entry-diff-line"><span class="zd-entry-diff-mark" aria-hidden="true">\u00B7</span>' +
-      '<span>' + (entry.value ? escapeHtml(entry.value) : '<span class="zd-entry-diff-empty">(empty)</span>') + '</span></div>');
+    item.className += row.kind === 'key' ? ' zd-entry-diff-key' : ' zd-entry-diff-context';
+    var line = zooDiffEl('div', 'zd-entry-diff-line');
+    var mark = zooDiffEl('span', 'zd-entry-diff-mark', '\u00B7');
+    mark.setAttribute('aria-hidden', 'true');
+    var value = zooDiffEl('span', row.kind === 'key' ? 'zd-entry-diff-keyterm' : '');
+    if (row.value) value.textContent = row.value;
+    else value.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
+    line.appendChild(mark);
+    line.appendChild(value);
+    item.appendChild(line);
     return item;
   }
 
@@ -512,15 +460,14 @@
     modal.scrollTop = Math.max(0, list.offsetTop - 12);
   }
 
-  function zooRenderEntryDiff(list, changes, unchanged, key) {
+  // Returns the number of *changes* drawn; neither the key nor a context row is something to confirm.
+  function zooRenderEntryDiff(list, diff) {
     list.textContent = '';
-    if (key && key.value) list.appendChild(zooEntryDiffKeyRow(key));
-    var rows = Array.isArray(changes) ? changes : [];
-    rows.forEach(function(change) { list.appendChild(zooEntryDiffChangeRow(change)); });
-    (Array.isArray(unchanged) ? unchanged : []).forEach(function(entry) { list.appendChild(zooEntryDiffContextRow(entry)); });
+    var rows = diff && Array.isArray(diff.rows) ? diff.rows : [];
+    rows.forEach(function(row) { list.appendChild(zooEntryDiffRow(row)); });
     list.hidden = !list.childElementCount;
     zooScrollEntryDiffToHead(list);
-    return rows.length;
+    return diff && diff.changed ? diff.changed : 0;
   }
 
   // -- modal mechanics (mirrors shared/modal.js) --
@@ -1101,7 +1048,7 @@
     var explainInput = document.getElementById(ids.explain);
     var nomEdits = zooTrackEdits(nomInput);
     var explainEdits = zooTrackEdits(explainInput);
-    var stateFlags = { isUpdate: false };
+    var stateFlags = { isUpdate: false, nextOrder: '' };
 
     zooWireDatalistAutoClear(nomInput, function() { return nomEdits.edited; });
     zooWireContainingDatalist(nomInput, document.getElementById(ids.suggestions));
@@ -1131,13 +1078,11 @@
     document.getElementById(ids.nomRefresh).addEventListener('click', function() {
       var vi = document.getElementById(ids.vi).value.trim();
       if (!vi) return;
+      // Toggle: the server names the order to ask for next (first click zoopdog, then default, ...).
       var isCurrent = guard.begin();
-      zooFetchNomZoopdogOrder(vi).then(function(candidates) {
-        if (!isCurrent() || !candidates.length) return;
-        zooFillDatalist(ids.suggestions, candidates);
-        if (!nomEdits.edited) {
-          zooSetAutofillDefaultLive(nomInput, candidates[0], function() { return nomEdits.edited; });
-        }
+      zooFetchNomForm(vi, stateFlags.nextOrder || 'zoopdog').then(function(form) {
+        if (!isCurrent() || !form.candidates.length) return;
+        applyNomForm(form);
         resetPreview();
       }, function() {
         zooSetModalStatus(ids.status, zooLocalRequestRecoveryMessage(), true);
@@ -1188,8 +1133,23 @@
       explainInput.focus();
     });
 
+    // Renders one /v1/nom/form answer: the datalist, the untouched Ch\u1EEF N\u00F4m field's
+    // default, and the title / "already recorded" line the server wrote.
+    function applyNomForm(form) {
+      zooFillDatalist(ids.suggestions, form.candidates);
+      if (!nomEdits.edited) {
+        zooSetAutofillDefaultLive(nomInput, form.candidates.length ? form.candidates[0] : '', function() { return nomEdits.edited; });
+      }
+      stateFlags.nextOrder = form.next_order;
+      stateFlags.isUpdate = Boolean(form.is_update);
+      document.getElementById(ids.title).textContent = form.title;
+      document.getElementById(ids.existingInfo).textContent = form.existing_info;
+      document.getElementById(ids.existingInfo).hidden = !form.existing_info;
+    }
+
     function refreshSuggestions(vi) {
       var isCurrent = guard.begin();
+      stateFlags.nextOrder = ''; // a new term starts in the default ranking
       document.getElementById(ids.title).textContent = 'Add Ch\u1EEF N\u00F4m entry';
       document.getElementById(ids.existingInfo).hidden = true;
       stateFlags.isUpdate = false;
@@ -1198,9 +1158,9 @@
         resetPreview();
         return;
       }
-      // `nom` (a local dictionary lookup) and the entry-exists check are both
-      // cheap and answered from data the server already has loaded, so they
-      // are fetched together and fill the form in immediately below.
+      // The candidates and the entry-exists check are both cheap and answered
+      // from data the server already has loaded, so one `/v1/nom/form` request
+      // carries them and fills the form in immediately below.
       // `nom-notes`, by contrast, is a *live* machine-translation call out to
       // a third-party API (routes_suggest.py's `_notes_translation`, now
       // edge-first -- see `NOTES_DRAFT_PROVIDERS` -- since edge answered
@@ -1210,24 +1170,9 @@
       // auto-fetched (not only on the \u21BB click) -- with the fast fields no
       // longer held hostage to it, there is no reason to make the reader ask
       // for a draft note by hand every time.
-      Promise.all([
-        zooFetchSuggestions('nom', vi),
-        zooGetJSON('/v1/nom/entry', { vi: vi }).then(null, function() { return { exists: false }; })
-      ]).then(function(results) {
+      zooFetchNomForm(vi, '').then(function(form) {
         if (!isCurrent()) return;
-        var candidates = results[0];
-        var existing = results[1];
-        zooFillDatalist(ids.suggestions, candidates);
-        if (!nomEdits.edited) {
-          zooSetAutofillDefaultLive(nomInput, candidates.length ? candidates[0] : '', function() { return nomEdits.edited; });
-        }
-        if (existing.exists) {
-          stateFlags.isUpdate = true;
-          document.getElementById(ids.title).textContent = 'Update Ch\u1EEF N\u00F4m entry';
-          var notesPart = existing.explain && existing.explain.length ? (' \u2014 notes: ' + existing.explain.join('; ')) : '';
-          document.getElementById(ids.existingInfo).textContent = 'Already recorded: ' + (existing.nom || []).join(', ') + notesPart;
-          document.getElementById(ids.existingInfo).hidden = false;
-        }
+        applyNomForm(form);
         resetPreview();
       }, function() {
         if (!isCurrent()) return;
@@ -1286,10 +1231,7 @@
       Object.keys(parsed.query).forEach(function(key) { previewQuery[key] = parsed.query[key]; });
       previewQuery.preview = '1';
       zooPost('/v1/nom/entries', previewQuery).then(function(payload) {
-        var changed = zooRenderEntryDiff(
-          document.getElementById(ids.diffPreview),
-          payload.changes, payload.unchanged, payload.key
-        );
+        var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {
           zooSetModalStatus(ids.status, 'Nothing new -- already recorded exactly this.', true);
           document.getElementById(ids.confirmBtn).hidden = true;
@@ -1356,13 +1298,12 @@
     var ids = ZOO_MODAL_IDS.order;
     var nomInput = document.getElementById(ids.nom);
     var viInput = document.getElementById(ids.vi);
-    var order = { vi: '', words: [], variants: [], stored: null };
+    var order = { vi: '', words: [], variants: [], stored: null, hint: '' };
     var token = 0;
 
     zooWirePickerAutoClear(nomInput);
 
     function term() { return viInput.value.trim(); }
-    function isUpdate() { return order.stored !== null; }
     // Names which of the two on-file rows for this term (see
     // reader/nom_order.py's caseSensitive option) the modal is viewing or
     // editing -- mirrors book-translator's reader_nom_order.js.
@@ -1406,15 +1347,9 @@
         option.value = variant;
         list.appendChild(option);
       });
+      // Wording comes from the server (`current_hint`), like the title and default pick below.
       var hint = document.getElementById(ids.current);
-      var count = order.variants.length;
-      if (count) {
-        hint.textContent = 'Currently shown as ruby: ' + order.variants[0] + ' \u00B7 ' + count + ' rendering' + (count === 1 ? '' : 's') + ' known';
-      } else if (order.vi) {
-        hint.textContent = 'No renderings are known for this term; anything entered here will be pinned as its first.';
-      } else {
-        hint.textContent = '';
-      }
+      hint.textContent = order.hint;
       hint.hidden = !hint.textContent;
     }
 
@@ -1425,6 +1360,7 @@
       order.vi = vi;
       order.variants = [];
       order.stored = null;
+      order.hint = '';
       nomInput.value = '';
       document.getElementById(ids.suggestions).textContent = '';
       document.getElementById(ids.existingInfo).hidden = true;
@@ -1442,20 +1378,14 @@
         if (myToken !== token) return;
         order.variants = payload.variants || [];
         order.stored = payload.exists ? (payload.order || []) : null;
+        order.hint = payload.current_hint || '';
         renderOptions();
-        if (isUpdate()) {
-          document.getElementById(ids.title).textContent = 'Update Ch\u1EEF N\u00F4m order';
-          document.getElementById(ids.existingInfo).textContent = 'Already recorded: ' + order.stored.join(', ');
-          document.getElementById(ids.existingInfo).hidden = false;
-          nomInput.value = order.stored[0] || '';
-        } else if (order.variants.length > 1) {
-          // No order recorded yet: default the pick to the *second*
-          // rendering, not the first -- variants[0] is already what is on
-          // screen right now (the "Currently shown as ruby" hint), so
-          // re-offering it as the suggested pick would be a no-op. Mirrors
-          // book-translator's reader_nom_order.js default (same reasoning).
-          nomInput.value = order.variants[1];
-        }
+        document.getElementById(ids.title).textContent = payload.title;
+        document.getElementById(ids.existingInfo).textContent = payload.existing_info;
+        document.getElementById(ids.existingInfo).hidden = !payload.existing_info;
+        // The server's default pick: the recorded first choice, else the *second* rendering --
+        // variants[0] is already what is on screen, so offering it back would be a no-op.
+        nomInput.value = payload.pick || '';
         resetPreview();
       }, function(error) {
         if (myToken !== token) return;
@@ -1492,10 +1422,7 @@
       if (!q.vi || !q.nom) return;
       var previewQuery = { vi: q.vi, nom: q.nom, scope: q.scope, preview: '1' };
       zooPost('/v1/nom/order', previewQuery).then(function(payload) {
-        var changed = zooRenderEntryDiff(
-          document.getElementById(ids.diffPreview),
-          payload.changes, payload.unchanged, payload.key
-        );
+        var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {
           zooSetModalStatus(ids.status, 'Nothing to change -- already the preferred rendering.', true);
           document.getElementById(ids.confirmBtn).hidden = true;

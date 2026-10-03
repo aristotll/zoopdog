@@ -295,5 +295,15 @@
   {"vi": "soạn thảo", "nom": ["撰草"]},
   {"vi": "kỹ", "nom": ["伎"]},
   {"vi": "buôn", "nom": ["販"]},
-  {"vi": "vị", "nom": ["位"]}
+  {"vi": "vị", "nom": ["位"]},
+  {"vi": "Nho", "nom": ["儒"], "caseSensitive": true},
+  {"vi": "Phan", "nom": ["潘"], "caseSensitive": true},
+  {"vi": "thế", "nom": ["勢"]},
+  {"vi": "nghệ", "nom": ["藝"]},
+  {"vi": "tập", "nom": ["集"]},
+  {"vi": "hôn", "nom": ["㖧"]},
+  {"vi": "Tân", "nom": ["新"]},
+  {"vi": "nghi phạm", "nom": ["疑犯"]},
+  {"vi": "ủy", "nom": ["委"]},
+  {"vi": "sứ", "nom": ["瓷"]}
 ]
