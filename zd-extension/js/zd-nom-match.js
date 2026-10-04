@@ -179,7 +179,7 @@ function zdNomRunWords(text, start) {
 // this exists to fix: two genuine dictionary phrases can overlap on a shared word, and only
 // comparing the whole run's total cost, not just what is longest at one position, tells which
 // one should give way.
-function zdNomWordMatchesAt(termIndex, text, words, index, annotateAsciiTerms) {
+function zdNomWordMatchesAt(termIndex, text, words, index, annotateAsciiTerms, englishRun) {
   var matches = [];
   var key = '';
   for (var offset = index; offset < words.length; offset++) {
@@ -190,7 +190,7 @@ function zdNomWordMatchesAt(termIndex, text, words, index, annotateAsciiTerms) {
       break;
     }
     var value = isTerm && termIndex.get(key);
-    if (value && zdNomShouldAnnotateMatch(text, words[index].start, words[offset].end, annotateAsciiTerms)) {
+    if (value && zdNomShouldAnnotateMatch(text, words[index].start, words[offset].end, annotateAsciiTerms, englishRun)) {
       matches.push({length: offset - index + 1, value: value});
     }
   }
@@ -240,11 +240,12 @@ function zdNomCandidateCount(value) {
 // start position instead of re-running the DP from every word.
 function zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms) {
   var n = words.length;
+  var englishRun = annotateAsciiTerms === 'safe' && zdNomLooksEnglish(termIndex, text, words);
   var dp = new Array(n + 1);
   var choice = new Array(n);
   dp[n] = 0;
   for (var i = n - 1; i >= 0; i--) {
-    var matches = zdNomWordMatchesAt(termIndex, text, words, i, annotateAsciiTerms);
+    var matches = zdNomWordMatchesAt(termIndex, text, words, i, annotateAsciiTerms, englishRun);
     if (!matches.length) {
       dp[i] = dp[i + 1];
       choice[i] = null;
@@ -269,11 +270,35 @@ function zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms) {
   return choice;
 }
 
+// Whether a run of words reads as plain English rather than (unaccented) Vietnamese: no
+// Vietnamese diacritic anywhere in it, and fewer than ZD_NOM_VIETNAMESE_HIT_RATE of its words
+// are (the start of) a dictionary term. Unaccented Vietnamese ("toi di hoc") is made of
+// syllables the dictionary knows, so nearly every word hits; English hits only by coincidence
+// ("the", "day"). A lone word has no rate to speak of and is never called English here.
+var ZD_NOM_VIETNAMESE_HIT_RATE = 0.75;
+
+function zdNomLooksEnglish(termIndex, text, words) {
+  if (words.length < 2) {
+    return false;
+  }
+  if (ZD_NOM_VIETNAMESE_SIGNAL_PATTERN.test(text.substring(words[0].start, words[words.length - 1].end))) {
+    return false;
+  }
+  var hits = 0;
+  for (var i = 0; i < words.length; i++) {
+    var word = zdNomLower(text.substring(words[i].start, words[i].end));
+    if (termIndex.has(word) || termIndex.hasPrefix(word)) {
+      hits++;
+    }
+  }
+  return hits / words.length < ZD_NOM_VIETNAMESE_HIT_RATE;
+}
+
 // Chu Nom (non-ASCII) matches always annotate. An ASCII-only match annotates only when
 // `annotateAsciiTerms` says so: `true` always, `false` never, and `'safe'` (the default)
 // annotates longer words (3+ letters, skipping a small blocklist of common short English
 // words) or a short word sitting next to visible Vietnamese diacritics.
-function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms) {
+function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms, englishRun) {
   var matchedText = text.substring(start, end);
 
   if (ZD_NOM_NON_ASCII_PATTERN.test(matchedText) || annotateAsciiTerms === true) {
@@ -281,6 +306,10 @@ function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms) {
   }
 
   if (annotateAsciiTerms === false) {
+    return false;
+  }
+
+  if (englishRun) {
     return false;
   }
 
@@ -463,6 +492,7 @@ if (typeof module !== 'undefined' && module.exports) {
     zdNomBuildIndex: zdNomBuildIndex,
     zdNomLower: zdNomLower,
     zdNomHasVietnameseContext: zdNomHasVietnameseContext,
+    zdNomLooksEnglish: zdNomLooksEnglish,
     zdNomShouldAnnotateMatch: zdNomShouldAnnotateMatch,
     zdNomRunWords: zdNomRunWords,
     zdNomWordMatchesAt: zdNomWordMatchesAt,

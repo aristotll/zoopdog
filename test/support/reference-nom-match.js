@@ -102,7 +102,7 @@ function zdNomRunWords(text, start) {
 // this exists to fix: two genuine dictionary phrases can overlap on a shared word, and only
 // comparing the whole run's total cost, not just what is longest at one position, tells which
 // one should give way.
-function zdNomWordMatchesAt(trie, text, words, index, annotateAsciiTerms) {
+function zdNomWordMatchesAt(trie, text, words, index, annotateAsciiTerms, englishRun) {
   var node = trie;
   var matches = [];
   for (var offset = index; offset < words.length; offset++) {
@@ -125,7 +125,7 @@ function zdNomWordMatchesAt(trie, text, words, index, annotateAsciiTerms) {
     if (!ok) {
       break;
     }
-    if (node.value && zdNomShouldAnnotateMatch(text, words[index].start, word.end, annotateAsciiTerms)) {
+    if (node.value && zdNomShouldAnnotateMatch(text, words[index].start, word.end, annotateAsciiTerms, englishRun)) {
       matches.push({length: offset - index + 1, value: node.value});
     }
   }
@@ -140,13 +140,13 @@ function zdNomWordMatchesAt(trie, text, words, index, annotateAsciiTerms) {
 // exposing its first, arbitrary-source-order candidate); a word with no entry at all costs
 // nothing and is simply skipped. Ties are broken toward the longest match at the earliest
 // position, reproducing the old greedy-matchAt result whenever no real overlap exists.
-function zdNomBestSegmentation(trie, text, words, annotateAsciiTerms) {
+function zdNomBestSegmentation(trie, text, words, annotateAsciiTerms, englishRun) {
   var n = words.length;
   var dp = new Array(n + 1);
   var choice = new Array(n);
   dp[n] = 0;
   for (var i = n - 1; i >= 0; i--) {
-    var matches = zdNomWordMatchesAt(trie, text, words, i, annotateAsciiTerms);
+    var matches = zdNomWordMatchesAt(trie, text, words, i, annotateAsciiTerms, englishRun);
     if (!matches.length) {
       dp[i] = dp[i + 1];
       choice[i] = null;
@@ -182,11 +182,51 @@ function zdNomBestSegmentation(trie, text, words, annotateAsciiTerms) {
   return segments;
 }
 
+// The start of the space-joined run that contains the word starting at `start`.
+function zdNomRunStart(text, start) {
+  var j = start;
+  for (;;) {
+    var k = j;
+    while (k > 0 && zdNomIsWhitespace(text.charAt(k - 1))) {
+      k--;
+    }
+    if (k === j || k === 0 || !zdNomIsWordChar(text.charAt(k - 1)) || text.substring(k, j).replace(/ /g, '').length) {
+      return j;
+    }
+    while (k > 0 && zdNomIsWordChar(text.charAt(k - 1))) {
+      k--;
+    }
+    j = k;
+  }
+}
+
+// Mirrors zdNomLooksEnglish in zd-nom-match.js: a diacritic-free run of 2+ words where under 75%
+// of the words are (the start of) a dictionary term is English, not unaccented Vietnamese.
+function zdNomLooksEnglish(trie, text, words) {
+  if (words.length < 2) {
+    return false;
+  }
+  if (ZD_NOM_VIETNAMESE_SIGNAL_PATTERN.test(text.substring(words[0].start, words[words.length - 1].end))) {
+    return false;
+  }
+  var hits = 0;
+  words.forEach(function(w) {
+    var node = trie;
+    for (var i = w.start; node && i < w.end; i++) {
+      node = node.children && node.children[text.charAt(i).toLowerCase()];
+    }
+    if (node && (node.value || (node.children && node.children[' ']))) {
+      hits++;
+    }
+  });
+  return hits / words.length < 0.75;
+}
+
 // Chu Nom (non-ASCII) matches always annotate. An ASCII-only match annotates only when
 // `annotateAsciiTerms` says so: `true` always, `false` never, and `'safe'` (the default)
 // annotates longer words (3+ letters, skipping a small blocklist of common short English
 // words) or a short word sitting next to visible Vietnamese diacritics.
-function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms) {
+function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms, englishRun) {
   var matchedText = text.substring(start, end);
 
   if (ZD_NOM_NON_ASCII_PATTERN.test(matchedText) || annotateAsciiTerms === true) {
@@ -194,6 +234,10 @@ function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms) {
   }
 
   if (annotateAsciiTerms === false) {
+    return false;
+  }
+
+  if (englishRun) {
     return false;
   }
 
@@ -239,7 +283,12 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
     if (!words.length) {
       return null;
     }
-    var segments = zdNomBestSegmentation(trie, text, words, annotateAsciiTerms);
+    // Whether the run reads as English is a property of the whole run, however far back it
+    // began -- not of the suffix this call happens to start at.
+    var runStart = zdNomRunStart(text, start);
+    var englishRun = annotateAsciiTerms === 'safe' &&
+      zdNomLooksEnglish(trie, text, runStart === start ? words : zdNomRunWords(text, runStart));
+    var segments = zdNomBestSegmentation(trie, text, words, annotateAsciiTerms, englishRun);
     if (!segments.length || segments[0].index !== 0) {
       return null;
     }

@@ -248,3 +248,15 @@ test('canContinuePast is true only when the text ends inside a longer entry', ()
   assert.equal(matcher.canContinuePast(''), false);
   assert.equal(matcher.canContinuePast('...'), false);
 });
+
+test('a plain English phrase is not annotated, even when some of its words are ASCII dictionary terms', () => {
+  const matcher = zdCreateNomMatcher({'the': '𠶢', 'day': '𣈜', 'một': '一'});
+  const find = (text) => matcher.findNomMatch(text, 0);
+
+  assert.equal(find('the other day about'), null);
+  assert.equal(find('mymemory: the other day about'), null);
+  // A diacritic anywhere in the run, or a run made only of dictionary words (unaccented
+  // Vietnamese), is still treated as Vietnamese.
+  assert.equal(find('the day một').index, 0);
+  assert.equal(find('the day').index, 0);
+});

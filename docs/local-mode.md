@@ -138,6 +138,10 @@ for the same reason: there is no "book" to scope a local, book-only order to.
 
 ## Known slow paths (already worked around, don't reintroduce)
 
+- **Translations are wanted in number, not trimmed.** "Refresh all" asks every engine at once and
+  the Notes draft runs in parallel with the form request, so slowness is bounded by the slowest
+  provider, not the sum. Do not "optimise" by asking fewer engines; see
+  `book-translator/docs/server_driven_entry_modals.md`.
 - **The Notes draft is a live translation API call**, not a local lookup — it goes out to a
   third-party provider from the *server's* machine. It is intentionally fetched in parallel with
   the fast candidate/entry lookups (never `Promise.all`'d together), so it can take
