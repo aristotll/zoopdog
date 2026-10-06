@@ -281,3 +281,73 @@ test('the Chữ Nôm order modal renders the title, hint and default pick the se
   assert.equal(harness.elements.get(ids.existingInfo).hidden, true);
   assert.equal(harness.elements.get(ids.suggestions).children.length, 3);
 });
+
+// -- Reading a selection aloud ------------------------------------------------------------------
+
+function readHarness(answers, confirmAnswer = true) {
+  const requests = [];
+  const harness = createHarness((options) => {
+    requests.push({url: options.url, method: options.method, body: options.data && JSON.parse(options.data), headers: options.headers});
+    const next = answers.shift();
+    options.onload({status: next.status, responseText: JSON.stringify(next.body)});
+  });
+  const toast = harness.add('zoopdog-toast');
+  const confirms = [];
+  harness.context.window = {confirm(message) { confirms.push(message); return confirmAnswer; }};
+  return {harness, requests, toast, confirms};
+}
+
+test('reading a selection posts it as JSON and toasts the finished label', async () => {
+  const {harness, requests, toast} = readHarness([{status: 202, body: {status: 'queued', label: 'vi → en'}}]);
+  await harness.context.zooReadSelection('  Hôm nay. The weather.  ');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, 'POST');
+  assert.equal(requests[0].url, 'http://127.0.0.1:8770/v1/zoopdog/speak');
+  assert.deepEqual(requests[0].body, {text: 'Hôm nay. The weather.', confirm: false});
+  assert.equal(requests[0].headers['Content-Type'], 'application/json');
+  assert.equal(toast.textContent, '🔊 vi → en');
+});
+
+test('a long selection asks the user and, on yes, resends with confirm', async () => {
+  const {harness, requests, confirms} = readHarness([
+    {status: 409, body: {status: 'confirm', reason: 'long_text', message: 'This selection is long (5,000 characters). Add it to the queue anyway?'}},
+    {status: 202, body: {status: 'queued', label: 'en'}},
+  ]);
+  await harness.context.zooReadSelection('word '.repeat(1000));
+  assert.deepEqual(confirms, ['This selection is long (5,000 characters). Add it to the queue anyway?']);
+  assert.deepEqual(requests.map((request) => request.body.confirm), [false, true]);
+});
+
+test('declining the confirmation sends nothing more', async () => {
+  const {harness, requests, toast} = readHarness([
+    {status: 409, body: {status: 'confirm', reason: 'queue_long', message: '4 readings are already waiting in the queue. Add it to the queue anyway?'}},
+  ], false);
+  await harness.context.zooReadSelection('hello there');
+  assert.equal(requests.length, 1);
+  assert.equal(toast.textContent, '');
+});
+
+test('a refusal is shown as the server worded it, and empty text is never sent', async () => {
+  const {harness, requests, toast} = readHarness([{status: 400, body: {status: 'error', message: 'Nothing to read in the selection.'}}]);
+  await harness.context.zooReadSelection('   ');
+  assert.equal(requests.length, 0);
+  assert.equal(toast.textContent, 'Select some text first');
+  await harness.context.zooReadSelection('...');
+  assert.equal(toast.textContent, 'Nothing to read in the selection.');
+});
+
+test('Alt+R reads the selection by physical key and leaves other chords alone', async () => {
+  const {harness, requests} = readHarness([{status: 202, body: {label: 'ja'}}]);
+  harness.context.window.getSelection = () => ({toString: () => '今日は', rangeCount: 1});
+  const press = (extra) => {
+    let prevented = false;
+    harness.context.zooHandleReadHotkey({altKey: true, code: 'KeyR', key: '®', preventDefault() { prevented = true; }, ...extra});
+    return prevented;
+  };
+  assert.equal(press({ctrlKey: true}), false);
+  assert.equal(press({code: 'KeyT'}), false);
+  assert.equal(requests.length, 0);
+  assert.equal(press({}), true);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.deepEqual(requests[0].body, {text: '今日は', confirm: false});
+});

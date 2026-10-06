@@ -131,6 +131,15 @@ there is nothing to hand-sync in this file except the rendering of a new field.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
   This one *replaces* the preference, so it always goes through preview → confirm.
 
+- `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` — read the selection aloud. Triggered
+  by Alt+R (matched by physical key, so macOS Option works) or the 🔊 button in the selection bar
+  (shown even for selections too long for a Chữ Nôm entry). The server splits the text by language
+  (vi/en/ja/ko/ms/zh), reads each part in the voice set under "Zoopdog reading" in `/control`, and
+  queues it behind whatever is playing, so a reading reader is never interrupted. There is no length
+  limit: a very long selection or a long queue answers 409 `{status: "confirm", message}`, the
+  script asks with `window.confirm(message)` and resends with `confirm: true`. The toast shows the
+  server's `label` (`vi → en`) or `message`; nothing about language or wording is decided here.
+
 `book` is never sent. Both endpoints already treat a missing `book` as "the shared dictionary,"
 which is the only thing that makes sense from a page that is not the reader — see the comment on
 `_nom_entry` in `book-translator/scripts/reader/routes_entries.py`. `scope` is always `"global"`

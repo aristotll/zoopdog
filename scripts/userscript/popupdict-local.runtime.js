@@ -28,7 +28,7 @@
   var ZOO_LOCAL_AVAILABLE = false;
   var ZOO_LOCAL_REQUEST_TIMEOUT = 8000;
 
-  function zooHttpRequest(method, path, params) {
+  function zooHttpRequest(method, path, params, body) {
     return new Promise(function(resolve, reject) {
       var settled = false;
       var watchdog = null;
@@ -56,7 +56,7 @@
         settle(reject, new Error('request timed out'));
       }, ZOO_LOCAL_REQUEST_TIMEOUT + 25);
       try {
-      GM_xmlhttpRequest({
+      var details = {
         method: method,
         url: url,
         timeout: ZOO_LOCAL_REQUEST_TIMEOUT,
@@ -70,12 +70,22 @@
           if (response.status >= 200 && response.status < 300) {
             settle(resolve, payload);
           } else {
-            settle(reject, new Error(payload.error || ('request failed (' + response.status + ')')));
+            // The status and body ride on the error: a 409 "confirm" answer is a question to put
+            // to the user, not a failure, and only the caller knows which it is.
+            var failure = new Error(payload.error || payload.message || ('request failed (' + response.status + ')'));
+            failure.status = response.status;
+            failure.payload = payload;
+            settle(reject, failure);
           }
         },
         onerror: function() { settle(reject, new Error('request failed')); },
         ontimeout: function() { settle(reject, new Error('request timed out')); }
-      });
+      };
+      if (body !== undefined) {
+        details.data = body;
+        details.headers = {'Content-Type': 'application/json'};
+      }
+      GM_xmlhttpRequest(details);
       } catch (error) {
         settle(reject, error);
       }
@@ -795,18 +805,46 @@
     zooSelectionAnchorNode = null;
   }
 
-  function zooShowSelectionBar(rect, text) {
+  // Reading a selection aloud (docs/local-mode.md): the text goes to the local TTS server, which
+  // splits it by language, reads each part in its own configured voice, and queues it behind
+  // whatever is already playing. Nothing is decided here -- the server answers with the finished
+  // label ("vi → en") or the question to ask ("This selection is long ... anyway?").
+  function zooReadSelection(text, confirmed) {
+    var spoken = String(text || '').trim();
+    if (!spoken) {
+      zooShowToast('Select some text first');
+      return Promise.resolve();
+    }
+    return zooHttpRequest('POST', '/v1/zoopdog/speak', null, JSON.stringify({text: spoken, confirm: !!confirmed}))
+      .then(function(answer) {
+        zooShowToast('\uD83D\uDD0A ' + (answer.label || 'queued'));
+      })
+      .catch(function(error) {
+        var payload = error.payload || {};
+        if (error.status === 409 && payload.status === 'confirm') {
+          if (window.confirm(payload.message)) return zooReadSelection(spoken, true);
+          return undefined;
+        }
+        zooShowToast(error.message || 'Could not reach the reader server');
+        return undefined;
+      });
+  }
+
+  function zooShowSelectionBar(rect, text, nomEligible) {
     var bar = zooEnsureSelectionBar();
     zooSetHTML(bar, [
-      '<button type="button" class="zd-local-btn" data-zd-action="add-nom">+ Add Chữ Nôm</button>',
-      '<button type="button" class="zd-local-btn" data-zd-action="set-order">Set order</button>'
+      nomEligible ? '<button type="button" class="zd-local-btn" data-zd-action="add-nom">+ Add Chữ Nôm</button>' : '',
+      nomEligible ? '<button type="button" class="zd-local-btn" data-zd-action="set-order">Set order</button>' : '',
+      '<button type="button" class="zd-local-btn" data-zd-action="read" title="Read aloud (Alt+R)">\uD83D\uDD0A</button>'
     ].join(''));
     Array.prototype.forEach.call(bar.querySelectorAll('[data-zd-action]'), function(button) {
       button.addEventListener('click', function(event) {
         event.preventDefault();
         var action = button.getAttribute('data-zd-action');
         zooHideSelectionBar();
-        if (action === 'add-nom') {
+        if (action === 'read') {
+          zooReadSelection(text);
+        } else if (action === 'add-nom') {
           zooOpenNomModal(text);
         } else {
           zooOpenNomOrderModal(text);
@@ -899,7 +937,7 @@
         return;
       }
       var text = zooTrimSelectionPunctuation(selection.toString());
-      if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
+      if (!text) {
         zooHideSelectionBar();
         return;
       }
@@ -921,16 +959,32 @@
         // annotations (the page-level user-select:none rule does not reach
         // most shadow roots), so the term comes from the range minus those.
         text = zooTrimSelectionPunctuation(composed.text);
-        if (!text || text.length > ZOO_SELECTION_MAX_CHARS) {
+        if (!text) {
           zooHideSelectionBar();
           return;
         }
       }
       zooSelectionAnchorNode = anchorContainer;
-      zooShowSelectionBar(rect, text);
+      // A selection too long for a Chữ Nôm entry is still worth reading aloud.
+      zooShowSelectionBar(rect, text, text.length <= ZOO_SELECTION_MAX_CHARS);
     } catch (error) {
       zooHideSelectionBar();
     }
+  }
+
+  // Alt+R reads the current selection. Matched by physical key (`code`), because on macOS
+  // Option+R types a different character and `key` would never say "r".
+  function zooHandleReadHotkey(event) {
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.code !== 'KeyR') return;
+    var selection = window.getSelection ? window.getSelection() : null;
+    var text = selection ? selection.toString() : '';
+    if (!text.trim() && selection && selection.rangeCount) {
+      var composed = zooComposedSelection(selection, selection.anchorNode);
+      text = composed ? composed.text : '';
+    }
+    if (!text.trim()) return;
+    event.preventDefault();
+    zooReadSelection(text);
   }
 
   function zooWireSelectionBar() {
@@ -992,6 +1046,7 @@
     }, true);
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape') zooHideSelectionBar();
+      zooHandleReadHotkey(event);
     });
     // A word this script wrapped in <ruby> cannot be selected by mouse at all
     // when the page puts it inside a link -- Google's sitelink cards wrap a

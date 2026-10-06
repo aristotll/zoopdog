@@ -834,11 +834,64 @@ __ZOOPDOG_RUNTIME_SOURCES__
     zooSetHTML(this.body, results.map(renderDefinition).join(''));
   };
 
+  var OBSTACLE_MIN_SIZE = 20;
+  var OBSTACLE_RECHECK_MS = [150, 450, 1000];
+
+  // Rects of other extensions' / pages' floating boxes (dictionary popups, selection bubbles)
+  // currently on screen, so the popup can be placed beside them instead of on top. Looks only at
+  // top-level fixed/absolute elements and shadow hosts, and descends into them (and their shadow
+  // roots) when the host itself is a zero-size or full-screen wrapper.
+  function foreignObstacles(own, view) {
+    var found = [];
+    var viewArea = view.width * view.height;
+
+    function visible(el) {
+      var style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    }
+
+    function collect(el, depth) {
+      if (!el || el.nodeType !== Node.ELEMENT_NODE || !visible(el)) return;
+      var tag = el.tagName;
+      if (tag === 'STYLE' || tag === 'SCRIPT' || tag === 'LINK' || tag === 'TEMPLATE') return;
+      var box = el.getBoundingClientRect();
+      // Not filtered on `pointer-events`: 10ten's popup is click-through ("ghost") while it is
+      // only displayed, and is still very much on screen.
+      var big = box.width * box.height > viewArea * 0.8;
+      if (!big && box.width >= OBSTACLE_MIN_SIZE && box.height >= OBSTACLE_MIN_SIZE) {
+        found.push(box);
+        return;
+      }
+      if (depth >= 3) return;
+      var kids = el.shadowRoot ? el.shadowRoot.children : el.children;
+      for (var i = 0; i < kids.length; i++) collect(kids[i], depth + 1);
+    }
+
+    [document.body, document.documentElement].forEach(function(root) {
+      if (!root) return;
+      for (var i = 0; i < root.children.length; i++) {
+        var el = root.children[i];
+        if (el === own || el.id === 'zoopdog-userscript-canvas' || el === document.body) continue;
+        var position = window.getComputedStyle(el).position;
+        if (position === 'fixed' || position === 'absolute' || el.shadowRoot ||
+            el.getBoundingClientRect().height === 0) {
+          collect(el, 0);
+        }
+      }
+    });
+    return found;
+  }
+
+  function overlapArea(a, b) {
+    var w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    var h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    return w > 0 && h > 0 ? w * h : 0;
+  }
+
   ResultPopup.prototype.show = function(rect) {
     var style = this.container.style;
     var margin = 8;
     var view = visibleViewport();
-    var viewRight = view.left + view.width;
     var viewBottom = view.top + view.height;
     var below = viewBottom - rect.bottom - margin;
     var above = rect.top - view.top - margin;
@@ -850,6 +903,31 @@ __ZOOPDOG_RUNTIME_SOURCES__
     style.maxHeight = Math.min(Math.max(280, view.height * 0.5), room) + 'px';
     style.visibility = 'visible';
 
+    this.place(rect, placeAbove);
+    this.scheduleObstacleRecheck(rect, placeAbove);
+  };
+
+  // Another extension's popup often appears a beat after ours (it renders async), so look again.
+  ResultPopup.prototype.scheduleObstacleRecheck = function(rect, placeAbove) {
+    var popup = this;
+    (this.recheckTimers || []).forEach(window.clearTimeout);
+    this.recheckTimers = OBSTACLE_RECHECK_MS.map(function(ms) {
+      return window.setTimeout(function() {
+        if (popup.locked || popup.container.style.visibility !== 'visible') return;
+        popup.place(rect, placeAbove);
+      }, ms);
+    });
+  };
+
+  // Places the popup below/above the word, or -- when that would cover another floating box --
+  // beside the word or on the opposite side, whichever overlaps the others least.
+  ResultPopup.prototype.place = function(rect, placeAbove) {
+    var style = this.container.style;
+    var margin = 8;
+    var view = visibleViewport();
+    var viewRight = view.left + view.width;
+    var viewBottom = view.top + view.height;
+
     // A fixed box shrink-wraps to the space right of `left`, so measure its
     // natural width at the left edge before clamping.
     style.left = '0px';
@@ -858,10 +936,44 @@ __ZOOPDOG_RUNTIME_SOURCES__
     var box = this.container.getBoundingClientRect();
     // The CSS `margin-top` offsets the box below its `top`.
     var offsetTop = box.top;
-    style.left = clampInto(rect.left - 20, view.left + margin, viewRight - box.width - margin) + 'px';
+    var width = box.width;
+    var height = box.height;
+    var leftAligned = clampInto(rect.left - 20, view.left + margin, viewRight - width - margin);
+
+    function candidate(left, visualTop) {
+      var l = clampInto(left, view.left + margin, viewRight - width - margin);
+      var t = clampInto(visualTop, view.top + margin, viewBottom - height - margin);
+      return {left: l, top: t - offsetTop,
+        box: {left: l, top: t, right: l + width, bottom: t + height}};
+    }
+
     // Placed by `top` in both cases: a `bottom` offset is measured from the layout viewport's
     // bottom edge, which on a phone is not where the visible screen ends.
-    style.top = (placeAbove ? rect.top - 4 - box.height - offsetTop : rect.bottom) + 'px';
+    var primary = {left: leftAligned,
+      top: placeAbove ? rect.top - 4 - height - offsetTop : rect.bottom};
+    primary.box = {left: primary.left, top: primary.top + offsetTop,
+      right: primary.left + width, bottom: primary.top + offsetTop + height};
+    var best = primary;
+
+    var obstacles = foreignObstacles(this.container, view);
+    if (obstacles.length) {
+      var cost = function(c) {
+        return obstacles.reduce(function(sum, o) { return sum + overlapArea(c.box, o); }, 0);
+      };
+      var alternatives = [
+        candidate(leftAligned, placeAbove ? rect.bottom : rect.top - 4 - height),
+        candidate(rect.right + margin, rect.top),
+        candidate(rect.left - margin - width, rect.top)
+      ];
+      var bestCost = cost(primary);
+      for (var i = 0; i < alternatives.length && bestCost > 0; i++) {
+        var c = cost(alternatives[i]);
+        if (c < bestCost) { best = alternatives[i]; bestCost = c; }
+      }
+    }
+
+    style.left = best.left + 'px';
+    style.top = best.top + 'px';
     this.shownView = view;
 
     // Last guard: whatever the page's CSS did to the box, pull it back on screen.
@@ -1242,11 +1354,14 @@ __ZOOPDOG_RUNTIME_SOURCES__
       popup.toggleLock();
     });
 
+    // Capture phase, registered on window: other extensions (and pages) stop keydown from
+    // propagating, and a bubble-phase listener then never sees Shift -- the pin silently fails.
+    // `repeat` skips the auto-repeat of a held key, which would toggle the pin on and off.
     window.addEventListener('keydown', function(event) {
-      if (event.which === 16) {
+      if (event.which === 16 && !event.repeat) {
         shiftRelay.press();
       }
-    });
+    }, true);
   }
 
   main();
