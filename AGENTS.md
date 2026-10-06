@@ -71,6 +71,9 @@ Each of these owns its subject; this file does not repeat them.
 - Build commands, compilation, and manual verification: [`docs/build.md`](docs/build.md)
 - Dictionary regeneration, MDX extraction, userscript rebuilds:
   [`docs/dictionary-data.md`](docs/dictionary-data.md)
+- **Local mode is a two-repo feature**: when a change touches anything the local userscript calls
+  or configures (endpoints, payloads, hotkeys, `/control/userscripts`), edit this repo *and*
+  `~/mine/book-translator` (routes, tests, `AGENTS-book-server.md`) together, and update both docs.
 - The popup userscript's local mode (talking to the `book-translator` reader server to add
   Chữ Nôm entries / set rendering order from any page): [`docs/local-mode.md`](docs/local-mode.md)
 - Checking what the nom-ruby userscript would annotate, or what the popup dictionary would

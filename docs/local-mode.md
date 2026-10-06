@@ -134,7 +134,7 @@ there is nothing to hand-sync in this file except the rendering of a new field.
 - `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` — read the selection aloud. Triggered
   by Alt+R (matched by physical key, so macOS Option works) or the 🔊 button in the selection bar
   (shown even for selections too long for a Chữ Nôm entry). The server splits the text by language
-  (vi/en/ja/ko/ms/zh), reads each part in the voice set under "Zoopdog reading" in `/control`, and
+  (vi/en/ja/ko/ms/zh), reads each part in the voice set under "Zoopdog reading" in `/control/userscripts` (each engine is labelled with whether it sends the text away), and
   queues it behind whatever is playing, so a reading reader is never interrupted. There is no length
   limit: a very long selection or a long queue answers 409 `{status: "confirm", message}`, the
   script asks with `window.confirm(message)` and resends with `confirm: true`. The toast shows the
@@ -185,6 +185,12 @@ generated userscript stays in sync with it. To verify the feature itself, start 
 term on any page.
 
 ## Cross-repo pointer
+
+**Local mode spans two repositories and they are edited together.** Any change to a local-mode
+endpoint, request/response shape, hotkey, setting or its `/control/userscripts` page is made in both
+`zoopdog` (this runtime, `docs/local-mode.md`) and `book-translator` (the routes, tests,
+`AGENTS-book-server.md`) in the same piece of work, with both docs updated. Never leave one side
+describing behaviour the other no longer has.
 
 The server side of everything above — routes, the Nôm/order file formats, the live-reload
 index, the MT provider chain — lives in `book-translator`, not here. Read
