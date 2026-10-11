@@ -112,7 +112,10 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
 - `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
   reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
-  the "Refresh all" list just draws. `translations` (the raw per-engine list) stays for old clients.
+  the "Refresh all" list just draws. Each row has a finished `label` (`"edge, google"`, `"ALL"`, or
+  `"pair not supported: papago"` for an `unsupported` row: engines that do not offer the pair). Engines whose
+  silence is expected (youdao, mirai, weblio: pairs they never answer) are left out of `rows`.
+  `translations` (the raw per-engine list) stays for old clients.
 - Every preview reply (`preview=1`) carries `diff` — `{changed, rows}` with the character-level
   narrowing already done (`scripts/entry_diff.py`); `zooRenderEntryDiff` only draws segments.
 - `GET /v1/nom/entry?vi=...` — kept for older callers; the modal no longer uses it.
@@ -131,7 +134,7 @@ there is nothing to hand-sync in this file except the rendering of a new field.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
   This one *replaces* the preference, so it always goes through preview → confirm.
 
-- `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` — read the selection aloud. Triggered
+- `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` (optionally `session` and `voice: "next"`: the Eudic plugins' "play all" button rotates the engine per session, the userscript does not use it) — read the selection aloud. Triggered
   by Alt+R (matched by physical key, so macOS Option works) or the 🔊 button in the selection bar
   (shown even for selections too long for a Chữ Nôm entry). The server splits the text by language
   (vi/en/ja/ko/ms/zh), reads each part in the voice set under "Zoopdog reading" in `/control/userscripts` (each engine is labelled with whether it sends the text away), and

@@ -160,8 +160,9 @@
   }
 
   // Asks every refresh engine at once (`refresh=all`). The server answers with the
-  // finished `rows` ({engines, text[, skipped]}), already grouped and folded; an engine
-  // with no answer is in a trailing row with empty text.
+  // finished `rows` ({engines, label, text[, skipped][, unsupported]}), already grouped and folded; an
+  // engine with no answer is in a trailing row with empty text, and engines that do not offer the pair
+  // are one `unsupported` row whose `label` already says "pair not supported: ...".
   function zooFetchNotesAll(kind, text) {
     if (!text) return Promise.resolve([]);
     return zooGetJSON('/v1/suggest', { kind: kind, text: text, refresh: 'all' }).then(function(data) {
@@ -215,9 +216,9 @@
         rows.forEach(function(row) {
           var li = document.createElement('li');
           var label = document.createElement('strong');
-          label.textContent = row.engines.length ? row.engines.join(', ') + ': ' : '';
+          label.textContent = row.label ? row.label + (row.unsupported ? '' : ': ') : '';
           li.appendChild(label);
-          li.appendChild(document.createTextNode(row.text || (row.skipped ? '(skipped: limited quota)' : row.engines.length ? '(no answer)' : 'No engine answered.')));
+          li.appendChild(document.createTextNode(row.text || (row.unsupported ? '' : row.skipped ? '(skipped: limited quota)' : row.engines.length ? '(no answer)' : 'No engine answered.')));
           if (row.text) {
             var copy = document.createElement('button');
             copy.type = 'button';

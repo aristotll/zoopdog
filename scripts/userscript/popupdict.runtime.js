@@ -280,6 +280,10 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // While a press on the bar is in flight, selectionchange must not hide it -- see
   // zooEnsureNomReviewSelectionBar.
   var zooNomReviewBarPressedUntil = 0;
+  // Text of the selection the user dismissed by clicking elsewhere (a dictionary lookup click).
+  // A page can keep the selection alive through such a click; without this the mouseup handler
+  // would re-show the bar for that same still-selected text.
+  var zooNomReviewDismissedText = '';
 
   // Whether `range` covers more than `max` characters, decided by walking at most a few
   // hundred text nodes from the range start rather than calling selection.toString(): that
@@ -421,6 +425,11 @@ __ZOOPDOG_RUNTIME_SOURCES__
         zooHideNomReviewSelectionBar();
         return;
       }
+      if (text === zooNomReviewDismissedText) {
+        zooHideNomReviewSelectionBar();
+        return;
+      }
+      zooNomReviewDismissedText = '';
       var rect = range.getBoundingClientRect();
       if (!rect || (!rect.width && !rect.height)) {
         zooHideNomReviewSelectionBar();
@@ -455,6 +464,40 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
     document.addEventListener('mouseup', immediate);
     document.addEventListener('touchend', immediate);
+
+    // A plain click (press + release without dragging) anywhere outside the bar -- e.g. on a
+    // word to open the dictionary popup -- closes the bar, even if the page keeps the old
+    // selection alive and no selectionchange follows.
+    var pressPoint = null;
+    function onPress(event) {
+      if (event.target && event.target.closest &&
+          event.target.closest('#zoopdog-nom-review-selection-bar')) {
+        pressPoint = null;
+        return;
+      }
+      pressPoint = {x: event.clientX, y: event.clientY};
+    }
+    function onRelease(event) {
+      var start = pressPoint;
+      pressPoint = null;
+      if (!start || !zooNomReviewSelectionBarEl ||
+          zooNomReviewSelectionBarEl.style.display === 'none') {
+        return;
+      }
+      if (Math.abs(event.clientX - start.x) > 4 || Math.abs(event.clientY - start.y) > 4) return;
+      var selection = window.getSelection ? window.getSelection() : null;
+      var current = selection ? zooTrimNomReviewSelection(selection.toString()) : '';
+      if (current) zooNomReviewDismissedText = current;
+      debounced.cancel();
+      zooNomReviewBarPressedUntil = 0;
+      zooHideNomReviewSelectionBar(true);
+    }
+    document.addEventListener('mousedown', onPress, true);
+    document.addEventListener('touchstart', function(e) {
+      var t = e.touches && e.touches[0];
+      if (t) onPress({target: e.target, clientX: t.clientX, clientY: t.clientY});
+    }, {capture: true, passive: true});
+    document.addEventListener('mouseup', onRelease, true);
   }
 
   function addStyle(css) {
