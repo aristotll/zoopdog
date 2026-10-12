@@ -22,6 +22,7 @@ const READ_ONLY_INPUTS = [
   'zd-extension/db_src/vnedict2.json',
   'zd-extension/db_src/mdx_nom.json',
   'zd-extension/db_src/user_nom_order.jsonc',
+  'zd-extension/db_src/chunom_standard.json',
   'zd-extension/db_src/user_nom_entries',
   'zd-extension/js/zd-nom-match.js',
   'zd-extension/js/zd-words.js',

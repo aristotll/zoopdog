@@ -39,7 +39,7 @@ make verify
 | `zd-extension/` | Legacy name; shared dictionary data (`db_src/`) and shared browser runtime/styles used by the website and userscripts |
 | `zd-extension/js/zd-words.js` | Shared Vietnamese word primitives — one definition, used by the website and the popup userscript |
 | `zd-extension/js/zd-nom-match.js` | Shared Chu Nom matching engine — one definition, inlined into the nom-ruby userscript and required by `scripts/nom-inspect.js`/tests |
-| `zd-extension/db_src/` | Dictionary sources, including the hand-maintained `user_nom_entries.jsonc` |
+| `zd-extension/db_src/` | Dictionary sources, including the hand-maintained `user_nom_entries.jsonc` and chunom.org's generated, gitignored `chunom_standard.json` (`docs/chunom-standard.md`) |
 | `scripts/lib/` | Shared primitives for scripts; defined once, imported never redefined |
 | `scripts/userscript/` | The browser runtime and CSS embedded in the generated userscripts |
 | `scripts/check-openspec-lifecycle.js` | OpenSpec lifecycle check; `make check-openspec` |
@@ -76,6 +76,8 @@ Each of these owns its subject; this file does not repeat them.
   `~/mine/book-translator` (routes, tests, `AGENTS-book-server.md`) together, and update both docs.
 - The popup userscript's local mode (talking to the `book-translator` reader server to add
   Chữ Nôm entries / set rendering order from any page): [`docs/local-mode.md`](docs/local-mode.md)
+- chunom.org's standard characters (a generated, gitignored `chunom_standard.json` the builders fold in memory: words behind the dictionary's own forms,
+  the standard character of each reading first, never over the user's entries or order), and how to refresh them: [`docs/chunom-standard.md`](docs/chunom-standard.md)
 - Checking what the nom-ruby userscript would annotate, or what the popup dictionary would
   show for a term, locally and without a browser: [`docs/nom-validation.md`](docs/nom-validation.md)
 

@@ -6,7 +6,8 @@ const {
   readUserNomEntries,
   toDictionaryEntries
 } = require('./user-nom-entries');
-const {readUserNomOrder, applyUserNomOrderToDefinitions} = require('./user-nom-order');
+const {applyUserNomOrderToDefinitions} = require('./user-nom-order');
+const {readChunomStandard, mergeChunomIntoEntries, readNomOrder} = require('./chunom-standard-layer');
 const {normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
 const {readJson} = require('./lib/sources');
@@ -24,6 +25,7 @@ const rootDir = repoPaths.rootDir;
 const dictionaryPath = repoPaths.absolute.dictionary;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
+const chunomPath = repoPaths.absolute.chunomStandard;
 
 const sourceFiles = [
   // Shared word primitives, inlined ahead of the runtime that calls them. The popup shows no
@@ -144,14 +146,17 @@ function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
 // and its tests) can never see two different popup dictionaries for the same repository state.
 function buildFullDictionary() {
   const userNomEntries = readUserNomEntries(userNomPath);
-  const entries = readJson(dictionaryPath).concat(
+  const base = readJson(dictionaryPath);
+  const chunom = readChunomStandard(chunomPath);
+  mergeChunomIntoEntries(base, chunom); // in memory, behind the dictionary's own Nom forms
+  const entries = base.concat(
     toDictionaryEntries(userNomEntries)
   );
   const {dictionary, maxWords} = buildDictionary(entries);
   // Local entries are an implicit preference layer even when a rendering was already
   // present in the base dictionary. The explicit order file runs last and can override it.
   applyUserNomOrderToDictionary(dictionary, userNomEntries);
-  const userNomOrder = readUserNomOrder(userNomOrderPath);
+  const userNomOrder = readNomOrder(userNomOrderPath, userNomEntries, chunom);
   applyUserNomOrderToDictionary(dictionary, userNomOrder);
 
   return {dictionary, maxWords, userNomEntries, userNomOrder};
@@ -182,7 +187,7 @@ function main(argv = process.argv.slice(2)) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
   }
   if (userNomOrder.length) {
-    console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
+    console.log(`Applied ${userNomOrder.length} display-order rows (chunom.org's standard characters, then ${userNomOrderPath})`);
   }
   console.log(`Maximum term length: ${maxWords} words`);
 }

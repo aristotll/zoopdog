@@ -7,7 +7,6 @@ const {
   mergeUserNomEntriesIntoNomMap
 } = require('./user-nom-entries');
 const {
-  readUserNomOrder,
   applyUserNomOrderToNomMap,
   pinCaseSensitiveVariantsIntoNomMap,
   buildCaseSensitiveNomMap
@@ -15,6 +14,7 @@ const {
 const {cleanText, normalizeTerm} = require('./lib/text');
 const {extractNomCandidates, isEmbeddableTerm} = require('./lib/cjk');
 const {mdxEntries, readJson} = require('./lib/sources');
+const {readChunomStandard, mergeChunomIntoEntries, readNomOrder} = require('./chunom-standard-layer');
 const repoPaths = require('./lib/paths');
 const {
   readRuntime,
@@ -28,6 +28,7 @@ const sourcePath = repoPaths.absolute.dictionary;
 const extractedMdxPath = repoPaths.absolute.mdxNom;
 const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
+const chunomPath = repoPaths.absolute.chunomStandard;
 const nomMatchEnginePath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-nom-match.js');
 const wordsPath = path.join(repoPaths.rootDir, 'zd-extension/js/zd-words.js');
 const nomFontRemoteUrl = "url('https://github.com/nomfoundation/font/releases/download/v5.17/NomNaTong-Regular.ttf') format('truetype')";
@@ -142,7 +143,10 @@ function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
 // (scripts/nom-inspect.js and its tests) can never see two different Chu Nom maps for the
 // same repository state.
 function buildFullNomMap() {
+  // chunom.org's words join the base dictionary in memory (nothing is written back): behind its own Nom forms, none twice
   const entries = readJson(sourcePath);
+  const chunom = readChunomStandard(chunomPath);
+  mergeChunomIntoEntries(entries, chunom);
   const nomMap = buildNomMap(entries);
 
   if (fs.existsSync(extractedMdxPath)) {
@@ -154,7 +158,7 @@ function buildFullNomMap() {
 
   // Last, after every layer that can *add* a candidate: this one only reorders what they
   // produced, and the userscript renders candidate 0 as the ruby.
-  const userNomOrder = readUserNomOrder(userNomOrderPath);
+  const userNomOrder = readNomOrder(userNomOrderPath, userNomEntries, chunom);
   applyUserNomOrderToNomMap(nomMap, userNomOrder);
   // `caseSensitive` rows never reach the hoist above (see user-nom-order.js). Their variants
   // are still pinned into the shared entry so the exact spelling stays matchable, and the
@@ -192,7 +196,7 @@ function main(argv = process.argv.slice(2)) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
   }
   if (userNomOrder.length) {
-    console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
+    console.log(`Applied ${userNomOrder.length} display-order rows (chunom.org's standard characters, then ${userNomOrderPath})`);
   }
   if (Object.keys(caseSensitiveNomMap).length) {
     console.log(`Embedded ${Object.keys(caseSensitiveNomMap).length} case-sensitive display-order overrides`);

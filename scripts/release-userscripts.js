@@ -16,6 +16,9 @@ const KEYS = ['nomUserscript', 'popupUserscript'];
 // Generated, gitignored runtime dictionary: shipped as-is (not minified) so the extension and
 // website can be built from a release instead of from committed 7MB blobs.
 const DICTIONARY_KEYS = ['runtimeDictionary', 'runtimeDictionaryMetadata'];
+// chunom.org's standard characters (generated, gitignored): shipped when this checkout has imported it, so a release carries the data the
+// builds folded in. Optional: a checkout that never ran import-chunom-standard.js simply has none.
+const OPTIONAL_DATA_KEYS = ['chunomStandard'];
 
 function releaseTag(now = new Date()) {
   const pad = (value) => String(value).padStart(2, '0');
@@ -40,6 +43,15 @@ function main(argv = process.argv.slice(2)) {
       throw new Error(`Missing ${file}: run \`make rebuild-extension-vnedict-json\` first`);
     }
     return {file, bytes: fs.statSync(file).size};
+  });
+
+  OPTIONAL_DATA_KEYS.forEach((key) => {
+    const file = repoPaths.absolute[key];
+    if (fs.existsSync(file)) {
+      dictionaryAssets.push({file, bytes: fs.statSync(file).size});
+    } else {
+      console.warn(`Warning: ${file} is missing: this release ships no chunom.org data (run import-chunom-standard.js first if the userscripts should carry it)`);
+    }
   });
 
   const tag = releaseTag();

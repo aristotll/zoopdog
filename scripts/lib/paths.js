@@ -14,6 +14,7 @@ const relative = Object.freeze({
   runtimeDictionaryMetadata: 'zd-extension/js/vnedict.meta.json',
   runtimeDictionaryCollisions: 'zd-extension/js/vnedict.collisions.json',
   mdxNom: 'zd-extension/db_src/mdx_nom.json',
+  chunomStandard: 'zd-extension/db_src/chunom_standard.json',
   userNomEntries: 'zd-extension/db_src/user_nom_entries',
   userNomOrder: 'zd-extension/db_src/user_nom_order.jsonc',
   nomFontLocal: 'zd-extension/db_src/fonts/NomNaTong-Regular.otf',
