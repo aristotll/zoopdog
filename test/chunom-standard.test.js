@@ -7,8 +7,9 @@ const path = require('node:path');
 const standard = require('../scripts/lib/chunom-standard');
 const layer = require('../scripts/chunom-standard-layer');
 const order = require('../scripts/user-nom-order');
-const {readNomOrder} = require('../scripts/chunom-standard-layer');
 const repoPaths = require('../scripts/lib/paths');
+const nomMerge = require('../scripts/lib/nom-merge');
+const mdxMerge = require('../scripts/merge-mdx-nom-into-vnedict2');
 
 // Rows as chunom.org's standard-list answers them (2026-10-11): a character has a Unicode column, a compound has none and the
 // frequency 9999999; the last two are rows the list carries that are no Nom text.
@@ -98,7 +99,7 @@ const CHUNOM = {standard: {'được': ['特'], ba: ['𠀧'], 'một': ['𠬠']}
 
 test('chunom order comes first and the user\'s own rows after it, so the user\'s row wins for the same term', () => {
   withData({'chunom_standard.json': CHUNOM, 'user_nom_order.jsonc': '[{"vi": "được", "nom": ["得"]}]'}, (dir) => {
-    const rows = readNomOrder(path.join(dir, 'user_nom_order.jsonc'), [], CHUNOM);
+    const rows = layer.readNomOrder(path.join(dir, 'user_nom_order.jsonc'), [], CHUNOM);
     // no chunom row for a term the user ordered: the user's file has the last word, and the first
     assert.deepEqual(rows.map((row) => [row.vi, row.nom[0]]), [['ba', '𠀧'], ['một', '𠬠'], ['được', '得']]);
     assert.deepEqual(order.buildNomOrderIndex(rows).get('được'), ['得']);
@@ -110,15 +111,15 @@ test('chunom order comes first and the user\'s own rows after it, so the user\'s
 test('chunom never reorders a term the user has an entry for', () => {
   withData({'chunom_standard.json': CHUNOM, 'user_nom_order.jsonc': '[]'}, (dir) => {
     const userEntries = [{vi: 'Ba', key: 'ba', nom: ['巴'], explain: []}];
-    const rows = readNomOrder(path.join(dir, 'user_nom_order.jsonc'), userEntries, CHUNOM);
+    const rows = layer.readNomOrder(path.join(dir, 'user_nom_order.jsonc'), userEntries, CHUNOM);
     assert.deepEqual(rows.map((row) => row.vi), ['được', 'một']); // `ba` is the user's
   });
 });
 
 test('without chunom\'s file the order is the user\'s alone', () => {
   withData({'user_nom_order.jsonc': '[{"vi": "ba", "nom": ["𠀧"]}]'}, (dir) => {
-    assert.deepEqual(readNomOrder(path.join(dir, 'user_nom_order.jsonc')).map((row) => row.vi), ['ba']);
-    assert.deepEqual(readNomOrder('/nonexistent/user_nom_order.jsonc'), []);
+    assert.deepEqual(layer.readNomOrder(path.join(dir, 'user_nom_order.jsonc')).map((row) => row.vi), ['ba']);
+    assert.deepEqual(layer.readNomOrder('/nonexistent/user_nom_order.jsonc'), []);
     assert.equal(layer.readChunomStandard('/nonexistent/chunom_standard.json'), null);
   });
 });
@@ -147,9 +148,140 @@ test('the extension runtime build folds chunom in memory: the source file is unt
   });
 });
 
-test('the extension dictionary build adds chunom\'s words once and keeps its own forms first', () => {
-  const entries = [{vn: 'một', en: [{def: '没', pos: ''}, {def: 'one', pos: ''}]}];
-  layer.mergeChunomIntoEntries(entries, standard.buildPayload(standard.parseStandardList(LIST)));
-  layer.mergeChunomIntoEntries(entries, standard.buildPayload(standard.parseStandardList(LIST)));
-  assert.deepEqual(entries[0].en.map((item) => item.def), ['没', '𠬠', 'one']);
+test('a caseSensitive surname row leaves the lowercase word to chunom and still wins for its exact spelling', () => {
+  const payload = {entries: {}, standard: {'triệu': ['兆']}};
+  withData({
+    'chunom_standard.json': payload,
+    'user_nom_order.jsonc': '[{"vi": "Triệu", "nom": ["趙"], "caseSensitive": true}]'
+  }, (dir) => {
+    const orderPath = path.join(dir, 'user_nom_order.jsonc');
+    const rows = layer.readNomOrder(orderPath, [], payload);
+    assert.deepEqual(order.buildNomOrderIndex(rows).get('triệu'), ['兆']);
+
+    // the nom-ruby maps: the casefolded entry leads with chunom's character, the exact spelling still renders the surname's
+    const nomMap = {'triệu': '趙 / 兆 / 召'};
+    order.applyUserNomOrderToNomMap(nomMap, rows);
+    order.pinCaseSensitiveVariantsIntoNomMap(nomMap, rows);
+    assert.equal(nomMap['triệu'].split(' / ')[0], '兆');
+    assert.deepEqual(order.buildCaseSensitiveNomMap(nomMap, rows), {'Triệu': '趙 / 兆 / 召'});
+  });
+});
+
+test('a casefolded user row still excludes chunom\'s row for the same term', () => {
+  const payload = {entries: {}, standard: {'triệu': ['兆']}};
+  withData({'user_nom_order.jsonc': '[{"vi": "triệu", "nom": ["召"]}, {"vi": "Triệu", "nom": ["趙"], "caseSensitive": true}]'}, (dir) => {
+    const rows = layer.readNomOrder(path.join(dir, 'user_nom_order.jsonc'), [], payload);
+    assert.deepEqual(order.buildNomOrderIndex(rows).get('triệu'), ['召']);
+  });
+});
+
+test('loadChunomLayer reports the user\'s rows and chunom\'s rows separately and applies them in that order', () => {
+  const payload = {entries: {'một': ['𠬠']}, standard: {'được': ['特'], ba: ['𠀧']}};
+  withData({
+    'chunom_standard.json': payload,
+    'user_nom_order.jsonc': '[{"vi": "được", "nom": ["得"]}]'
+  }, (dir) => {
+    const loaded = layer.loadChunomLayer({
+      chunomPath: path.join(dir, 'chunom_standard.json'),
+      orderPath: path.join(dir, 'user_nom_order.jsonc'),
+      userEntries: []
+    });
+    assert.deepEqual(loaded.userOrderRows.map((row) => row.vi), ['được']);
+    assert.deepEqual(loaded.chunomOrderRows.map((row) => row.vi), ['ba']); // `được` is the user's
+    assert.deepEqual(loaded.orderRows.map((row) => row.vi), ['ba', 'được']);
+    const entries = [];
+    loaded.fold(entries);
+    assert.deepEqual(entries.map((entry) => entry.vn), ['một']);
+  });
+});
+
+test('loadChunomLayer without chunom\'s file is the user\'s order alone and folds nothing', () => {
+  withData({'user_nom_order.jsonc': '[{"vi": "ba", "nom": ["𠀧"]}]'}, (dir) => {
+    const loaded = layer.loadChunomLayer({
+      chunomPath: path.join(dir, 'missing.json'),
+      orderPath: path.join(dir, 'user_nom_order.jsonc')
+    });
+    assert.equal(loaded.payload, null);
+    assert.deepEqual(loaded.chunomOrderRows, []);
+    assert.deepEqual(loaded.orderRows, loaded.userOrderRows);
+    const entries = [{vn: 'ba', en: []}];
+    loaded.fold(entries);
+    assert.deepEqual(entries, [{vn: 'ba', en: []}]);
+  });
+});
+
+test('the real builders return the user\'s own order rows, without chunom\'s', () => {
+  const {buildFullNomMap} = require('../scripts/build-nom-userscript');
+  const {buildFullDictionary} = require('../scripts/build-popupdict-userscript');
+  const own = order.readUserNomOrder(repoPaths.absolute.userNomOrder).length;
+  assert.equal(buildFullNomMap().userNomOrder.length, own);
+  assert.equal(buildFullDictionary().userNomOrder.length, own);
+});
+
+test('a malformed chunom_standard.json fails with its path and the offending key', () => {
+  withData({
+    'no-entries.json': {standard: {}},
+    'string-forms.json': {entries: {'một': '𠬠'}},
+    'bad-meanings.json': {entries: {}, meanings: {'hai': [2]}},
+    'not-object.json': [],
+    'valid.json': {entries: {'một': ['𠬠']}}
+  }, (dir) => {
+    const at = (name) => path.join(dir, name);
+    assert.throws(() => layer.readChunomStandard(at('no-entries.json')), (error) => error.message.includes(at('no-entries.json')) && error.message.includes('entries'));
+    assert.throws(() => layer.readChunomStandard(at('string-forms.json')), (error) => error.message.includes(at('string-forms.json')) && error.message.includes('một'));
+    assert.throws(() => layer.readChunomStandard(at('bad-meanings.json')), (error) => error.message.includes('meanings') && error.message.includes('hai'));
+    assert.throws(() => layer.readChunomStandard(at('not-object.json')), /must be a JSON object/);
+    assert.deepEqual(layer.readChunomStandard(at('valid.json')).entries, {'một': ['𠬠']});
+  });
+});
+
+test('the mdx path and the chunom path merge the same forms into identical entries', () => {
+  const forms = {'một': ['𠬠', '没'], 'hai': ['𠄩'], 'ba': ['𠀧']};
+  const base = () => [{vn: 'một', en: [{def: '没', pos: ''}, {def: 'one', pos: ''}]}];
+
+  const viaShared = base();
+  const counts = nomMerge.mergeNomFormsIntoEntries(viaShared, forms);
+  assert.deepEqual([counts.updatedEntries, counts.createdEntries, counts.skippedMalformed], [1, 2, 0]);
+
+  const viaChunom = base();
+  layer.mergeChunomIntoEntries(viaChunom, {entries: forms, standard: {}, meanings: {}});
+  assert.deepEqual(viaChunom, viaShared);
+
+  // the mdx script's own main(), on files, with its write captured
+  withData({'dict.json': base(), 'mdx.json': {entries: forms}}, (dir) => {
+    let written = null;
+    mdxMerge.main({
+      dictionaryPath: path.join(dir, 'dict.json'),
+      mdxNomPath: path.join(dir, 'mdx.json'),
+      write: (target, bytes) => { written = bytes; }
+    });
+    assert.deepEqual(JSON.parse(written), viaShared);
+  });
+  assert.equal(mdxMerge.insertNomDefinitions, nomMerge.insertNomDefinitions, 'the mdx script re-exports the shared helper');
+  assert.equal(mdxMerge.dedupeDefinitions, nomMerge.dedupeDefinitions);
+});
+
+test('empty keys and blank Nom forms create no entry; non-array forms are counted as malformed', () => {
+  const entries = [];
+  const result = nomMerge.mergeNomFormsIntoEntries(entries, {
+    '   ': ['𠬠'],
+    'trống': ['', '  '],
+    'hỏng': '𠬠',
+    'một': ['𠬠']
+  }, {extraDefsFor: (term) => ['gloss of ' + term]});
+  assert.deepEqual(entries, [{vn: 'một', en: [{def: '𠬠', pos: ''}, {def: 'gloss of một', pos: ''}]}]);
+  assert.deepEqual([result.createdEntries, result.skippedMalformed], [1, 1]);
+
+  const viaChunom = [];
+  layer.mergeChunomIntoEntries(viaChunom, {entries: {'trống': ['', ' ']}, meanings: {'trống': ['empty']}, standard: {}});
+  assert.deepEqual(viaChunom, []);
+});
+
+test('indexEntriesByKey groups entries by normalized headword and skips empty ones', () => {
+  const a = {vn: 'Ba Lê', en: []};
+  const b = {vn: 'ba  lê', en: []};
+  const blank = {vn: '  ', en: []};
+  const index = nomMerge.indexEntriesByKey([a, b, blank]);
+  assert.deepEqual([...index.keys()], ['ba lê']);
+  assert.deepEqual(index.get('ba lê'), [a, b]);
 });

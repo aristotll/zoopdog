@@ -36,6 +36,20 @@ test('text helpers normalize Vietnamese consistently', () => {
   assert.deepEqual(text.stableUnique(['a', '', 'a', 'b']), ['a', 'b']);
 });
 
+test('default lowercasing normalizes every real headword to the same key as vi-VN locale lowercasing', () => {
+  // Both are computed from the data on disk, so a future headword that would make them diverge fails here rather than silently
+  // changing a key. `normalizeTerm` is the cleanText -> lowercase -> collapse-whitespace chain with only the lowercase swapped.
+  const viKey = (value) => text.cleanText(value).toLocaleLowerCase('vi-VN').replace(/\s+/g, ' ');
+  const {readUserNomEntries} = require('../scripts/user-nom-entries');
+  const headwords = [
+    ...JSON.parse(fs.readFileSync(paths.absolute.dictionary, 'utf8')).map((entry) => entry.vn),
+    ...readUserNomEntries(paths.absolute.userNomEntries).map((entry) => entry.vi)
+  ];
+  assert.ok(headwords.length > 70000, 'the real dictionary was read');
+  const diverging = headwords.filter((value) => text.normalizeTerm(value) !== viKey(value));
+  assert.deepEqual(diverging, []);
+});
+
 test('stripNul is an option on cleanText, not a separate implementation', () => {
   const withNul = 'ti\u0000ếng';
   assert.equal(text.cleanText(withNul), withNul.normalize('NFC'));

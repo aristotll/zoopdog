@@ -7,7 +7,7 @@ const {
   toDictionaryEntries
 } = require('./user-nom-entries');
 const {applyUserNomOrderToDefinitions} = require('./user-nom-order');
-const {readChunomStandard, mergeChunomIntoEntries, readNomOrder} = require('./chunom-standard-layer');
+const {loadChunomLayer} = require('./chunom-standard-layer');
 const {normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
 const {readJson} = require('./lib/sources');
@@ -147,8 +147,8 @@ function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
 function buildFullDictionary() {
   const userNomEntries = readUserNomEntries(userNomPath);
   const base = readJson(dictionaryPath);
-  const chunom = readChunomStandard(chunomPath);
-  mergeChunomIntoEntries(base, chunom); // in memory, behind the dictionary's own Nom forms
+  const chunom = loadChunomLayer({chunomPath, orderPath: userNomOrderPath, userEntries: userNomEntries});
+  chunom.fold(base); // in memory, behind the dictionary's own Nom forms
   const entries = base.concat(
     toDictionaryEntries(userNomEntries)
   );
@@ -156,10 +156,9 @@ function buildFullDictionary() {
   // Local entries are an implicit preference layer even when a rendering was already
   // present in the base dictionary. The explicit order file runs last and can override it.
   applyUserNomOrderToDictionary(dictionary, userNomEntries);
-  const userNomOrder = readNomOrder(userNomOrderPath, userNomEntries, chunom);
-  applyUserNomOrderToDictionary(dictionary, userNomOrder);
+  applyUserNomOrderToDictionary(dictionary, chunom.orderRows);
 
-  return {dictionary, maxWords, userNomEntries, userNomOrder};
+  return {dictionary, maxWords, userNomEntries, userNomOrder: chunom.userOrderRows, chunomOrderCount: chunom.chunomOrderRows.length};
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -167,7 +166,7 @@ function main(argv = process.argv.slice(2)) {
   const variants = localOnly
     ? VARIANTS.filter((variant) => variant.localMode)
     : VARIANTS;
-  const {dictionary, maxWords, userNomEntries, userNomOrder} = buildFullDictionary();
+  const {dictionary, maxWords, userNomEntries, userNomOrder, chunomOrderCount} = buildFullDictionary();
 
   for (const variant of variants) {
     const targetPath = repoPaths.absolute[variant.targetKey];
@@ -186,8 +185,11 @@ function main(argv = process.argv.slice(2)) {
   if (userNomEntries.length) {
     console.log(`Merged ${userNomEntries.length} user Nom entries from ${userNomPath}`);
   }
+  if (chunomOrderCount) {
+    console.log(`Applied ${chunomOrderCount} chunom.org standard-character order rows`);
+  }
   if (userNomOrder.length) {
-    console.log(`Applied ${userNomOrder.length} display-order rows (chunom.org's standard characters, then ${userNomOrderPath})`);
+    console.log(`Applied ${userNomOrder.length} display-order rows from ${userNomOrderPath}`);
   }
   console.log(`Maximum term length: ${maxWords} words`);
 }

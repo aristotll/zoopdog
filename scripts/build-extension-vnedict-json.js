@@ -7,7 +7,8 @@ const {absolute} = require('./lib/paths');
 const {normalizeTerm} = require('./lib/text');
 const {definitionKey} = require('./lib/sources');
 const {readUserNomEntries} = require('./user-nom-entries');
-const {readChunomStandard, mergeChunomIntoEntries, readNomOrder} = require('./chunom-standard-layer');
+const {loadChunomLayer} = require('./chunom-standard-layer');
+const {indexEntriesByKey} = require('./lib/nom-merge');
 const {buildNomOrderIndex, hoistPreferredRows} = require('./user-nom-order');
 const {
   groupEntries,
@@ -84,15 +85,7 @@ function mergeUserNomEntriesIntoEntries(entries, userEntries) {
     return 0;
   }
 
-  const byKey = new Map();
-  for (const entry of entries) {
-    const key = normalizeTerm(entry.vn);
-    if (key) {
-      const matches = byKey.get(key) || [];
-      matches.push(entry);
-      byKey.set(key, matches);
-    }
-  }
+  const byKey = indexEntriesByKey(entries);
 
   let merged = 0;
   for (const userEntry of userEntries) {
@@ -195,11 +188,11 @@ function buildRuntimeDictionary({
   write
 } = {}) {
   const entries = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
-  const chunom = readChunomStandard(chunomPath);
-  mergeChunomIntoEntries(entries, chunom); // in memory, behind the dictionary's own Nom forms
   const userEntries = readUserNomEntries(userNomPath);
+  const chunom = loadChunomLayer({chunomPath, orderPath, userEntries});
+  chunom.fold(entries); // in memory, behind the dictionary's own Nom forms
   const merged = mergeUserNomEntriesIntoEntries(entries, userEntries);
-  const reordered = applyUserNomOrderToEntries(entries, readNomOrder(orderPath, userEntries, chunom));
+  const reordered = applyUserNomOrderToEntries(entries, chunom.orderRows);
   // Grouping (scripts/lib/dictionary-identity.js) runs last, once per build, after every
   // source row (base dictionary + hand-maintained Chu Nom + display order) has settled into
   // its final `{vn, en}` shape -- so a normalized-key collision is resolved exactly once, on

@@ -11,9 +11,11 @@ function cleanText(value, options = {}) {
   return text.normalize('NFC').trim();
 }
 
+// Plain `toLowerCase()`, not `toLocaleLowerCase('vi-VN')`: Vietnamese has no locale-specific case mapping (only Turkish/Azeri/Lithuanian
+// do), so the keys are byte-identical, and this is about 6x faster over the 76k headwords every builder normalizes.
 function normalizeTerm(value, options = {}) {
   return cleanText(value, options)
-    .toLocaleLowerCase('vi-VN')
+    .toLowerCase()
     .replace(/\s+/g, ' ');
 }
 

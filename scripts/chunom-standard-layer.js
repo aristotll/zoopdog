@@ -9,60 +9,58 @@
 
 const fs = require('node:fs');
 const {cleanText, normalizeTerm, exactKey} = require('./lib/text');
+const {mergeNomFormsIntoEntries} = require('./lib/nom-merge');
 const {readUserNomOrder} = require('./user-nom-order');
-const {insertNomDefinitions, dedupeDefinitions} = require('./merge-mdx-nom-into-vnedict2');
 
-// The payload, or null when the file is absent (a checkout that never imported it builds exactly as before).
+// `entries` is required, `standard` and `meanings` optional; every value of each is an array of strings. Hand-written (no schema library).
+function validateChunomPayload(payload, sourcePath) {
+  const fail = (field, key) => {
+    const where = key === undefined ? `\`${field}\`` : `\`${field}["${key}"]\``;
+    throw new Error(`${sourcePath}: chunom payload ${where} must be ${key === undefined ? 'an object' : 'an array of strings'} (re-run \`make import-chunom-standard\`)`);
+  };
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(`${sourcePath}: chunom payload must be a JSON object (re-run \`make import-chunom-standard\`)`);
+  }
+  for (const field of ['entries', 'standard', 'meanings']) {
+    const map = payload[field];
+    if (map === undefined && field !== 'entries') {
+      continue;
+    }
+    if (!map || typeof map !== 'object' || Array.isArray(map)) {
+      fail(field);
+    }
+    for (const [key, values] of Object.entries(map)) {
+      if (!Array.isArray(values) || !values.every((value) => typeof value === 'string')) {
+        fail(field, key);
+      }
+    }
+  }
+}
+
+// The payload, or null when the file is absent (a checkout that never imported it builds exactly as before). A malformed file throws.
 function readChunomStandard(sourcePath) {
   if (!sourcePath || !fs.existsSync(sourcePath)) {
     return null;
   }
-  return JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+  const payload = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+  validateChunomPayload(payload, sourcePath);
+  return payload;
 }
 
-// Folds the payload into the dictionary entries (an array of {vn, en: [{def, pos}]}), in place. A term the dictionary has gets
-// the Nom forms it lacks, behind its own (and no meaning of ours: it has them); a new term gets its Nom forms and the list's
-// English glosses. 
+// Folds the payload into the dictionary entries (an array of {vn, en: [{def, pos}]}), in place, with the one shared rule
+// (scripts/lib/nom-merge.js). A term the dictionary has gets the Nom forms it lacks, behind its own (and no meaning of ours: it has
+// them); a new term gets its Nom forms and the list's English glosses.
 function mergeChunomIntoEntries(dictionary, payload) {
   if (!payload) {
     return;
   }
-
-  const byKey = new Map();
-  for (const entry of dictionary) {
-    const key = normalizeTerm(entry.vn);
-    if (key) {
-      if (!byKey.has(key)) {
-        byKey.set(key, []);
-      }
-      byKey.get(key).push(entry);
-    }
-  }
-
-  for (const [term, nomForms] of Object.entries(payload.entries)) {
-    const key = normalizeTerm(term);
-    const candidates = Array.from(new Set(nomForms.map(cleanText).filter(Boolean)));
-    const existing = byKey.get(key);
-    if (existing && existing.length) {
-      for (const entry of existing) {
-        if (insertNomDefinitions(entry, candidates)) {
-          dedupeDefinitions(entry);
-        }
-      }
-      continue;
-    }
-    const meanings = (payload.meanings && payload.meanings[term]) || [];
-    const entry = {
-      vn: cleanText(term),
-      en: candidates.map((def) => ({def, pos: ''})).concat(meanings.map((def) => ({def, pos: ''})))
-    };
-    dictionary.push(entry);
-    byKey.set(key, [entry]);
-  }
+  mergeNomFormsIntoEntries(dictionary, payload.entries, {
+    extraDefsFor: (term) => payload.meanings && payload.meanings[term]
+  });
 }
 
 // Order rows (the shape `parseUserNomOrder` returns) putting the standard character of each reading first, for the readings the user
-// has not spoken for: `excludedKeys` are the normalized terms of the user's entries and order rows, which keep the last word.
+// has not spoken for: `excludedKeys` are the normalized terms of the user's entries and casefolded order rows, which keep the last word.
 function chunomOrderRows(payload, excludedKeys = new Set()) {
   if (!payload || !payload.standard) {
     return [];
@@ -72,14 +70,41 @@ function chunomOrderRows(payload, excludedKeys = new Set()) {
     .filter((row) => row.nom.length && !excludedKeys.has(row.key));
 }
 
-// The rows every builder applies: chunom.org's standard-character order first, then the user's own file (`readUserNomOrder` stays the
+// The order rows split by who wrote them: chunom.org's standard-character order, and the user's own file (`readUserNomOrder` stays the
 // user's file alone: the reader writes to it, nothing of chunom's may be copied in). The user has the last word twice over: chunom's row
-// is left out for any term the user has an entry (`userEntries`) or an order row for, and the user's rows come after, the last row of a
-// term winning in `buildNomOrderIndex`. `payload` is the one read of `chunom_standard.json` the build already made (null: absent).
-function readNomOrder(userSourcePath, userEntries = [], payload = null) {
+// is left out for any term the user has an entry (`userEntries`) or a casefolded order row for, and the user's rows come after, the last
+// row of a term winning in `buildNomOrderIndex`. A `caseSensitive` row speaks only for its exact spelling (`buildCaseSensitiveNomMap`),
+// so it does not take the casefolded word away from chunom. `payload` is the one read of `chunom_standard.json` (null: absent).
+function readNomOrderRows(userSourcePath, userEntries = [], payload = null) {
   const userRows = readUserNomOrder(userSourcePath);
-  const spoken = new Set([...userRows.map((row) => row.key), ...userEntries.map((entry) => entry.key)]);
-  return [...chunomOrderRows(payload, spoken), ...userRows];
+  const spoken = new Set([
+    ...userRows.filter((row) => !row.caseSensitive).map((row) => row.key),
+    ...userEntries.map((entry) => entry.key)
+  ]);
+  return {userRows, chunomRows: chunomOrderRows(payload, spoken)};
 }
 
-module.exports = {readChunomStandard, mergeChunomIntoEntries, chunomOrderRows, readNomOrder};
+// The rows every builder applies: chunom's first, then the user's (see `readNomOrderRows`).
+function readNomOrder(userSourcePath, userEntries = [], payload = null) {
+  const {userRows, chunomRows} = readNomOrderRows(userSourcePath, userEntries, payload);
+  return [...chunomRows, ...userRows];
+}
+
+// The one call a builder makes: reads `chunom_standard.json` once and returns what it needs from it.
+//   fold(entries)    merges chunom's words into dictionary entries, in place (a no-op without the file)
+//   userOrderRows    the user's own rows (what a builder reports as the user's order)
+//   chunomOrderRows  chunom's standard-character rows, minus the terms the user spoke for
+//   orderRows        [...chunomOrderRows, ...userOrderRows]: what to apply, the user's rows last so they win
+function loadChunomLayer({chunomPath, orderPath, userEntries = []}) {
+  const payload = readChunomStandard(chunomPath);
+  const {userRows, chunomRows} = readNomOrderRows(orderPath, userEntries, payload);
+  return {
+    payload,
+    fold: (entries) => mergeChunomIntoEntries(entries, payload),
+    userOrderRows: userRows,
+    chunomOrderRows: chunomRows,
+    orderRows: [...chunomRows, ...userRows]
+  };
+}
+
+module.exports = {readChunomStandard, mergeChunomIntoEntries, chunomOrderRows, readNomOrder, loadChunomLayer};

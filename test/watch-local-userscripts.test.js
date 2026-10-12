@@ -57,6 +57,28 @@ test('computeInputsHash changes when a shard file changes, and only then', (t) =
   assert.notEqual(computeInputsHash(), before, 'editing a shard file changes the hash');
 });
 
+test('computeInputsHash sees chunom_standard.json: created, changed and deleted all change the hash', (t) => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'zoopdog-watch-chunom-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const {computeInputsHash} = require('../scripts/watch-local-userscripts');
+  const chunomPath = path.join(dir, 'chunom_standard.json');
+  const inputs = {shardRoot: path.join(dir, 'shards'), orderPath: path.join(dir, 'order.jsonc'), chunomPath};
+
+  const absent = computeInputsHash(inputs);
+  assert.equal(computeInputsHash(inputs), absent, 'stable while the file stays absent');
+
+  fs.writeFileSync(chunomPath, '{"entries": {}}');
+  const created = computeInputsHash(inputs);
+  assert.notEqual(created, absent, 'creating the file changes the hash');
+
+  fs.writeFileSync(chunomPath, '{"entries": {"một": ["𠬠"]}}');
+  const changed = computeInputsHash(inputs);
+  assert.notEqual(changed, created, 'changing the file changes the hash');
+
+  fs.rmSync(chunomPath);
+  assert.equal(computeInputsHash(inputs), absent, 'deleting the file returns to the absent hash');
+});
+
 test('checkAndRebuild is a no-op when the hash is unchanged', (t) => {
   const dir = makeMutableBuildCopy(t);
   const {computeInputsHash, checkAndRebuild} = loadWatcher(dir);

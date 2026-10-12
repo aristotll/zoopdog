@@ -1,5 +1,6 @@
 NODE ?= node
 ARCHIVE ?=
+FILE ?=
 DRY_RUN ?=
 TEXT ?=
 TERM ?=
@@ -9,7 +10,7 @@ TERM ?=
 .PHONY: help \
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
-	rebuild-extension-dict rebuild-extension-vnedict-json rebuild-realwords-lexicon nom-annotate nom-popup \
+	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
 	check-openspec verify verify-scripts verify-browser
 
 help:
@@ -22,6 +23,7 @@ help:
 	@echo "make rebuild-cycle-local-userscripts  # watch user entries, rebuild (Local) on change; runs until stopped"
 	@echo "make rebuild-extension-dict           # regenerate db_src/vnedict.json from db_src/vnedict.txt"
 	@echo "make rebuild-extension-vnedict-json"
+	@echo "make import-chunom-standard  # chunom.org standard characters -> db_src/chunom_standard.json (FILE=list.txt for a saved copy, else fetches)"
 	@echo "make rebuild-realwords-lexicon  # regenerate zd-extension/js/realwords.js from its db_src source"
 	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
 	@echo "make nom-popup TERM='...'     # what the popup dictionary would show for TERM"
@@ -61,6 +63,10 @@ rebuild-extension-dict:
 
 rebuild-extension-vnedict-json:
 	$(NODE) scripts/build-extension-vnedict-json.js
+
+# Writes only the gitignored db_src/chunom_standard.json (docs/chunom-standard.md); FILE=list.txt reads a saved copy instead of fetching.
+import-chunom-standard:
+	$(NODE) scripts/import-chunom-standard.js $(if $(FILE),--file $(FILE),--fetch)
 
 rebuild-realwords-lexicon:
 	$(NODE) scripts/build-realwords-lexicon.js

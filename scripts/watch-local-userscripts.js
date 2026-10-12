@@ -15,6 +15,7 @@ const CHECK_INTERVAL_MS = 60 * 1000;
 
 const shardRoot = repoPaths.absolute.userNomEntries;
 const orderPath = repoPaths.absolute.userNomOrder;
+const chunomPath = repoPaths.absolute.chunomStandard;
 
 // Sorted so the hash never depends on directory-listing order, which varies by filesystem.
 function collectFiles(dir) {
@@ -29,20 +30,30 @@ function collectFiles(dir) {
 }
 
 // One hash over every watched input's path and content, so any edit -- a shard row added,
-// removed, or reordered, or the display-order file touched -- changes the result.
-function computeInputsHash() {
+// removed, or reordered, or the display-order file touched -- changes the result. chunom.org's
+// generated `chunom_standard.json` is an input too (content, or an absent marker, so deleting the
+// file -- the documented way back to the old order -- also rebuilds). The paths default to the
+// repository's; tests pass their own.
+function computeInputsHash({shardRoot: shards = shardRoot, orderPath: order = orderPath, chunomPath: chunom = chunomPath} = {}) {
   const hash = crypto.createHash('sha256');
 
-  for (const filePath of collectFiles(shardRoot)) {
-    hash.update(path.relative(shardRoot, filePath));
+  for (const filePath of collectFiles(shards)) {
+    hash.update(path.relative(shards, filePath));
     hash.update('\0');
     hash.update(fs.readFileSync(filePath));
     hash.update('\0');
   }
 
-  if (fs.existsSync(orderPath)) {
+  if (fs.existsSync(order)) {
     hash.update('user_nom_order.jsonc\0');
-    hash.update(fs.readFileSync(orderPath));
+    hash.update(fs.readFileSync(order));
+  }
+
+  if (fs.existsSync(chunom)) {
+    hash.update('\0chunom_standard.json\0');
+    hash.update(fs.readFileSync(chunom));
+  } else {
+    hash.update('\0chunom_standard.json\0absent');
   }
 
   return hash.digest('hex');
