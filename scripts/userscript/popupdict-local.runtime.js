@@ -163,10 +163,67 @@
   // finished `rows` ({engines, label, text[, skipped][, unsupported]}), already grouped and folded; an
   // engine with no answer is in a trailing row with empty text, and engines that do not offer the pair
   // are one `unsupported` row whose `label` already says "pair not supported: ...".
-  function zooFetchNotesAll(kind, text) {
+  // The Google-search icon follows the language set on the server's /control page (a finished
+  // `suffix`, "" when unconfigured). It is asked at the click: the local answer is fast and the
+  // click's user activation outlives it, so the tab opens.
+  function zooOpenGoogleSearch(term) {
+    if (!term) return Promise.resolve();
+    return zooGetJSON('/v1/google-search', {}).then(function(data) {
+      return (data && data.suffix) || '';
+    }, function() { return ''; }).then(function(suffix) {
+      window.open('https://www.google.com/search?q=' + encodeURIComponent(term) + suffix, '_blank', 'noopener');
+    });
+  }
+
+  // Each channel is asked in its own request, so a failing channel is retried alone
+  // (ZOO_NOTES_ALL_RETRIES times, sleeping 1 s, 2 s, 4 s) and the channels that answered still show. The
+  // server keeps the answers per `session` and returns the finished `rows` over all channels with every
+  // reply: channels still asked are a "waiting" row, one that failed every retry is reported to the server
+  // (`error=1`) and becomes an "error" row of its own. onRows(rows) is called after each reply; the final
+  // rows are resolved. If not even the channel list can be had, one row says the server was unreachable.
+  var ZOO_NOTES_ALL_RETRIES = 3;
+  var ZOO_NOTES_ALL_BASE_DELAY_MS = 1000;
+  function zooNotesAllWaiting(rows) {
+    return rows.reduce(function(n, row) { return n + (row.pending ? row.engines.length : 0); }, 0);
+  }
+  function zooFetchNotesAll(kind, text, onRows) {
     if (!text) return Promise.resolve([]);
-    return zooGetJSON('/v1/suggest', { kind: kind, text: text, refresh: 'all' }).then(function(data) {
-      return data.rows || [];
+    function withRetry(params, n) {
+      return zooGetJSON('/v1/suggest', params).catch(function(error) {
+        if (n >= ZOO_NOTES_ALL_RETRIES) throw error;
+        return new Promise(function(resolve) {
+          setTimeout(resolve, ZOO_NOTES_ALL_BASE_DELAY_MS * Math.pow(2, n));
+        }).then(function() { return withRetry(params, n + 1); });
+      });
+    }
+    function base() { return { kind: kind, text: text, refresh: 'all' }; }
+    var listParams = base();
+    listParams.engines = '1';
+    return withRetry(listParams, 0).then(function(data) {
+      var engines = data.engines || [];
+      var session = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var rows = [];
+      function take(reply) {
+        // Replies can arrive out of order; each is cumulative, so the one with fewest channels waiting is newest.
+        if (!reply || !reply.rows || (rows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(rows))) return;
+        rows = reply.rows;
+        if (onRows) onRows(rows);
+      }
+      return Promise.all(engines.map(function(name, index) {
+        var params = base();
+        params.engine = String(index);
+        params.session = session;
+        return withRetry(params, 0).then(take, function() {
+          var report = base();
+          report.engine = String(index);
+          report.session = session;
+          report.error = '1';
+          // the server is unreachable: this channel simply stays in the waiting row
+          return zooGetJSON('/v1/suggest', report).then(take, function() {});
+        });
+      })).then(function() { return rows; });
+    }, function() {
+      return [{ engines: [], text: '', message: '(server unreachable after 3 retries)' }];
     });
   }
 
@@ -210,7 +267,7 @@
       var pending = document.createElement('li');
       pending.textContent = 'Asking every engine...';
       list.appendChild(pending);
-      zooFetchNotesAll(kind, text).then(function(rows) {
+      function renderRows(rows) {
         if (!rows.length) rows = [{ engines: [], text: '' }];
         list.textContent = '';
         rows.forEach(function(row) {
@@ -218,7 +275,7 @@
           var label = document.createElement('strong');
           label.textContent = row.label ? row.label + (row.unsupported ? '' : ': ') : '';
           li.appendChild(label);
-          li.appendChild(document.createTextNode(row.text || (row.unsupported ? '' : row.skipped ? '(skipped: limited quota)' : row.engines.length ? '(no answer)' : 'No engine answered.')));
+          li.appendChild(document.createTextNode(row.text || row.message || (row.unsupported ? '' : row.skipped ? '(skipped: limited quota)' : row.engines.length ? '(no answer)' : 'No engine answered.')));
           if (row.text) {
             var copy = document.createElement('button');
             copy.type = 'button';
@@ -234,7 +291,8 @@
           }
           list.appendChild(li);
         });
-      }, function() {
+      }
+      zooFetchNotesAll(kind, text, renderRows).then(renderRows, function() {
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {
@@ -562,6 +620,46 @@
     } else {
       node.classList.remove('zd-error');
     }
+  }
+
+  // A Save/Preview/Confirm handler is asynchronous: until its request settles a
+  // second click (or Enter) would send the same write again and race the first
+  // on the server. Wraps such a handler so the modal's action buttons are
+  // disabled while its promise is pending and a re-entry is ignored. Every
+  // action button is covered (Save and Confirm write the same entry); Cancel
+  // stays usable. Mirrors ReaderShared.modal.guard (shared/modal.js).
+  function zooGuard(handler) {
+    return function(event) {
+      var origin = event && (event.currentTarget || event.target);
+      var scope = origin && origin.closest ? (origin.closest('.zd-modal, form') || origin) : null;
+      if (scope && scope.getAttribute('data-zd-busy')) {
+        if (event && event.preventDefault) event.preventDefault();
+        return undefined;
+      }
+      var buttons = scope && scope.querySelectorAll
+        ? Array.prototype.filter.call(scope.querySelectorAll('button'), function(button) {
+            return !button.disabled && !button.hasAttribute('data-zd-modal-cancel');
+          })
+        : [];
+      if (origin && origin.matches && origin.matches('button') && !origin.disabled && buttons.indexOf(origin) < 0) {
+        buttons.push(origin);
+      }
+      if (scope) scope.setAttribute('data-zd-busy', '1');
+      buttons.forEach(function(button) { button.disabled = true; });
+      var release = function() {
+        buttons.forEach(function(button) { button.disabled = false; });
+        if (scope) scope.removeAttribute('data-zd-busy');
+      };
+      var result;
+      try {
+        result = handler.call(this, event);
+      } catch (error) {
+        release();
+        throw error;
+      }
+      Promise.resolve(result).then(release, release);
+      return result;
+    };
   }
 
   function zooShowToast(message) {
@@ -1128,7 +1226,7 @@
 
     document.getElementById(ids.viSearch).addEventListener('click', function() {
       var term = document.getElementById(ids.vi).value.trim();
-      if (term) window.open('https://www.google.com/search?q=' + encodeURIComponent(term), '_blank', 'noopener');
+      zooOpenGoogleSearch(term);
     });
 
     document.getElementById(ids.nomRefresh).addEventListener('click', function() {
@@ -1267,7 +1365,7 @@
       return { vi: vi, nom: nom, query: query };
     }
 
-    document.getElementById(ids.form).addEventListener('submit', function(event) {
+    document.getElementById(ids.form).addEventListener('submit', zooGuard(function(event) {
       event.preventDefault();
       var parsed = formQuery();
       if (!parsed.vi || !parsed.nom) {
@@ -1275,18 +1373,17 @@
         return;
       }
       if (!stateFlags.isUpdate) {
-        zooPost('/v1/nom/entries', parsed.query).then(function(payload) {
+        return zooPost('/v1/nom/entries', parsed.query).then(function(payload) {
           zooCloseModal(ids.backdrop);
           zooShowToast(payload.note || 'Added.');
         }, function(error) {
           zooSetModalStatus(ids.status, error.message, true);
         });
-        return;
       }
       var previewQuery = {};
       Object.keys(parsed.query).forEach(function(key) { previewQuery[key] = parsed.query[key]; });
       previewQuery.preview = '1';
-      zooPost('/v1/nom/entries', previewQuery).then(function(payload) {
+      return zooPost('/v1/nom/entries', previewQuery).then(function(payload) {
         var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {
           zooSetModalStatus(ids.status, 'Nothing new -- already recorded exactly this.', true);
@@ -1299,18 +1396,18 @@
       }, function(error) {
         zooSetModalStatus(ids.status, error.message, true);
       });
-    });
+    }));
 
-    document.getElementById(ids.confirmBtn).addEventListener('click', function() {
+    document.getElementById(ids.confirmBtn).addEventListener('click', zooGuard(function() {
       var parsed = formQuery();
       if (!parsed.vi || !parsed.nom) return;
-      zooPost('/v1/nom/entries', parsed.query).then(function(payload) {
+      return zooPost('/v1/nom/entries', parsed.query).then(function(payload) {
         zooCloseModal(ids.backdrop);
         zooShowToast(payload.note || 'Updated.');
       }, function(error) {
         zooSetModalStatus(ids.status, error.message, true);
       });
-    });
+    }));
 
     zooNomFormState = {
       refresh: refreshSuggestions,
@@ -1472,12 +1569,12 @@
       return q;
     }
 
-    document.getElementById(ids.form).addEventListener('submit', function(event) {
+    document.getElementById(ids.form).addEventListener('submit', zooGuard(function(event) {
       event.preventDefault();
       var q = query();
       if (!q.vi || !q.nom) return;
       var previewQuery = { vi: q.vi, nom: q.nom, scope: q.scope, preview: '1' };
-      zooPost('/v1/nom/order', previewQuery).then(function(payload) {
+      return zooPost('/v1/nom/order', previewQuery).then(function(payload) {
         var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {
           zooSetModalStatus(ids.status, 'Nothing to change -- already the preferred rendering.', true);
@@ -1490,18 +1587,18 @@
       }, function(error) {
         zooSetModalStatus(ids.status, error.message, true);
       });
-    });
+    }));
 
-    document.getElementById(ids.confirmBtn).addEventListener('click', function() {
+    document.getElementById(ids.confirmBtn).addEventListener('click', zooGuard(function() {
       var q = query();
       if (!q.vi || !q.nom) return;
-      zooPost('/v1/nom/order', q).then(function(payload) {
+      return zooPost('/v1/nom/order', q).then(function(payload) {
         zooCloseModal(ids.backdrop);
         zooShowToast(payload.note || 'Saved.');
       }, function(error) {
         zooSetModalStatus(ids.status, error.message, true);
       });
-    });
+    }));
 
     zooOrderState = {
       setWords: function(words) { order.words = words; },

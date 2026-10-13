@@ -52,6 +52,10 @@ The Nôm entry modal also clears its prior datalist choices, generated Nôm valu
 marker immediately when it opens for a different term or its Vietnamese term is edited. A
 slower response for the earlier term is ignored, so suggestions never drift across terms.
 
+Save, Preview and Confirm handlers of both modals run through `zooGuard`: while the request is
+pending every action button of that modal is disabled (Cancel is not) and a second submit is
+ignored, so one press cannot send the same write twice. Mirror of `ReaderShared.modal.guard`.
+
 There is deliberately no automatic retry. A retry from the same invalidated userscript context
 can send duplicate server work without producing a usable callback, and it cannot safely reload
 or discard a user's unsaved edits. Reloading creates a fresh context under the user's control.
@@ -110,6 +114,8 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `next_order`. The ↻ button sends the previous reply's `next_order`, so one click gives the
   zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
+- `GET /v1/google-search` → `{lang, langs, suffix}`; the Google-search icon opens `https://www.google.com/search?q=<term>` + `suffix` (`&hl=ja` etc., empty when unconfigured). The language is set on the server's `/control` page (`POST /v1/google-search?lang=`) and persisted server-side.
+- **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1` and shown as an error row next to the channels that answered. Mirrors `shared/suggest.js` in book-translator.
 - `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
   reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
   the "Refresh all" list just draws. Each row has a finished `label` (`"edge, google"`, `"ALL"`, or

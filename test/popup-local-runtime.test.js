@@ -282,6 +282,45 @@ test('the Chữ Nôm order modal renders the title, hint and default pick the se
   assert.equal(harness.elements.get(ids.suggestions).children.length, 3);
 });
 
+test('a guarded save disables the modal actions until it settles and ignores a second submit', async () => {
+  const {context} = createHarness(() => {});
+  const attrs = {};
+  const button = (cancel) => ({
+    disabled: false,
+    hasAttribute(name) { return cancel && name === 'data-zd-modal-cancel'; },
+    matches(selector) { return selector === 'button'; }
+  });
+  const save = button(false);
+  const confirm = button(false);
+  const cancel = button(true);
+  const modal = {
+    querySelectorAll() { return [save, confirm, cancel]; },
+    getAttribute(name) { return attrs[name] || null; },
+    setAttribute(name, value) { attrs[name] = value; },
+    removeAttribute(name) { delete attrs[name]; }
+  };
+  save.closest = () => modal;
+  let release;
+  let calls = 0;
+  const guarded = context.zooGuard(() => {
+    calls += 1;
+    return new Promise((resolve) => { release = resolve; });
+  });
+  const event = {currentTarget: save, preventDefault() {}};
+  guarded(event);
+  assert.equal(save.disabled, true);
+  assert.equal(confirm.disabled, true);
+  assert.equal(cancel.disabled, false, 'Cancel stays usable');
+  guarded(event);
+  assert.equal(calls, 1, 'a second submit while busy is ignored');
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(save.disabled, false);
+  assert.equal(confirm.disabled, false);
+  guarded(event);
+  assert.equal(calls, 2);
+});
+
 // -- Reading a selection aloud ------------------------------------------------------------------
 
 function readHarness(answers, confirmAnswer = true) {
@@ -350,4 +389,32 @@ test('Alt+R reads the selection by physical key and leaves other chords alone', 
   assert.equal(press({}), true);
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert.deepEqual(requests[0].body, {text: '今日は', confirm: false});
+});
+
+test('Refresh all retries a failing channel alone and shows it as an error next to the answered ones', async () => {
+  const seen = [];
+  const harness = createHarness((options) => {
+    const url = new URL(options.url);
+    const q = url.searchParams;
+    seen.push(url.search);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['a', 'b']});
+    if (q.get('engine') === '1' && !q.get('error')) return options.onerror();
+    const answered = {engines: ['a'], label: 'a', text: 'ok'};
+    if (q.get('error')) {
+      return reply({rows: [answered, {engines: ['b'], label: 'error: b', text: '', error: true, message: '(request failed after 3 retries)'}]});
+    }
+    return reply({rows: [answered, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]});
+  });
+  harness.context.ZOO_NOTES_ALL_BASE_DELAY_MS = 0;
+  const shown = [];
+  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a', (partial) => shown.push(partial.length));
+  assert.equal(seen.filter((search) => search.includes('engine=1')).length, 5); // 1 + 3 retries + error report
+  assert.deepEqual(Array.from(rows, (row) => [row.label, row.text]), [['a', 'ok'], ['error: b', '']]);
+  assert.ok(shown.length >= 1);
+
+  const down = createHarness((options) => options.onerror());
+  down.context.ZOO_NOTES_ALL_BASE_DELAY_MS = 0;
+  const unreachable = await down.context.zooFetchNotesAll('nom-notes', 'a');
+  assert.match(unreachable[0].message, /unreachable/);
 });
