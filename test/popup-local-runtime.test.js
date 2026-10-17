@@ -391,7 +391,7 @@ test('Alt+R reads the selection by physical key and leaves other chords alone', 
   assert.deepEqual(requests[0].body, {text: '今日は', confirm: false});
 });
 
-test('Refresh all retries a failing channel alone and shows it as an error next to the answered ones', async () => {
+test('Refresh all retries a failing channel alone and shows it as an error next to the answered ones, once', async () => {
   const seen = [];
   const harness = createHarness((options) => {
     const url = new URL(options.url);
@@ -407,14 +407,25 @@ test('Refresh all retries a failing channel alone and shows it as an error next 
     return reply({rows: [answered, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]});
   });
   harness.context.ZOO_NOTES_ALL_BASE_DELAY_MS = 0;
-  const shown = [];
-  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a', (partial) => shown.push(partial.length));
+  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a');
   assert.equal(seen.filter((search) => search.includes('engine=1')).length, 5); // 1 + 3 retries + error report
   assert.deepEqual(Array.from(rows, (row) => [row.label, row.text]), [['a', 'ok'], ['error: b', '']]);
-  assert.ok(shown.length >= 1);
 
   const down = createHarness((options) => options.onerror());
   down.context.ZOO_NOTES_ALL_BASE_DELAY_MS = 0;
   const unreachable = await down.context.zooFetchNotesAll('nom-notes', 'a');
   assert.match(unreachable[0].message, /unreachable/);
+});
+
+test('Refresh all waits for a slow channel far longer than the generic request timeout', async () => {
+  const timeouts = {};
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    timeouts[q.get('engines') ? 'list' : q.get('error') ? 'report' : 'channel'] = options.timeout;
+    if (q.get('engines')) return options.onload({status: 200, responseText: JSON.stringify({engines: ['a']})});
+    return options.onload({status: 200, responseText: JSON.stringify({rows: [{engines: ['a'], label: 'a', text: 'ok'}]})});
+  });
+  await harness.context.zooFetchNotesAll('nom-notes', 'a');
+  assert.equal(timeouts.list, harness.context.ZOO_LOCAL_REQUEST_TIMEOUT);
+  assert.ok(timeouts.channel >= 61000, `channel timeout ${timeouts.channel}`);
 });

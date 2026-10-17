@@ -165,12 +165,13 @@ __ZOOPDOG_RUNTIME_SOURCES__
 
   // True only on the reader's own phone-remote page (scripts/reader/static/control.html in
   // book-translator), reachable either on the machine running it or from another device on the
-  // same LAN. Being on that exact page already proves the server answered -- no separate
-  // reachability probe is needed the way zooProbeLocalMode needs one for arbitrary pages.
+  // same LAN, by IP or by its Bonjour name (MacBook-Air-cua-cheng.local). Being on that exact page
+  // already proves the server answered -- no separate reachability probe is needed the way zooProbeLocalMode needs one for arbitrary pages.
   function zooOnReaderControlPage() {
     if (!window.location || window.location.pathname !== '/control') return false;
     var host = window.location.hostname || '';
     return host === '127.0.0.1' || host === 'localhost' ||
+      /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.local$/.test(host) ||
       /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
       /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
       /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(host);

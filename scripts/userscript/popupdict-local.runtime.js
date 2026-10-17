@@ -27,8 +27,13 @@
   var ZOO_LOCAL_BASE = 'http://127.0.0.1:8770';
   var ZOO_LOCAL_AVAILABLE = false;
   var ZOO_LOCAL_REQUEST_TIMEOUT = 8000;
+  // One "Refresh all" channel can legitimately take far longer than 8 s (tab-driven engines, slow web
+  // engines); the server cuts a channel off at 60 s (`_NOTES_ALL_DEADLINE_SECONDS` in routes_suggest.py),
+  // so a channel request waits that long plus a margin before the client calls it failed.
+  var ZOO_NOTES_ALL_TIMEOUT = 75000;
 
-  function zooHttpRequest(method, path, params, body) {
+  function zooHttpRequest(method, path, params, body, timeout) {
+    var limit = timeout || ZOO_LOCAL_REQUEST_TIMEOUT;
     return new Promise(function(resolve, reject) {
       var settled = false;
       var watchdog = null;
@@ -54,12 +59,12 @@
       var url = ZOO_LOCAL_BASE + path + (query ? (path.indexOf('?') === -1 ? '?' : '&') + query : '');
       watchdog = setTimeout(function() {
         settle(reject, new Error('request timed out'));
-      }, ZOO_LOCAL_REQUEST_TIMEOUT + 25);
+      }, limit + 25);
       try {
       var details = {
         method: method,
         url: url,
-        timeout: ZOO_LOCAL_REQUEST_TIMEOUT,
+        timeout: limit,
         onload: function(response) {
           var payload = {};
           try {
@@ -92,7 +97,7 @@
     });
   }
 
-  function zooGetJSON(path, params) { return zooHttpRequest('GET', path, params); }
+  function zooGetJSON(path, params, timeout) { return zooHttpRequest('GET', path, params, undefined, timeout); }
   function zooPost(path, params) { return zooHttpRequest('POST', path, params); }
 
   // The -local build only ever ships to a machine that is actively running
@@ -178,18 +183,18 @@
   // Each channel is asked in its own request, so a failing channel is retried alone
   // (ZOO_NOTES_ALL_RETRIES times, sleeping 1 s, 2 s, 4 s) and the channels that answered still show. The
   // server keeps the answers per `session` and returns the finished `rows` over all channels with every
-  // reply: channels still asked are a "waiting" row, one that failed every retry is reported to the server
-  // (`error=1`) and becomes an "error" row of its own. onRows(rows) is called after each reply; the final
-  // rows are resolved. If not even the channel list can be had, one row says the server was unreachable.
+  // reply; a channel that failed every retry is reported to the server (`error=1`) and becomes an "error"
+  // row of its own. The list is drawn once, from the final rows. If not even the channel list can be had,
+  // one row says the server was unreachable.
   var ZOO_NOTES_ALL_RETRIES = 3;
   var ZOO_NOTES_ALL_BASE_DELAY_MS = 1000;
   function zooNotesAllWaiting(rows) {
     return rows.reduce(function(n, row) { return n + (row.pending ? row.engines.length : 0); }, 0);
   }
-  function zooFetchNotesAll(kind, text, onRows) {
+  function zooFetchNotesAll(kind, text) {
     if (!text) return Promise.resolve([]);
     function withRetry(params, n) {
-      return zooGetJSON('/v1/suggest', params).catch(function(error) {
+      return zooGetJSON('/v1/suggest', params, params.engine === undefined ? undefined : ZOO_NOTES_ALL_TIMEOUT).catch(function(error) {
         if (n >= ZOO_NOTES_ALL_RETRIES) throw error;
         return new Promise(function(resolve) {
           setTimeout(resolve, ZOO_NOTES_ALL_BASE_DELAY_MS * Math.pow(2, n));
@@ -207,7 +212,6 @@
         // Replies can arrive out of order; each is cumulative, so the one with fewest channels waiting is newest.
         if (!reply || !reply.rows || (rows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(rows))) return;
         rows = reply.rows;
-        if (onRows) onRows(rows);
       }
       return Promise.all(engines.map(function(name, index) {
         var params = base();
@@ -292,7 +296,7 @@
           list.appendChild(li);
         });
       }
-      zooFetchNotesAll(kind, text, renderRows).then(renderRows, function() {
+      zooFetchNotesAll(kind, text).then(renderRows, function() {
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {

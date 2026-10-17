@@ -44,7 +44,7 @@ reader app later. It also does not touch the `-local` build's existing Add/Set-o
   startup check, guarded the same way as Part A (`typeof zooRenderLocalActions !== 'function'`,
   i.e. non-local build only):
   - `location.pathname === '/control'`, and
-  - hostname is `127.0.0.1`, `localhost`, or a private LAN range (`192.168.*`, `10.*`,
+  - hostname is `127.0.0.1`, `localhost`, a Bonjour `*.local` name (e.g. `MacBook-Air-cua-cheng.local`), or a private LAN range (`192.168.*`, `10.*`,
     `172.16.x-172.31.x`) — this is the reader's own phone-remote page, reachable both on the
     machine itself and from another device on the LAN.
 - No separate reachability probe is needed — being on that exact page already proves the

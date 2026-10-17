@@ -826,3 +826,18 @@ test('make verify syntax-checks first-party browser modules', () => {
   assert.match(makefile, /find js zd-extension\/js -name '\*\.js'/u);
   assert.match(makefile, /! -path '\*\/lib\/\*'/u);
 });
+
+test('the Nôm export panel recognises the reader /control page by IP, localhost and Bonjour name', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
+  const body = source.match(/function zooOnReaderControlPage\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const onPage = (hostname, pathname = '/control') =>
+    new Function('window', `${body}; return zooOnReaderControlPage();`)({location: {hostname, pathname}});
+
+  for (const host of ['127.0.0.1', 'localhost', '192.168.100.5', '10.0.0.2', '172.20.1.1', 'MacBook-Air-cua-cheng.local']) {
+    assert.equal(onPage(host), true, host);
+  }
+  assert.equal(onPage('MacBook-Air-cua-cheng.local', '/other'), false);
+  for (const host of ['example.com', 'local', 'evil.local.example.com', '8.8.8.8']) {
+    assert.equal(onPage(host), false, host);
+  }
+});
