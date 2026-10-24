@@ -493,3 +493,33 @@ test('explored highlight retries a failed first request quickly and paints from 
   assert.equal(hit.block.style.background, '#c8f7c5');
   assert.equal(JSON.parse(storage.zooExploredSites).version, 'v2');
 });
+
+test('AI overview /goto links are matched by their site name (aria-label or short text)', () => {
+  const {context} = createHarness(() => {});
+  const chip = googleResult('https://www.google.com/goto?url=CAESopaque');
+  chip.anchor.getAttribute = (name) => (name === 'aria-label' ? 'Tuổi Trẻ' : null);
+  chip.anchor.querySelector = () => null; // no heading: not an organic result
+  chip.anchor.textContent = '';
+  chip.anchor.closest = () => null;
+  chip.anchor.style = {};
+  chip.anchor.dataset = {};
+  chip.anchor.title = '';
+  const text = googleResult('https://www.google.com/goto?url=CAESother');
+  text.anchor.getAttribute = () => null;
+  text.anchor.querySelector = () => null;
+  text.anchor.textContent = 'Laodong.vn';
+  Object.assign(text.anchor, {style: {}, dataset: {}, title: ''});
+  const stranger = googleResult('https://www.google.com/goto?url=CAESx');
+  stranger.anchor.getAttribute = () => 'Đăng nhập';
+  stranger.anchor.querySelector = () => null;
+  Object.assign(stranger.anchor, {textContent: 'Đăng nhập', style: {}, dataset: {}, title: ''});
+  const domains = {'tuoitre.vn': {color: '#c8f7c5', label: 'Explored: dict tuoitre'}, 'laodong.vn': {color: '#ffe9a8', label: 'Explored: tts laodong'}};
+  const names = {tuoitre: 'tuoitre.vn', laodongvn: 'laodong.vn'};
+  assert.equal(context.zooExploredKey('Tuổi Trẻ'), 'tuoitre');
+  const doc = {querySelectorAll: () => [chip.anchor, text.anchor, stranger.anchor]};
+  assert.equal(context.zooPaintExplored(doc, domains, names), 2);
+  assert.equal(chip.anchor.style.background, '#c8f7c5');
+  assert.equal(chip.anchor.style.boxShadow, '0 0 0 3px #c8f7c5');
+  assert.equal(text.anchor.title, 'Explored: tts laodong');
+  assert.equal(stranger.anchor.style.background, undefined);
+});

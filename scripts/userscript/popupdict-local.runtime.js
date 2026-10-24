@@ -144,20 +144,45 @@
     }
   }
 
-  function zooPaintExplored(doc, domains) {
+  // Mirror of explored_sites.name_key: accent-free lowercase alphanumerics.
+  function zooExploredKey(text) {
+    var plain = String(text || '').toLowerCase().replace(/đ/g, 'd');
+    return (plain.normalize ? plain.normalize('NFD') : plain).replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  }
+
+  // The AI overview's references are opaque google.com/goto?url=<token> links: only the site's name (aria-label, or
+  // the short link text) tells which site it is, so look the name up in the index's `names` (name -> domain).
+  function zooAiLinkEntry(anchor, domains, names) {
+    var href = anchor.href || anchor.getAttribute('href') || '';
+    if (!names || href.indexOf('/goto?url=') === -1) return null;
+    var label = anchor.getAttribute && anchor.getAttribute('aria-label');
+    var text = String(anchor.textContent || '').trim();
+    var candidates = [label, text.length <= 40 ? text : ''];
+    for (var i = 0; i < candidates.length; i++) {
+      var key = zooExploredKey(candidates[i]);
+      if (key && names[key] && domains[names[key]]) return domains[names[key]];
+    }
+    return null;
+  }
+
+  function zooPaintExplored(doc, domains, names) {
     var anchors = doc.querySelectorAll('#search a[href], #rso a[href], [role="main"] a[href], #main a[href]');
+    names = names || {};
     var painted = 0;
     for (var i = 0; i < anchors.length; i++) {
       try {
         var anchor = anchors[i];
-        if (!anchor.querySelector || !anchor.querySelector('h3, [role="heading"]')) continue;
-        var entry = domains[zooExploredDomain(zooResultHost(anchor.href || anchor.getAttribute('href')))];
-        var block = anchor.closest(ZOO_EXPLORED_BLOCK) || anchor;
+        var ai = !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]');
+        var entry = ai ? zooAiLinkEntry(anchor, domains, names) : domains[zooExploredDomain(zooResultHost(anchor.href || anchor.getAttribute('href')))];
+        // An AI-panel reference is a small chip/inline link: outline the link itself instead of a whole block.
+        var block = ai ? anchor : (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor);
+        if (ai && !entry && !block.dataset.zooExplored) continue;
         if (!entry) {
-          if (block.dataset.zooExplored) { block.style.background = ''; block.title = ''; delete block.dataset.zooExplored; }
+          if (block.dataset.zooExplored) { block.style.background = ''; block.style.boxShadow = ''; block.title = ''; delete block.dataset.zooExplored; }
           continue;
         }
         block.style.background = entry.color;
+        if (ai) block.style.boxShadow = '0 0 0 3px ' + entry.color;
         block.title = entry.label;
         block.dataset.zooExplored = '1';
         painted++;
@@ -179,7 +204,7 @@
   }
 
   function zooExploredCacheWrite(data) {
-    try { localStorage.setItem(ZOO_EXPLORED_CACHE_KEY, JSON.stringify({version: data.version, domains: data.domains})); } catch (error) { /* quota/private mode */ }
+    try { localStorage.setItem(ZOO_EXPLORED_CACHE_KEY, JSON.stringify({version: data.version, domains: data.domains, names: data.names})); } catch (error) { /* quota/private mode */ }
   }
 
   function zooStartExploredHighlight(doc, loc) {
@@ -187,9 +212,9 @@
     loc = loc || (typeof location === 'undefined' ? null : location);
     if (!loc || !/(^|\.)google\.[a-z.]+$/.test(loc.hostname)) return Promise.resolve(false);
     var cached = zooExploredCacheRead();
-    var state = {version: '', domains: cached && cached.domains ? cached.domains : {}};
+    var state = {version: '', domains: cached && cached.domains ? cached.domains : {}, names: cached && cached.names ? cached.names : {}};
     var paintNow = function() {
-      try { if (zooIsGoogleSearchPage(loc)) zooPaintExplored(doc, state.domains); } catch (error) { /* retry on next tick */ }
+      try { if (zooIsGoogleSearchPage(loc)) zooPaintExplored(doc, state.domains, state.names); } catch (error) { /* retry on next tick */ }
     };
     var paint = zooDebounce(paintNow, 150);
     var attempt = function(n) {
@@ -197,6 +222,7 @@
         if (data.unchanged) return;
         state.version = data.version;
         state.domains = data.domains || {};
+        state.names = data.names || {};
         zooExploredCacheWrite(data);
         paintNow();
       }, function() {

@@ -68,7 +68,7 @@ plugin of `~/mine/online-dict`, yellow = a TTS engine, blue = a translator, purp
 (`docs/research/*`), grey = listed in book-translator's `docs/explored_sites_blacklist.json` as "no need to explore" (edit that file; hot reload, no restart). The server sends the finished `color` and `label` (hover title); the userscript only matches
 domains (`zooExploredDomain`, `zooPaintExplored`, `zooStartExploredHighlight`) and paints. Hot reload: the server
 rebuilds the index when any source file changes, the page re-asks `?since=<version>` every minute (`unchanged` costs
-nothing) and a MutationObserver repaints late results. Direct links and `/url?q=` links are both matched. Error tolerance: the last good answer is cached in the page's `localStorage` and painted at once; a failed first request is retried after 1.5/3/6/12/24 s (then every minute); results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time, so a result page reached without a reload is still coloured; result blocks are found under `#search`, `#rso`, `main` or `#main`, headed by `h3` or `[role=heading]`; one odd result never stops the rest. A Google-CSE dictionary plugin counts for the website it searches (`searchedSites` in its `rule.json`, not its `cse.google.com` host). Matching is by
+nothing) and a MutationObserver repaints late results. Direct links and `/url?q=` links are both matched. Error tolerance: the last good answer is cached in the page's `localStorage` and painted at once; a failed first request is retried after 1.5/3/6/12/24 s (then every minute); results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time, so a result page reached without a reload is still coloured; result blocks are found under `#search`, `#rso`, `main` or `#main`, headed by `h3` or `[role=heading]`; one odd result never stops the rest. **AI overview references** (measured 2026-10-24 on `google.com/search?q=thi tuyển`) are opaque `google.com/goto?url=<token>` links whose only identity is the site name (`aria-label="Tuổi Trẻ"`, or the short link text): the index therefore also carries `names` (accent-free name -> domain: domain stem, whole domain, plugin/source labels; `explored_sites.name_key`, mirrored by `zooExploredKey`), and the link itself is outlined (background + 3 px box-shadow) instead of a result block. A Google-CSE dictionary plugin counts for the website it searches (`searchedSites` in its `rule.json`, not its `cse.google.com` host). Matching is by
 domain only (subdomains collapse, `com.vn`-style suffixes kept); a path-level rule can be added later as an optional
 field per entry.
 
@@ -81,6 +81,11 @@ suffix and whose `@updateURL`/`@downloadURL` point at `file://<absolute path to 
 this machine>` instead — so Violentmonkey's "track local file" picks up a rebuild directly,
 without waiting on a github push or periodic update check. The `-local` files are never
 committed (see `.gitignore`); `make rebuild-userscripts` regenerates both pairs.
+
+The same batched window (book-translator `reader/userscript_rebuild.py`, after Chữ Nôm entries are saved) that runs
+`make rebuild-local-userscripts` also regenerates and redeploys the Rime IME (`rime/tools/gen-nom-dict.sh`, `build.sh mac`,
+`deploy.sh --apply`), so new entries are typeable at once. That generated Rime dictionary also includes
+`db_src/chunom_standard.json` (below the user's own entries); rerun the book-translator Rime cycle after refreshing it.
 
 For `zoopdog-nom-ruby.user.js` the two builds are otherwise identical — that script has no
 local-mode ability to gate, so `-local` only changes the update contract, giving a fast local
