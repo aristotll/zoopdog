@@ -8,7 +8,7 @@
 // behind what the dictionaries have; its order never touches a term the user has an entry or an order row for.
 
 const fs = require('node:fs');
-const {cleanText, normalizeTerm, exactKey} = require('./lib/text');
+const {cleanText, normalizeTerm, exactKey, toneShiftVariant} = require('./lib/text');
 const {mergeNomFormsIntoEntries} = require('./lib/nom-merge');
 const {readUserNomOrder} = require('./user-nom-order');
 
@@ -65,8 +65,10 @@ function chunomOrderRows(payload, excludedKeys = new Set()) {
   if (!payload || !payload.standard) {
     return [];
   }
+  // chunom writes the mark on the last vowel ("hoả"); the dictionaries spell it either way, so a reading also speaks for its other spelling.
   return Object.entries(payload.standard)
-    .map(([vi, nom]) => ({vi, key: normalizeTerm(vi), exact: exactKey(vi), nom: nom.map(cleanText).filter(Boolean), caseSensitive: false}))
+    .flatMap(([vi, nom]) => [vi, toneShiftVariant(vi)].filter(Boolean).map((term) => ({vi: term, nom})))
+    .map(({vi, nom}) => ({vi, key: normalizeTerm(vi), exact: exactKey(vi), nom: nom.map(cleanText).filter(Boolean), caseSensitive: false}))
     .filter((row) => row.nom.length && !excludedKeys.has(row.key));
 }
 

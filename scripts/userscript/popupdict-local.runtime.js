@@ -110,6 +110,109 @@
   // reports its own error normally (zooHttpRequest's onerror/ontimeout).
   function zooProbeLocalMode() {
     ZOO_LOCAL_AVAILABLE = true;
+    zooStartExploredHighlight();
+  }
+
+  // -- Google results: colour links to sites book-translator has already explored --
+  // The server (`GET /v1/explored-sites`, scripts/explored_sites.py) sends the finished domain -> {label, color}
+  // map; this only matches a result's registrable domain against it and paints. `?since=<version>` is
+  // re-asked every minute, so a new plugin/engine/research note shows without reloading the page.
+
+  var ZOO_EXPLORED_SECOND_LEVEL = {co: 1, com: 1, net: 1, org: 1, gov: 1, edu: 1, ac: 1};
+  var ZOO_EXPLORED_REFRESH_MS = 60000;
+  var ZOO_EXPLORED_BLOCK = 'div.g, div.MjjYud, div[data-hveid], li';
+
+  function zooExploredDomain(host) {
+    var labels = String(host || '').toLowerCase().split('.');
+    if (labels.length < 2 || /^[0-9.]+$/.test(host)) return '';
+    var keep = labels.length >= 3 && ZOO_EXPLORED_SECOND_LEVEL[labels[labels.length - 2]] && labels[labels.length - 1].length === 2 ? 3 : 2;
+    return labels.slice(-keep).join('.');
+  }
+
+  function zooIsGoogleSearchPage(loc) {
+    return /(^|\.)google\.[a-z.]+$/.test(loc.hostname) && loc.pathname === '/search';
+  }
+
+  // A result href is direct (https://site/...) or, on some layouts, google.com/url?q=<target>.
+  function zooResultHost(href) {
+    try {
+      var url = new URL(href);
+      if (/(^|\.)google\./.test(url.hostname) && url.pathname === '/url') url = new URL(url.searchParams.get('q') || url.searchParams.get('url'));
+      return url.hostname;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function zooPaintExplored(doc, domains) {
+    var anchors = doc.querySelectorAll('#search a[href], #rso a[href], [role="main"] a[href], #main a[href]');
+    var painted = 0;
+    for (var i = 0; i < anchors.length; i++) {
+      try {
+        var anchor = anchors[i];
+        if (!anchor.querySelector || !anchor.querySelector('h3, [role="heading"]')) continue;
+        var entry = domains[zooExploredDomain(zooResultHost(anchor.href || anchor.getAttribute('href')))];
+        var block = anchor.closest(ZOO_EXPLORED_BLOCK) || anchor;
+        if (!entry) {
+          if (block.dataset.zooExplored) { block.style.background = ''; block.title = ''; delete block.dataset.zooExplored; }
+          continue;
+        }
+        block.style.background = entry.color;
+        block.title = entry.label;
+        block.dataset.zooExplored = '1';
+        painted++;
+      } catch (error) { /* one odd result must not stop the rest */ }
+    }
+    return painted;
+  }
+
+  // Tolerance: the page is painted from the last good copy at once (localStorage), the first fetch is retried with
+  // growing delays instead of waiting a minute, results are repainted on mutations, on a timer (Google swaps its
+  // result block without a reload), and when the tab is shown again; the /search check is made at paint time, not
+  // once, and any failure is swallowed so the next tick tries again.
+  var ZOO_EXPLORED_CACHE_KEY = 'zooExploredSites';
+  var ZOO_EXPLORED_RETRY_MS = [1500, 3000, 6000, 12000, 24000];
+  var ZOO_EXPLORED_REPAINT_MS = 2500;
+
+  function zooExploredCacheRead() {
+    try { return JSON.parse(localStorage.getItem(ZOO_EXPLORED_CACHE_KEY)) || null; } catch (error) { return null; }
+  }
+
+  function zooExploredCacheWrite(data) {
+    try { localStorage.setItem(ZOO_EXPLORED_CACHE_KEY, JSON.stringify({version: data.version, domains: data.domains})); } catch (error) { /* quota/private mode */ }
+  }
+
+  function zooStartExploredHighlight(doc, loc) {
+    doc = doc || document;
+    loc = loc || (typeof location === 'undefined' ? null : location);
+    if (!loc || !/(^|\.)google\.[a-z.]+$/.test(loc.hostname)) return Promise.resolve(false);
+    var cached = zooExploredCacheRead();
+    var state = {version: '', domains: cached && cached.domains ? cached.domains : {}};
+    var paintNow = function() {
+      try { if (zooIsGoogleSearchPage(loc)) zooPaintExplored(doc, state.domains); } catch (error) { /* retry on next tick */ }
+    };
+    var paint = zooDebounce(paintNow, 150);
+    var attempt = function(n) {
+      return zooGetJSON('/v1/explored-sites', state.version ? {since: state.version} : {}).then(function(data) {
+        if (data.unchanged) return;
+        state.version = data.version;
+        state.domains = data.domains || {};
+        zooExploredCacheWrite(data);
+        paintNow();
+      }, function() {
+        if (n < ZOO_EXPLORED_RETRY_MS.length) setTimeout(function() { attempt(n + 1); }, ZOO_EXPLORED_RETRY_MS[n]);
+      });
+    };
+    var refresh = function() { return attempt(ZOO_EXPLORED_RETRY_MS.length); };
+    var root = doc.body || doc.documentElement;
+    if (typeof MutationObserver === 'function' && root) new MutationObserver(paint).observe(root, {childList: true, subtree: true});
+    if (doc.addEventListener) {
+      doc.addEventListener('visibilitychange', function() { if (!doc.hidden) { refresh(); paint(); } });
+    }
+    setInterval(refresh, ZOO_EXPLORED_REFRESH_MS);
+    setInterval(paintNow, ZOO_EXPLORED_REPAINT_MS);
+    paintNow();
+    return attempt(0).then(function() { return true; });
   }
 
   // -- suggestion / debounce / edit-tracking plumbing (mirrors shared/suggest.js) --

@@ -285,3 +285,9 @@ test('indexEntriesByKey groups entries by normalized headword and skips empty on
   assert.deepEqual([...index.keys()], ['ba lê']);
   assert.deepEqual(index.get('ba lê'), [a, b]);
 });
+
+test('a standard reading also orders the other tone-mark spelling of the same word', () => {
+  const rows = layer.chunomOrderRows({standard: {'hoả': ['火'], 'hoàng': ['皇']}});
+  assert.deepEqual(rows.map((row) => row.vi).sort(), ['hoàng', 'hoả', 'hỏa'].sort());
+  assert.deepEqual(rows.find((row) => row.vi === 'hỏa').nom, ['火']);
+});

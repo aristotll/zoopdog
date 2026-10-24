@@ -49,7 +49,8 @@ function createHarness(request) {
   };
   const context = vm.createContext({
     Promise, JSON, Error, Object, String, Array, Math, Date, isFinite,
-    clearTimeout, setTimeout, document,
+    clearTimeout, setTimeout, URL, document,
+    setInterval(fn, ms) { const timer = setInterval(fn, ms); timer.unref(); return timer; },
     GM_xmlhttpRequest: request,
     escapeHtml(value) { return String(value); }
   });
@@ -428,4 +429,67 @@ test('Refresh all waits for a slow channel far longer than the generic request t
   await harness.context.zooFetchNotesAll('nom-notes', 'a');
   assert.equal(timeouts.list, harness.context.ZOO_LOCAL_REQUEST_TIMEOUT);
   assert.ok(timeouts.channel >= 61000, `channel timeout ${timeouts.channel}`);
+});
+
+function googleResult(href) {
+  const block = {style: {}, title: '', dataset: {}};
+  const anchor = {href, getAttribute() { return href; }, querySelector(sel) { return /h3/.test(sel) ? {} : null; }, closest() { return block; }};
+  return {anchor, block};
+}
+
+test('zooExploredDomain collapses subdomains and keeps country second levels', () => {
+  const {context} = createHarness(() => {});
+  assert.equal(context.zooExploredDomain('dtinews.dantri.com.vn'), 'dantri.com.vn');
+  assert.equal(context.zooExploredDomain('www.bing.com'), 'bing.com');
+  assert.equal(context.zooExploredDomain('127.0.0.1'), '');
+});
+
+test('zooPaintExplored colours explored domains (direct and /url?q= links) and clears stale ones', () => {
+  const {context} = createHarness(() => {});
+  const hit = googleResult('https://dtinews.dantri.com.vn/a.htm');
+  const wrapped = googleResult('https://www.google.com/url?q=https%3A%2F%2Fvdict.com%2Fx&sa=U');
+  const miss = googleResult('https://example.org/');
+  const doc = {querySelectorAll: () => [hit.anchor, wrapped.anchor, miss.anchor]};
+  const domains = {'dantri.com.vn': {color: '#c8f7c5', label: 'Explored: dict dantri'}, 'vdict.com': {color: '#eadcff', label: 'Explored: research vdict'}};
+  assert.equal(context.zooPaintExplored(doc, domains), 2);
+  assert.equal(hit.block.style.background, '#c8f7c5');
+  assert.equal(hit.block.title, 'Explored: dict dantri');
+  assert.equal(wrapped.block.style.background, '#eadcff');
+  assert.equal(miss.block.style.background, undefined);
+  context.zooPaintExplored(doc, {});
+  assert.equal(hit.block.style.background, '');
+});
+
+test('explored highlight starts only on a Google search page and asks only for changes after the first load', async () => {
+  const urls = [];
+  const harness = createHarness((options) => {
+    urls.push(options.url);
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', domains: {}})});
+  });
+  const doc = {body: null, querySelectorAll: () => []};
+  assert.equal(await harness.context.zooStartExploredHighlight(doc, {hostname: 'example.org', pathname: '/search'}), false);
+  assert.equal(urls.length, 0);
+  assert.equal(await harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'}), true);
+  assert.match(urls[0], /\/v1\/explored-sites$/);
+});
+
+test('explored highlight retries a failed first request quickly and paints from the cached copy at once', async () => {
+  let calls = 0;
+  const storage = {zooExploredSites: JSON.stringify({version: 'old', domains: {'vdict.com': {color: '#eadcff', label: 'x'}}})};
+  const harness = createHarness((options) => {
+    calls += 1;
+    if (calls === 1) return options.onerror();
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v2', domains: {'vdict.com': {color: '#c8f7c5', label: 'y'}}})});
+  });
+  harness.context.localStorage = {getItem: (k) => storage[k] || null, setItem: (k, v) => { storage[k] = v; }};
+  const hit = googleResult('https://vdict.com/x');
+  const doc = {body: null, querySelectorAll: () => [hit.anchor]};
+  const started = harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'});
+  assert.equal(hit.block.style.background, '#eadcff'); // cached copy, before any answer
+  await started; // first attempt failed
+  assert.equal(calls, 1);
+  await new Promise((resolve) => setTimeout(resolve, 1700)); // first retry (1.5 s)
+  assert.equal(calls, 2);
+  assert.equal(hit.block.style.background, '#c8f7c5');
+  assert.equal(JSON.parse(storage.zooExploredSites).version, 'v2');
 });

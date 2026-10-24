@@ -37,6 +37,16 @@ function foldAccents(value) {
     .normalize('NFC');
 }
 
+// The other tone-mark placement of the words ending in oa/oe/uy ("hoả" <-> "hỏa", "thuỷ" <-> "thủy"): both spellings are the same word,
+// but `normalizeTerm` keeps them as two keys. Returns the variant with the mark moved from the last vowel to the first, or '' when no
+// word has one (the placement only varies at the very end of a syllable: "hoàng" has no "hòang").
+function toneShiftVariant(value) {
+  const variant = normalizeTerm(value).normalize('NFD')
+    .replace(/([ou])([ae]|y)([\u0300\u0301\u0303\u0309\u0323])(?=\s|$)/g, '$1$3$2')
+    .normalize('NFC');
+  return variant === normalizeTerm(value) ? '' : variant;
+}
+
 function stableUnique(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -46,5 +56,6 @@ module.exports = {
   normalizeTerm,
   exactKey,
   foldAccents,
+  toneShiftVariant,
   stableUnique
 };

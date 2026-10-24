@@ -60,6 +60,18 @@ There is deliberately no automatic retry. A retry from the same invalidated user
 can send duplicate server work without producing a usable callback, and it cannot safely reload
 or discard a user's unsaved edits. Reloading creates a fresh context under the user's control.
 
+## Google results: explored sites in another colour
+
+On `google.<tld>/search` the `-local` build asks `GET http://127.0.0.1:8770/v1/explored-sites` (book-translator
+`scripts/explored_sites.py`) and paints every result whose registrable domain is in the answer: green = a dictionary
+plugin of `~/mine/online-dict`, yellow = a TTS engine, blue = a translator, purple = only a research note
+(`docs/research/*`), grey = listed in book-translator's `docs/explored_sites_blacklist.json` as "no need to explore" (edit that file; hot reload, no restart). The server sends the finished `color` and `label` (hover title); the userscript only matches
+domains (`zooExploredDomain`, `zooPaintExplored`, `zooStartExploredHighlight`) and paints. Hot reload: the server
+rebuilds the index when any source file changes, the page re-asks `?since=<version>` every minute (`unchanged` costs
+nothing) and a MutationObserver repaints late results. Direct links and `/url?q=` links are both matched. Error tolerance: the last good answer is cached in the page's `localStorage` and painted at once; a failed first request is retried after 1.5/3/6/12/24 s (then every minute); results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time, so a result page reached without a reload is still coloured; result blocks are found under `#search`, `#rso`, `main` or `#main`, headed by `h3` or `[role=heading]`; one odd result never stops the rest. A Google-CSE dictionary plugin counts for the website it searches (`searchedSites` in its `rule.json`, not its `cse.google.com` host). Matching is by
+domain only (subdomains collapse, `com.vn`-style suffixes kept); a path-level rule can be added later as an optional
+field per entry.
+
 ## Two builds
 
 `scripts/build-nom-userscript.js` and `scripts/build-popupdict-userscript.js` each write two

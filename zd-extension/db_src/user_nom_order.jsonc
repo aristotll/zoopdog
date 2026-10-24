@@ -310,5 +310,11 @@
   {"vi": "thánh", "nom": ["聖"]},
   {"vi": "nái", "nom": ["𤜠"]},
   {"vi": "xanh", "nom": ["青"]},
-  {"vi": "ngầu", "nom": ["湡"]}
+  {"vi": "ngầu", "nom": ["湡"]},
+  {"vi": "nhà chồng", "nom": ["茹𫯳"]},
+  {"vi": "thành", "nom": ["成"]},
+  {"vi": "Phạm", "nom": ["范"], "caseSensitive": true},
+  {"vi": "dụ", "nom": ["誘"]},
+  {"vi": "đôi", "nom": ["對"]},
+  {"vi": "ngoại thương", "nom": ["外商"]}
 ]
