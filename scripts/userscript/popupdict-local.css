@@ -84,6 +84,7 @@
   border-bottom: 1px solid #dcdce0;
   color: #1c1c1e;
 }
+.zd-modal.zd-modal-resizable { resize: both; min-height: 180px; }
 .zd-modal h2.zd-modal-drag-handle { cursor: grab; user-select: none; touch-action: none; }
 .zd-modal h2.zd-modal-drag-handle.zd-dragging { cursor: grabbing; }
 
@@ -313,3 +314,6 @@
 .zd-notes-all-list li { padding: 2px 0; }
 .zd-notes-all-list strong { color: #333; font-weight: 600; }
 .zd-notes-all-copy { margin-left: 6px; padding: 0 6px; font-size: 0.85em; cursor: pointer; }
+
+/* Notes field: green text, same as the book-translator reader dialogs. */
+#zoopdog-nom-explain { color: #1a8a3c; }

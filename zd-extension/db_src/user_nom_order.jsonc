@@ -208,7 +208,7 @@
   {"vi": "môi", "nom": ["腜"]},
   {"vi": "cháy", "nom": ["𤈜"]},
   {"vi": "phó", "nom": ["副"]},
-  {"vi": "phụ", "nom": ["負"]},
+  {"vi": "phụ", "nom": ["附"]},
   {"vi": "tống", "nom": ["送"]},
   {"vi": "Hồn", "nom": ["魂"]},
   {"vi": "phi", "nom": ["飛"]},
@@ -316,5 +316,6 @@
   {"vi": "Phạm", "nom": ["范"], "caseSensitive": true},
   {"vi": "dụ", "nom": ["誘"]},
   {"vi": "đôi", "nom": ["對"]},
-  {"vi": "ngoại thương", "nom": ["外商"]}
+  {"vi": "ngoại thương", "nom": ["外商"]},
+  {"vi": "chua", "nom": ["䣷"]}
 ]

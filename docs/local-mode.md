@@ -40,6 +40,14 @@ so it shares scope with the core runtime. The core file calls into it through th
 are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
 `zd-entry-diff-*`, `zd-selection-bar`, `zd-toast`).
 
+## Resizable Chữ Nôm modals
+
+Both modals ("Add Chữ Nôm", "Set order") are draggable by their heading and resizable by the corner grip
+(`zooMakeModalResizable`, CSS `resize: both`). The size is saved on pointer release, only when the user changed
+it, under `zd-modal-size:<registrable domain>:<modal id>` (same domain grouping as the saved position, GM storage
+when granted, else the page's `localStorage`) and applied by `zooOpenModal`. Mirror of `ReaderShared.modal.makeResizable`
+in book-translator, which keeps `modal-size:<host>:<modal id>` in `localStorage`.
+
 ## Request recovery on third-party pages
 
 Every local reader-server request has an eight-second client-owned deadline in addition to the
@@ -90,6 +98,14 @@ The same batched window (book-translator `reader/userscript_rebuild.py`, after C
 For `zoopdog-nom-ruby.user.js` the two builds are otherwise identical — that script has no
 local-mode ability to gate, so `-local` only changes the update contract, giving a fast local
 dev/reinstall loop decoupled from the github auto-update cadence.
+
+`zoopdog-nom-ruby` stands down on a Cloudflare challenge page ("Just a moment..." / the `challenges.cloudflare.com`
+Turnstile frame, recognised by its `/cdn-cgi/challenge-platform/.../orchestrate/` script and `#challenge-*-text`
+markup, since the title is localized): it adds no ruby and does not patch `attachShadow` there. Annotating the
+challenge text left the verification looping on "Why is this verification taking longer?" (`cf_chl_rc_ni` climbing,
+no `cf_clearance`; found 2026-10-24 on g102q.com; the same profile passed with the script off). On every other page the
+`attachShadow` hook is a `Proxy`, so `attachShadow.toString()` still reads as native code (bot checks read the source of a
+plain wrapper as tampering) while open shadow roots are still annotated.
 
 | Piece | Function(s) |
 | --- | --- |
@@ -152,7 +168,7 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   term is recognized as an update.
 - `GET /v1/nom/order?vi=...&scope=global` — the term's known renderings plus whatever order is
   already recorded, for the "Set order" picker, with the modal's `title`, `existing_info`,
-  `current_hint` and default `pick` (the recorded first choice, else the second rendering) already
+  `current_hint` and default `pick` (the recorded first choice when it is not already the ruby on screen, else the second rendering: never the shown one) already
   written by the server.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
   This one *replaces* the preference, so it always goes through preview → confirm.
@@ -223,3 +239,13 @@ index, the MT provider chain — lives in `book-translator`, not here. Read
 `AGENTS-book-server.md` and `scripts/reader/routes_entries.py` /
 `scripts/reader/routes_suggest.py` /
 `scripts/reader/nom_live.py` there before changing any endpoint this userscript calls.
+
+
+## Translation relay order (2026-10-25)
+
+The shared book-translator service prefers locally computed tokens/signatures, supplied or cached
+credentials, and direct HTTP/WebSocket requests. CDP remains the **last resort** when those paths
+cannot work; it is not removed from protected channels. This is the same policy documented in
+book-translator `AGENTS.md` / `docs/translation_local_first.md` and online-dict `AGENTS.md`.
+Model IDs, language codes, URLs and `{outcome, text}` payloads are unchanged, so the userscript
+requires no provider-specific source change. No alternate provider or paid API is silently substituted.

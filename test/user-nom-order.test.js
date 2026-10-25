@@ -267,3 +267,17 @@ test('the nom userscript build applies the order file last', () => {
     'ordering runs after every layer that can add a candidate'
   );
 });
+
+test('a hoisted variant brings the rest of its dictionary line right behind it', () => {
+  const nomMap = {'hồ': '乎 / 狐 / 湖 / 蝴 / 糊 / 醐'};
+  const lines = new Map([['hồ', [['乎', '狐'], ['湖', '蝴', '糊', '醐']]]]);
+  order.applyUserNomOrderToNomMap(nomMap, [{vi: 'hồ', key: 'hồ', nom: ['湖']}], lines);
+  assert.equal(nomMap['hồ'], '湖 / 蝴 / 糊 / 醐 / 乎 / 狐');
+});
+
+test('every preferred variant leads before any line mate', () => {
+  const nomMap = {'hồ': '乎 / 狐 / 湖 / 蝴 / 糊'};
+  const lines = new Map([['hồ', [['乎', '狐'], ['湖', '蝴', '糊']]]]);
+  order.applyUserNomOrderToNomMap(nomMap, [{vi: 'hồ', key: 'hồ', nom: ['湖', '糊']}], lines);
+  assert.equal(nomMap['hồ'], '湖 / 糊 / 蝴 / 乎 / 狐');
+});

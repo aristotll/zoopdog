@@ -728,6 +728,56 @@
     panel.style.top = Math.min(Math.max(pos.top, 0), maxTop) + 'px';
   }
 
+  // Size of a modal, saved per registrable domain and modal like its position
+  // (GM storage when the manager grants it, else the page's localStorage).
+  function zooModalSizeKey(modalId) {
+    return 'zd-modal-size:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
+  }
+
+  function zooSaveModalSize(modalId, width, height) {
+    var raw = JSON.stringify({ width: width, height: height });
+    try {
+      if (typeof GM_setValue === 'function') GM_setValue(zooModalSizeKey(modalId), raw);
+      else localStorage.setItem(zooModalSizeKey(modalId), raw);
+    } catch (e) { /* quota/private mode: the size just resets next open */ }
+  }
+
+  function zooRestoreModalSize(modalId, panel) {
+    if (!panel) return;
+    var raw = null;
+    try {
+      raw = typeof GM_getValue === 'function' ? GM_getValue(zooModalSizeKey(modalId), null) : localStorage.getItem(zooModalSizeKey(modalId));
+    } catch (e) { return; }
+    if (!raw) return;
+    var size;
+    try { size = JSON.parse(raw); } catch (e) { return; }
+    if (!size || !(size.width > 0) || !(size.height > 0)) return;
+    panel.style.width = Math.min(size.width, window.innerWidth) + 'px';
+    panel.style.height = Math.min(size.height, window.innerHeight) + 'px';
+  }
+
+  // The native `resize: both` grip (class zd-modal-resizable); the size is saved on
+  // pointer release only when the user changed it, so content growth is never frozen.
+  function zooMakeModalResizable(modalId) {
+    var panel = document.querySelector('#' + modalId + ' .zd-modal');
+    if (!panel) return;
+    panel.classList.add('zd-modal-resizable');
+    var before = null;
+    panel.addEventListener('pointerdown', function() {
+      before = { width: panel.offsetWidth, height: panel.offsetHeight };
+    });
+    function release() {
+      if (!before) return;
+      var width = panel.offsetWidth, height = panel.offsetHeight;
+      if (width !== before.width || height !== before.height) zooSaveModalSize(modalId, width, height);
+      before = null;
+    }
+    panel.addEventListener('pointerup', release);
+    panel.addEventListener('pointercancel', release);
+    // A resize can end with the pointer outside the panel.
+    document.addEventListener('pointerup', release);
+  }
+
   function zooOpenModal(id) {
     var backdrop = document.getElementById(id);
     backdrop.hidden = false;
@@ -736,6 +786,7 @@
       panel.scrollTop = 0;
       panel.removeAttribute('data-zd-dirty');
     }
+    zooRestoreModalSize(id, panel);
     zooRestoreModalPosition(id, panel);
   }
 
@@ -1669,8 +1720,8 @@
         document.getElementById(ids.title).textContent = payload.title;
         document.getElementById(ids.existingInfo).textContent = payload.existing_info;
         document.getElementById(ids.existingInfo).hidden = !payload.existing_info;
-        // The server's default pick: the recorded first choice, else the *second* rendering --
-        // variants[0] is already what is on screen, so offering it back would be a no-op.
+        // The server's default pick: never variants[0] (already what is on screen, so offering it back would be a
+        // no-op): the recorded first choice when it is not shown, else the *second* rendering.
         nomInput.value = payload.pick || '';
         resetPreview();
       }, function(error) {
@@ -1839,6 +1890,8 @@
     zooBindModalDismiss();
     zooMakeModalDraggable(ZOO_MODAL_IDS.nom.backdrop);
     zooMakeModalDraggable(ZOO_MODAL_IDS.order.backdrop);
+    zooMakeModalResizable(ZOO_MODAL_IDS.nom.backdrop);
+    zooMakeModalResizable(ZOO_MODAL_IDS.order.backdrop);
     zooWireNomForm();
     zooWireNomOrderForm();
   }

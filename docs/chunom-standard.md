@@ -49,3 +49,10 @@ Precedence, lowest first: **chunom < the dictionaries < the user's own entries a
 - The standard form is chunom's choice from historical corpora, not always the modern one (`đặc biệt` is `特别` there, `特別` in the dictionary, which keeps
   priority for compounds): that is why compounds are only added behind, and only characters are ordered.
 - Research and probes (the other pages of chunom.org, the speaker, the books): `~/mine/book-translator/docs/research/chunom_org/`.
+
+## A preferred variant brings its dictionary line (2026-10-24)
+
+`vnedict2.json` lists `hồ` as `乎|狐|胡|壺|葫` then `湖|蝴|糊|醐`. Hoisting 湖 (chunom's standard character, or the user's own row) used to leave 乎 second
+(the first line's forms); now the rest of the preferred variant's own line follows it, right behind the preferred ones: `湖 蝴 糊 醐 乎 狐 …`
+(`withLineMates` in `scripts/user-nom-order.js`, lines from `buildNomLines` in `scripts/build-nom-userscript.js`). book-translator does the same
+(`reader/nom_order.py` `_hoist_with_lines`, `NomData.lines`).

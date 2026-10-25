@@ -199,6 +199,7 @@ function createDom() {
     }
   }
 
+  const flags = {challengeMarkup: false};
   const body = new MiniElement('body');
   const head = new MiniElement('head');
 
@@ -207,13 +208,17 @@ function createDom() {
     createElement: (tagName) => new MiniElement(tagName),
     createTextNode: (data) => new MiniText(data),
     createDocumentFragment: () => new MiniFragment(),
-    getElementsByTagName: (tagName) => (tagName === 'head' ? [head] : [])
+    getElementsByTagName: (tagName) => (tagName === 'head' ? [head] : []),
+    // Only the Cloudflare challenge markers are looked up by selector (see isCloudflareChallenge).
+    querySelector: () => (flags.challengeMarkup ? {} : null)
   };
 
   return {
     document,
     body,
     MiniText,
+    MiniElement,
+    flags,
     observe: (root) => {
       observedRoots.add(root);
     },
@@ -235,8 +240,9 @@ function displayOf(el) {
   return {display: 'inline'};
 }
 
-function runRuntime(nomMap, caseSensitiveNomMap = {}) {
+function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test'} = {}) {
   const dom = createDom();
+  dom.flags.challengeMarkup = challengeMarkup;
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
@@ -254,6 +260,7 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}) {
   const intervals = [];
   const context = {
     document: dom.document,
+    Element: dom.MiniElement,
     getComputedStyle: displayOf,
     Node: {ELEMENT_NODE, TEXT_NODE, DOCUMENT_FRAGMENT_NODE},
     NodeList: {prototype: {forEach: Array.prototype.forEach}},
@@ -268,13 +275,18 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}) {
     }
   };
   context.window = {
+    location: {hostname},
     setTimeout: (fn) => fn(),
     setInterval: (fn) => intervals.push(fn)
   };
 
+  const originalAttachShadow = dom.MiniElement.prototype.attachShadow;
   vm.runInNewContext(source, context);
 
-  return Object.assign(dom, {tick: () => intervals.forEach((fn) => fn())});
+  return Object.assign(dom, {
+    attachShadowFn: () => dom.MiniElement.prototype.attachShadow,
+    attachShadowPatched: () => dom.MiniElement.prototype.attachShadow !== originalAttachShadow,
+    tick: () => intervals.forEach((fn) => fn())});
 }
 
 // Text seen by a reader: the annotated words plus everything around them, with the ruby
@@ -695,4 +707,35 @@ test('the tail of a following wrapper is annotated even when nothing else queues
 
   assert.equal(visibleText(dom.body), 'tình cảm của bạn');
   assert.deepEqual(rubyAnnotations(dom.body), ['情', '感', '𧵑', '伴']);
+});
+
+// A Cloudflare challenge ("Just a moment...") loops forever when an extension rewrites its text
+// or patches built-ins such as attachShadow; the script must leave such a page completely alone.
+test('a Cloudflare challenge page is neither annotated nor has attachShadow patched', () => {
+  const dom = runRuntime(NOM_MAP, {}, {challengeMarkup: true});
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(paragraph), []);
+  assert.equal(dom.attachShadowPatched(), false);
+});
+
+test('the Turnstile frame on challenges.cloudflare.com is left alone', () => {
+  const dom = runRuntime(NOM_MAP, {}, {hostname: 'challenges.cloudflare.com'});
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(paragraph), []);
+});
+
+// Bot detection reads `attachShadow.toString()`; a plain wrapper function shows its source.
+test('the attachShadow patch of an ordinary page still reads as native code', () => {
+  const dom = runRuntime(NOM_MAP);
+
+  assert.equal(dom.attachShadowPatched(), true);
+  assert.match(Function.prototype.toString.call(dom.attachShadowFn()), /\[native code\]/);
 });

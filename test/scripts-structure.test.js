@@ -151,18 +151,24 @@ test('an edit to a runtime source reaches the generated userscript', (t) => {
   const dir = makeRealBuildCopy(t, repoRoot);
   const runtimePath = path.join(dir, 'scripts/userscript/nom-ruby.runtime.js');
   const targetPath = path.join(dir, 'zoopdog-nom-ruby.user.js');
+  const build = () => execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {cwd: dir, stdio: 'pipe'});
   // Seeded with the real current file so writeVersionedUserscript's version-continuity check
   // (it reads whatever is already at the target path) behaves exactly as a real in-place
   // rebuild would, without ever touching the original.
   fs.writeFileSync(targetPath, originalTarget);
 
+  // The baseline is built from the same copy (same live Nôm data, same sources) without the probe, so the
+  // comparison never depends on how fresh the committed generated file is: the repo's user Nôm entries change
+  // whenever the reader server saves one, which used to fail this test on some runs.
+  build();
+  const original = fs.readFileSync(targetPath, 'utf8');
+
   const marker = '// zoopdog-runtime-edit-probe';
   fs.writeFileSync(runtimePath, `${marker}\n${originalRuntime.toString('utf8')}`);
-  execFileSync(process.execPath, ['scripts/build-nom-userscript.js'], {cwd: dir, stdio: 'pipe'});
+  build();
 
   const {readUserscriptVersion, setUserscriptVersion, PENDING_VERSION, compareVersions} =
     require('../scripts/lib/userscript');
-  const original = originalTarget.toString('utf8');
   const rebuilt = fs.readFileSync(targetPath, 'utf8');
   assert.match(rebuilt, new RegExp(marker));
   assert.equal(

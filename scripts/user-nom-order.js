@@ -195,11 +195,25 @@ function hoistPreferredRows(rows, preferred, getText, makeRow) {
   return orderPreferredFirst([...missing, ...rows], preferred, getText);
 }
 
-function applyUserNomOrderToNomMap(nomMap, entries) {
+// `lines` (term -> the dictionary's own definition lines, e.g. [['乎','狐'], ['湖','蝴','糊','醐']]) lets a preferred variant bring the
+// rest of its line right behind the preferred ones: `hồ` prefers 湖, so the second candidate is 蝴 (its line), not 乎 (the first line).
+function withLineMates(preferred, lines) {
+  const mates = [];
+  for (const variant of preferred) {
+    for (const line of lines) {
+      if (line.includes(variant)) {
+        mates.push(...line);
+      }
+    }
+  }
+  return [...preferred, ...new Set(mates.filter((form) => !preferred.includes(form)))];
+}
+
+function applyUserNomOrderToNomMap(nomMap, entries, lines = new Map()) {
   for (const [key, preferred] of buildNomOrderIndex(entries)) {
     const hoisted = hoistPreferredRows(
       splitCandidateText(nomMap[key]),
-      preferred,
+      withLineMates(preferred, lines.get(key) || []),
       (value) => value,
       (value) => value
     );

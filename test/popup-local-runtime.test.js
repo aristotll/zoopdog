@@ -79,6 +79,40 @@ test('local request resolves on success, rejects startup exceptions, and ignores
   await assert.rejects(broken.context.zooGetJSON('/healthz'), /startup failed/);
 });
 
+test('a resized Chữ Nôm modal is saved per site and restored on open', () => {
+  const harness = createHarness(() => {});
+  const {context} = harness;
+  const store = new Map();
+  context.location = {hostname: 'www.example.co.uk'};
+  context.window = {innerWidth: 1200, innerHeight: 800};
+  context.GM_setValue = (key, value) => store.set(key, value);
+  context.GM_getValue = (key, fallback) => (store.has(key) ? store.get(key) : fallback);
+  const classes = new Set();
+  const panel = element();
+  panel.style = {};
+  panel.classList = {add: (name) => classes.add(name)};
+  const modal = {querySelector: () => panel};
+  harness.elements.set('m', modal);
+  context.document.querySelector = (selector) => (selector === '#m .zd-modal' ? panel : null);
+  const events = {};
+  panel.addEventListener = (type, fn) => { events[type] = fn; };
+  context.document.addEventListener = () => {};
+  panel.offsetWidth = 400; panel.offsetHeight = 300;
+
+  context.zooMakeModalResizable('m');
+  assert.equal(classes.has('zd-modal-resizable'), true);
+  events.pointerdown(); events.pointerup();
+  assert.equal(store.size, 0, 'an unchanged size is not stored');
+  events.pointerdown(); panel.offsetWidth = 640; panel.offsetHeight = 480; events.pointerup();
+  assert.deepEqual([...store.keys()], ['zd-modal-size:example.co.uk:m']);
+  assert.deepEqual(JSON.parse(store.get('zd-modal-size:example.co.uk:m')), {width: 640, height: 480});
+
+  panel.style = {};
+  context.zooRestoreModalSize('m', panel);
+  assert.equal(panel.style.width, '640px');
+  assert.equal(panel.style.height, '480px');
+});
+
 test('local Chữ Nôm suggestions match characters anywhere in a rendering', () => {
   const {context} = createHarness(() => {});
   assert.deepEqual(
@@ -523,3 +557,4 @@ test('AI overview /goto links are matched by their site name (aria-label or shor
   assert.equal(text.anchor.title, 'Explored: tts laodong');
   assert.equal(stranger.anchor.style.background, undefined);
 });
+

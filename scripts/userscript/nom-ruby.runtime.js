@@ -263,13 +263,44 @@
       return;
     }
     var original = Element.prototype.attachShadow;
-    Element.prototype.attachShadow = function(init) {
-      var root = original.call(this, init);
+    function watchCreated(root) {
       if (root.mode === 'open') {
         watchShadowRoot(root);
       }
       return root;
+    }
+    // A Proxy keeps `attachShadow.toString()` reading as native code. A plain wrapper function
+    // shows its source, which bot-detection scripts (Cloudflare Turnstile) read as tampering.
+    if (typeof Proxy === 'function' && typeof Reflect === 'object') {
+      Element.prototype.attachShadow = new Proxy(original, {
+        apply: function(target, thisArg, args) {
+          return watchCreated(Reflect.apply(target, thisArg, args));
+        }
+      });
+      return;
+    }
+    Element.prototype.attachShadow = function(init) {
+      return watchCreated(original.call(this, init));
     };
+  }
+
+  // A Cloudflare challenge page ("Just a moment...") or its Turnstile frame. The challenge
+  // checks its own page for foreign DOM changes and patched built-ins, and never finishes when
+  // an annotator has touched it (the verification loops with "taking longer"), so this script
+  // does nothing there. The challenge reloads into the real page once passed, which is then
+  // annotated as usual. The title is localized, so the page is recognised by its markup.
+  var CHALLENGE_PAGE_SELECTOR = [
+    'script[src*="/cdn-cgi/challenge-platform/"][src*="/orchestrate/"]',
+    '#challenge-error-text',
+    '#challenge-success-text',
+    '#challenge-body-text'
+  ].join(',');
+
+  function isCloudflareChallenge() {
+    if (window.location && window.location.hostname === 'challenges.cloudflare.com') {
+      return true;
+    }
+    return !!doc.querySelector(CHALLENGE_PAGE_SELECTOR);
   }
 
   var AHEAD_MAX_CHARS = 400;
@@ -573,6 +604,14 @@
   function main() {
     if (!doc.body) {
       window.setTimeout(main, 50);
+      return;
+    }
+    // The challenge markup is parsed after <body> exists; wait for the document so it is seen.
+    if (doc.readyState === 'loading') {
+      doc.addEventListener('DOMContentLoaded', main, {once: true});
+      return;
+    }
+    if (isCloudflareChallenge()) {
       return;
     }
 

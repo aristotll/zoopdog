@@ -73,6 +73,20 @@ function buildNomMap(entries) {
   );
 }
 
+// Term -> the dictionary's own definition lines (the candidates of each `en[].def`), which `buildNomMap` flattens: the order layer
+// moves a preferred variant's whole line with it (`applyUserNomOrderToNomMap`).
+function buildNomLines(entries) {
+  const lines = new Map();
+  for (const entry of entries) {
+    const term = normalizeTerm(entry.vn);
+    const found = (entry.en || []).map((item) => extractNomCandidates(item.def)).filter((line) => line.length);
+    if (isEmbeddableTerm(term) && found.length) {
+      lines.set(term, [...(lines.get(term) || []), ...found]);
+    }
+  }
+  return lines;
+}
+
 function splitCandidateText(value) {
   return String(value || '')
     .split(/\s+\/\s+/)
@@ -158,7 +172,7 @@ function buildFullNomMap() {
 
   // Last, after every layer that can *add* a candidate: this one only reorders what they
   // produced, and the userscript renders candidate 0 as the ruby.
-  applyUserNomOrderToNomMap(nomMap, chunom.orderRows);
+  applyUserNomOrderToNomMap(nomMap, chunom.orderRows, buildNomLines(entries));
   // `caseSensitive` rows never reach the hoist above (see user-nom-order.js). Their variants
   // are still pinned into the shared entry so the exact spelling stays matchable, and the
   // exact-spelling override map is built from the result -- see zd-nom-match.js.
@@ -210,6 +224,7 @@ module.exports = {
   isEmbeddableTerm,
   extractNomCandidates,
   buildNomMap,
+  buildNomLines,
   mergeExtractedNomMap,
   buildFullNomMap,
   main
