@@ -522,7 +522,7 @@
   function annotateAcrossNodes(match, ahead, node, offset, inserted) {
     var spans = wordSpans(ahead.text, match.index, match.index + match.length);
     var reading = match.nom.split(' / ')[0];
-    var chars = Array.from(reading);
+    var chars = [...reading];
     var perWord = chars.length === spans.length;
     var pieces = [];
 
@@ -648,7 +648,7 @@
       mutationHandler(observer.takeRecords());
 
       if (changedNodes.size) {
-        var changed = Array.from(changedNodes);
+        var changed = [...changedNodes];
         changedNodes.clear();
         changed.forEach(refreshChangedNode);
       }
@@ -656,7 +656,7 @@
       // A pass can queue more work itself (the tail of a following node after a match that
       // spans nodes), so drain until it settles -- bounded, leftovers wait for the next tick.
       for (var pass = 0; newNodes.size && pass < MAX_RESCAN_PASSES; pass++) {
-        var nodes = outermostNodes(Array.from(newNodes));
+        var nodes = outermostNodes([...newNodes]);
         newNodes.clear();
         nodes.forEach(scanTextNodes);
       }

@@ -240,7 +240,7 @@ function displayOf(el) {
   return {display: 'inline'};
 }
 
-function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test'} = {}) {
+function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false} = {}) {
   const dom = createDom();
   dom.flags.challengeMarkup = challengeMarkup;
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
@@ -281,7 +281,11 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
   };
 
   const originalAttachShadow = dom.MiniElement.prototype.attachShadow;
-  vm.runInNewContext(source, context);
+  vm.createContext(context);
+  if (prototypeArrayFrom) {
+    vm.runInContext("Array.from = function (value) { return Array.prototype.slice.call(value); }", context);
+  }
+  vm.runInContext(source, context);
 
   return Object.assign(dom, {
     attachShadowFn: () => dom.MiniElement.prototype.attachShadow,
@@ -322,6 +326,15 @@ test('annotates text present when the script starts', () => {
   dom.tick();
 
   assert.equal(visibleText(paragraph), 'của bạn');
+  assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
+});
+
+test('annotates when Prototype replaces Array.from with an array-like converter', () => {
+  const dom = runRuntime(NOM_MAP, {}, {prototypeArrayFrom: true});
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
 });
 

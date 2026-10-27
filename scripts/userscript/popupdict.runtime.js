@@ -1096,7 +1096,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     definitions.forEach(function(item) {
       if (isCjkDefinition(item)) {
         pendingCjkTokens = pendingCjkTokens.concat(extractCjkTokens(item[0]));
-        pendingCjkTokens = Array.from(new Set(pendingCjkTokens));
+        pendingCjkTokens = [...new Set(pendingCjkTokens)];
         return;
       }
 
@@ -1113,7 +1113,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
   }
 
   function extractCjkTokens(value) {
-    return Array.from(new Set(String(value || '').match(ZOO_CJK_SEQUENCE_RE) || []));
+    return [...new Set(String(value || '').match(ZOO_CJK_SEQUENCE_RE) || [])];
   }
 
   function chunkCjkTokens(tokens) {
@@ -1122,7 +1122,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     var currentLength = 0;
 
     tokens.forEach(function(token) {
-      var tokenLength = Array.from(token).length;
+      var tokenLength = [...token].length;
       var extraLength = current.length ? tokenLength + 3 : tokenLength;
 
       if (current.length && currentLength + extraLength > ZOO_SETTINGS.cjkDefinitionLineLength) {

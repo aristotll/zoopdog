@@ -841,3 +841,19 @@ test('the Nôm export panel recognises the reader /control page by IP, localhost
     assert.equal(onPage(host), false, host);
   }
 });
+
+test('popup retains Chu Nom definitions when Prototype replaces Array.from', () => {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
+  const functions = source.slice(source.indexOf('  function renderDefinitionItems('), source.indexOf('  function renderDefinitionItem('));
+  const cjkDeclarations = source.split('\n').filter((line) => /var ZOO_CJK_(RE|SEQUENCE_RE) =/.test(line)).join('\n');
+  const context = vm.createContext({});
+  vm.runInContext(`Array.from = function (value) { return Array.prototype.slice.call(value); };
+    ${cjkDeclarations}
+    var ZOO_SETTINGS = {cjkDefinitionLineLength: 18};
+    function escapeHtml(value) { return value; }
+    function renderDefinitionItem(item) { return '<li>' + item[0] + '</li>'; }
+    ${functions}`, context);
+  const output = vm.runInContext("renderDefinitionItems([['查究', ''], ['查究 | 𧵑', ''], ['to consult', 'verb']])", context);
+  assert.equal(output, '<li class="zoopdog-cjk-def">查究 | 𧵑</li><li>to consult</li>');
+});
