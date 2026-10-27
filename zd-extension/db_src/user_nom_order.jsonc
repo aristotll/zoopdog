@@ -317,5 +317,6 @@
   {"vi": "dụ", "nom": ["誘"]},
   {"vi": "đôi", "nom": ["對"]},
   {"vi": "ngoại thương", "nom": ["外商"]},
-  {"vi": "chua", "nom": ["䣷"]}
+  {"vi": "chua", "nom": ["䣷"]},
+  {"vi": "Thị", "nom": ["氏"], "caseSensitive": true}
 ]

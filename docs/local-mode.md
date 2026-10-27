@@ -70,15 +70,35 @@ or discard a user's unsaved edits. Reloading creates a fresh context under the u
 
 ## Google results: explored sites in another colour
 
-On `google.<tld>/search` the `-local` build asks `GET http://127.0.0.1:8770/v1/explored-sites` (book-translator
-`scripts/explored_sites.py`) and paints every result whose registrable domain is in the answer: green = a dictionary
-plugin of `~/mine/online-dict`, yellow = a TTS engine, blue = a translator, purple = only a research note
-(`docs/research/*`), grey = listed in book-translator's `docs/explored_sites_blacklist.json` as "no need to explore" (edit that file; hot reload, no restart). The server sends the finished `color` and `label` (hover title); the userscript only matches
-domains (`zooExploredDomain`, `zooPaintExplored`, `zooStartExploredHighlight`) and paints. Hot reload: the server
-rebuilds the index when any source file changes, the page re-asks `?since=<version>` every minute (`unchanged` costs
-nothing) and a MutationObserver repaints late results. Direct links and `/url?q=` links are both matched. Error tolerance: the last good answer is cached in the page's `localStorage` and painted at once; a failed first request is retried after 1.5/3/6/12/24 s (then every minute); results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time, so a result page reached without a reload is still coloured; result blocks are found under `#search`, `#rso`, `main` or `#main`, headed by `h3` or `[role=heading]`; one odd result never stops the rest. **AI overview references** (measured 2026-10-24 on `google.com/search?q=thi tuyển`) are opaque `google.com/goto?url=<token>` links whose only identity is the site name (`aria-label="Tuổi Trẻ"`, or the short link text): the index therefore also carries `names` (accent-free name -> domain: domain stem, whole domain, plugin/source labels; `explored_sites.name_key`, mirrored by `zooExploredKey`), and the link itself is outlined (background + 3 px box-shadow) instead of a result block. A Google-CSE dictionary plugin counts for the website it searches (`searchedSites` in its `rule.json`, not its `cse.google.com` host). Matching is by
-domain only (subdomains collapse, `com.vn`-style suffixes kept); a path-level rule can be added later as an optional
-field per entry.
+On `google.<tld>/search` the `-local` build colours every link to a site book-translator has already explored: green = a
+dictionary plugin of `~/mine/online-dict`, yellow = a TTS engine, blue = a translator, purple = only a research note
+(`docs/research/*`), grey = listed in book-translator's `docs/explored_sites_blacklist.json` as "no need to explore" (edit
+that file; hot reload, no restart).
+
+**The server decides, the userscript reads and paints.** What counts as explored (exact registrable domain, the aliases of
+`docs/explored_sites_aliases.json`, same-brand guesses such as `zingnews.vn` ~ `znews.vn` labelled "Probably explored", a
+Google-CSE plugin's `searchedSites`, a site *name*) is book-translator's `explored_sites.match_keys`, behind
+`GET /v1/explored-sites/match?keys=<json list>` -> `{version, matches: {key: {label, color}}}`. The client has no domain or
+name logic: `zooAnchorKeys` turns each link into keys (its direct host, Google's `/url?q=` target, and for an opaque
+`/goto?url=` link the hints read off the page by `zooGotoHints`: aria-label, short text, the first lines of the card or
+result, the visible `https://host ›` line); `zooPendingKeys` batches the keys not asked yet (each key once, at most 100 per
+request); `zooPaintExplored` paints the first key the server matched.
+
+**Painting** (unchanged, measured by screenshot 2026-10-24/25): an organic result (anchor holding an `h3`/`[role=heading]`) gets a
+plain background on its result block; a headingless link (AI overview citations, people-also-ask, sitelinks, source cards) is
+often a transparent overlay on a chip or card, so it is tinted (`mix-blend-mode: multiply` + a 2 px outline) and a plain fill,
+which hid what lay under it, is never used.
+
+**Hot reload and tolerance:** `?keys=[]` doubles as the version probe: the page polls it every minute and a new `version`
+(any plugin, engine, research note, alias or blacklist edit) drops the answers and asks again, so nothing needs a reload or
+a server restart. The answers are cached in the page's `localStorage` (`zooExploredMatches`) and painted at once; nothing is
+asked before the server has answered once; a failed first request is retried after 1.5/3/6/12/24 s (then every minute);
+results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time;
+links are found under `#search`, `#rso`, `main` or `#main`; one odd result never stops the rest.
+
+Troubleshooting and fixing this feature (a link not coloured, a visual regression): follow book-translator's
+`.claude/ai-common/rules/google-explored-highlighter.md` (matching stays on the server, verify on the real page with a screenshot,
+never overwrite uncommitted work in this repo).
 
 ## Two builds
 
@@ -247,5 +267,36 @@ The shared book-translator service prefers locally computed tokens/signatures, s
 credentials, and direct HTTP/WebSocket requests. CDP remains the **last resort** when those paths
 cannot work; it is not removed from protected channels. This is the same policy documented in
 book-translator `AGENTS.md` / `docs/translation_local_first.md` and online-dict `AGENTS.md`.
+Baidu AI reuses the Mac's verified account-session cache with local ACS signing and HTTP;
+guest-only zero-quota replies are refused. Last-resort CDP may recover existing account
+cookies once and retry HTTP, saving only after AI proof (owner-only, expiry bounded to
+seven days); in-tab AI translation is the final fallback. DeepL now uses anonymous
+oneshot HTTP (`oneshot-free.www.deepl.com/v1/translate`, literal `Authorization: None`),
+without cookies/app identity or CDP. Thirteen live checks passed across all seven
+project languages with CDP forbidden. Inputs split under 1500 UTF-16 units; transient
+errors get at most three attempts before final browser recovery, while explicit
+refusals remain respected. The refused legacy JSON-RPC path is retired.
+QQ/Mazii use persistent owner-only token caches, migrating temporary entries without
+extending expiry; server refusals clear both stores. Missing/expired account/captcha
+credentials can still need browser recovery. See book-translator's
+`docs/research/translation-cdp-audit-2026-10-25.md` for the complete channel audit.
 Model IDs, language codes, URLs and `{outcome, text}` payloads are unchanged, so the userscript
 requires no provider-specific source change. No alternate provider or paid API is silently substituted.
+
+
+## Shared server energy saving (2026-10-26)
+
+The book-translator server owns overnight energy policy: automatic 03:00–07:30
+local-time battery saving reduces idle battery probes but keeps **Stay reachable**
+enabled, including paused playback. That mode now holds a PID-bound idle-sleep
+assertion while selected; saving energy does not release it. Existing explicit
+sleep and low-battery safety still apply. Clients keep the same endpoints and
+payloads and must not add a polling loop or request sleep to implement this
+policy. Implementation, tests and configuration live in book-translator's
+`docs/evening_energy_saving.md` and `AGENTS-book-server.md`.
+
+The server also automatically terminates confirmed runaway zsh-autocomplete
+shells belonging to its own checkout after two high-CPU observations five
+minutes apart and a fresh ownership/identity check. It does not terminate this
+repository's processes. Keep this server behavior documented in all three
+repositories; client code needs no change while the HTTP contract is unchanged.

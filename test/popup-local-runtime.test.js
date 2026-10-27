@@ -471,90 +471,100 @@ function googleResult(href) {
   return {anchor, block};
 }
 
-test('zooExploredDomain collapses subdomains and keeps country second levels', () => {
+function link(href, extra) {
+  const anchor = Object.assign({href, style: {}, dataset: {}, title: '', textContent: '', getAttribute() { return null; },
+    querySelector() { return null; }, closest() { return null; }}, extra || {});
+  return anchor;
+}
+
+test('zooAnchorKeys: the direct host, plus page hints for an opaque /goto link, never Google\'s own host', () => {
   const {context} = createHarness(() => {});
-  assert.equal(context.zooExploredDomain('dtinews.dantri.com.vn'), 'dantri.com.vn');
-  assert.equal(context.zooExploredDomain('www.bing.com'), 'bing.com');
-  assert.equal(context.zooExploredDomain('127.0.0.1'), '');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://lifestyle.zingnews.vn/a.html'))), ['lifestyle.zingnews.vn']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.google.com/url?q=https%3A%2F%2Fvdict.com%2Fx'))), ['vdict.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.google.com/search?q=x'))), []);
+  const goto = link('https://www.google.com/goto?url=CAESx', {
+    getAttribute: (name) => (name === 'aria-label' ? 'Tuổi Trẻ' : null),
+    closest: () => ({innerText: 'Nhà thuốc Long Châu\nhttps://hellobacsi.com › tam-ly › thau-cam\nThấu cảm là gì?'})});
+  const keys = Array.from(context.zooAnchorKeys(goto));
+  assert.equal(keys[0], 'Tuổi Trẻ');
+  assert.ok(keys.includes('Nhà thuốc Long Châu') && keys.includes('hellobacsi.com'));
 });
 
-test('zooPaintExplored colours explored domains (direct and /url?q= links) and clears stale ones', () => {
+test('zooPaintExplored paints what the server matched, per key, and clears stale marks', () => {
   const {context} = createHarness(() => {});
-  const hit = googleResult('https://dtinews.dantri.com.vn/a.htm');
+  const organic = googleResult('https://lifestyle.zingnews.vn/a.html');
   const wrapped = googleResult('https://www.google.com/url?q=https%3A%2F%2Fvdict.com%2Fx&sa=U');
   const miss = googleResult('https://example.org/');
-  const doc = {querySelectorAll: () => [hit.anchor, wrapped.anchor, miss.anchor]};
-  const domains = {'dantri.com.vn': {color: '#c8f7c5', label: 'Explored: dict dantri'}, 'vdict.com': {color: '#eadcff', label: 'Explored: research vdict'}};
-  assert.equal(context.zooPaintExplored(doc, domains), 2);
-  assert.equal(hit.block.style.background, '#c8f7c5');
-  assert.equal(hit.block.title, 'Explored: dict dantri');
+  const chip = link('https://www.hellobacsi.com/a/b');                       // headingless: an overlay on a chip/card
+  const doc = {querySelectorAll: () => [organic.anchor, wrapped.anchor, miss.anchor, chip]};
+  const matches = {'lifestyle.zingnews.vn': {color: '#c8f7c5', label: 'Probably explored'}, 'vdict.com': {color: '#eadcff', label: 'Explored: research vdict'}, 'www.hellobacsi.com': {color: '#ffe9a8', label: 'Explored: tts hellobacsi'}};
+  assert.equal(context.zooPaintExplored(doc, matches), 3);
+  assert.equal(organic.block.style.background, '#c8f7c5');           // organic result: plain background on its block
+  assert.equal(organic.block.title, 'Probably explored');
   assert.equal(wrapped.block.style.background, '#eadcff');
   assert.equal(miss.block.style.background, undefined);
+  assert.equal(chip.style.mixBlendMode, 'multiply');                 // overlay: tinted and outlined, never covered
+  assert.equal(chip.style.outline, '2px solid #ffe9a8');
   context.zooPaintExplored(doc, {});
-  assert.equal(hit.block.style.background, '');
+  assert.equal(organic.block.style.background, '');
+  assert.equal(chip.style.outline, '');
 });
 
-test('explored highlight starts only on a Google search page and asks only for changes after the first load', async () => {
-  const urls = [];
+test('an opaque goto link is painted from the answer to any of its page hints', () => {
+  const {context} = createHarness(() => {});
+  const card = link('https://www.google.com/goto?url=CAESx', {
+    getAttribute: (name) => (name === 'aria-label' ? 'Thấu cảm là gì? Lợi ích' : null),
+    closest: () => ({innerText: 'Nhà thuốc Long Châu\nThấu cảm là gì?'})});
+  const doc = {querySelectorAll: () => [card]};
+  assert.equal(context.zooPaintExplored(doc, {'Nhà thuốc Long Châu': {color: '#c8f7c5', label: 'Explored: dict nhathuoclongchau'}}), 1);
+  assert.equal(card.title, 'Explored: dict nhathuoclongchau');
+  assert.equal(context.zooPaintExplored({querySelectorAll: () => [link('https://www.google.com/goto?url=CAESy', {getAttribute: () => 'Đăng nhập'})]}, {}), 0);
+});
+
+test('explored highlight runs only on a Google search page; keys are asked once, after the server answered', async () => {
+  const asked = [];
   const harness = createHarness((options) => {
-    urls.push(options.url);
-    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', domains: {}})});
+    const url = new URL(options.url);
+    const keys = JSON.parse(url.searchParams.get('keys'));
+    asked.push(keys);
+    const matches = {};
+    if (keys.includes('lifestyle.zingnews.vn')) matches['lifestyle.zingnews.vn'] = {color: '#c8f7c5', label: 'Probably explored (same site as znews.vn)'};
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', matches})});
   });
-  const doc = {body: null, querySelectorAll: () => []};
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  const hit = googleResult('https://lifestyle.zingnews.vn/a.html');
+  const doc = {body: null, querySelectorAll: () => [hit.anchor]};
   assert.equal(await harness.context.zooStartExploredHighlight(doc, {hostname: 'example.org', pathname: '/search'}), false);
-  assert.equal(urls.length, 0);
+  assert.equal(asked.length, 0);
   assert.equal(await harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'}), true);
-  assert.match(urls[0], /\/v1\/explored-sites$/);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(asked, [[], ['lifestyle.zingnews.vn']]);      // version probe first, then the page's key, once
+  assert.equal(hit.block.style.background, '#c8f7c5');
+  assert.match(hit.block.title, /Probably explored/);
 });
 
-test('explored highlight retries a failed first request quickly and paints from the cached copy at once', async () => {
+test('explored highlight paints the cached answers at once, retries a failed first request, and re-asks when the version moves', async () => {
   let calls = 0;
-  const storage = {zooExploredSites: JSON.stringify({version: 'old', domains: {'vdict.com': {color: '#eadcff', label: 'x'}}})};
+  const asked = [];
+  const storage = {zooExploredMatches: JSON.stringify({version: 'old', matches: {'vdict.com': {color: '#eadcff', label: 'x'}}})};
   const harness = createHarness((options) => {
     calls += 1;
     if (calls === 1) return options.onerror();
-    options.onload({status: 200, responseText: JSON.stringify({version: 'v2', domains: {'vdict.com': {color: '#c8f7c5', label: 'y'}}})});
+    const keys = JSON.parse(new URL(options.url).searchParams.get('keys'));
+    asked.push(keys);
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v2', matches: keys.includes('vdict.com') ? {'vdict.com': {color: '#c8f7c5', label: 'y'}} : {}})});
   });
   harness.context.localStorage = {getItem: (k) => storage[k] || null, setItem: (k, v) => { storage[k] = v; }};
   const hit = googleResult('https://vdict.com/x');
   const doc = {body: null, querySelectorAll: () => [hit.anchor]};
   const started = harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'});
-  assert.equal(hit.block.style.background, '#eadcff'); // cached copy, before any answer
+  assert.equal(hit.block.style.background, '#eadcff'); // cached answer, before any reply
   await started; // first attempt failed
   assert.equal(calls, 1);
-  await new Promise((resolve) => setTimeout(resolve, 1700)); // first retry (1.5 s)
-  assert.equal(calls, 2);
+  await new Promise((resolve) => setTimeout(resolve, 1700)); // first retry (1.5 s): version old -> v2 drops the answers
+  assert.equal(calls >= 2, true);
+  assert.deepEqual(asked[0], []);
+  assert.deepEqual(asked[1], ['vdict.com']);
   assert.equal(hit.block.style.background, '#c8f7c5');
-  assert.equal(JSON.parse(storage.zooExploredSites).version, 'v2');
+  assert.equal(JSON.parse(storage.zooExploredMatches).version, 'v2');
 });
-
-test('AI overview /goto links are matched by their site name (aria-label or short text)', () => {
-  const {context} = createHarness(() => {});
-  const chip = googleResult('https://www.google.com/goto?url=CAESopaque');
-  chip.anchor.getAttribute = (name) => (name === 'aria-label' ? 'Tuổi Trẻ' : null);
-  chip.anchor.querySelector = () => null; // no heading: not an organic result
-  chip.anchor.textContent = '';
-  chip.anchor.closest = () => null;
-  chip.anchor.style = {};
-  chip.anchor.dataset = {};
-  chip.anchor.title = '';
-  const text = googleResult('https://www.google.com/goto?url=CAESother');
-  text.anchor.getAttribute = () => null;
-  text.anchor.querySelector = () => null;
-  text.anchor.textContent = 'Laodong.vn';
-  Object.assign(text.anchor, {style: {}, dataset: {}, title: ''});
-  const stranger = googleResult('https://www.google.com/goto?url=CAESx');
-  stranger.anchor.getAttribute = () => 'Đăng nhập';
-  stranger.anchor.querySelector = () => null;
-  Object.assign(stranger.anchor, {textContent: 'Đăng nhập', style: {}, dataset: {}, title: ''});
-  const domains = {'tuoitre.vn': {color: '#c8f7c5', label: 'Explored: dict tuoitre'}, 'laodong.vn': {color: '#ffe9a8', label: 'Explored: tts laodong'}};
-  const names = {tuoitre: 'tuoitre.vn', laodongvn: 'laodong.vn'};
-  assert.equal(context.zooExploredKey('Tuổi Trẻ'), 'tuoitre');
-  const doc = {querySelectorAll: () => [chip.anchor, text.anchor, stranger.anchor]};
-  assert.equal(context.zooPaintExplored(doc, domains, names), 2);
-  assert.equal(chip.anchor.style.background, '#c8f7c5');
-  assert.equal(chip.anchor.style.boxShadow, '0 0 0 3px #c8f7c5');
-  assert.equal(text.anchor.title, 'Explored: tts laodong');
-  assert.equal(stranger.anchor.style.background, undefined);
-});
-

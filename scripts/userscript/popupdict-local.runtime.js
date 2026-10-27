@@ -114,20 +114,15 @@
   }
 
   // -- Google results: colour links to sites book-translator has already explored --
-  // The server (`GET /v1/explored-sites`, scripts/explored_sites.py) sends the finished domain -> {label, color}
-  // map; this only matches a result's registrable domain against it and paints. `?since=<version>` is
-  // re-asked every minute, so a new plugin/engine/research note shows without reloading the page.
+  // This code only READS the page and PAINTS. What counts as explored (exact domain, alias, same-brand guess, site
+  // name) is decided by the server: every link is turned into keys (its host; for opaque /goto links also the hints
+  // read off the page) and sent to `GET /v1/explored-sites/match?keys=<json list>` (scripts/explored_sites.py
+  // `match_keys`), which answers the finished {label, color} per key. Each key is asked once; a new index version
+  // (polled every minute) drops the answers and asks again, so a new plugin/alias/blacklist entry shows without a reload.
 
-  var ZOO_EXPLORED_SECOND_LEVEL = {co: 1, com: 1, net: 1, org: 1, gov: 1, edu: 1, ac: 1};
   var ZOO_EXPLORED_REFRESH_MS = 60000;
   var ZOO_EXPLORED_BLOCK = 'div.g, div.MjjYud, div[data-hveid], li';
-
-  function zooExploredDomain(host) {
-    var labels = String(host || '').toLowerCase().split('.');
-    if (labels.length < 2 || /^[0-9.]+$/.test(host)) return '';
-    var keep = labels.length >= 3 && ZOO_EXPLORED_SECOND_LEVEL[labels[labels.length - 2]] && labels[labels.length - 1].length === 2 ? 3 : 2;
-    return labels.slice(-keep).join('.');
-  }
+  var ZOO_EXPLORED_MAX_KEYS = 100;
 
   function zooIsGoogleSearchPage(loc) {
     return /(^|\.)google\.[a-z.]+$/.test(loc.hostname) && loc.pathname === '/search';
@@ -144,45 +139,74 @@
     }
   }
 
-  // Mirror of explored_sites.name_key: accent-free lowercase alphanumerics.
-  function zooExploredKey(text) {
-    var plain = String(text || '').toLowerCase().replace(/đ/g, 'd');
-    return (plain.normalize ? plain.normalize('NFD') : plain).replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-  }
-
-  // The AI overview's references are opaque google.com/goto?url=<token> links: only the site's name (aria-label, or
-  // the short link text) tells which site it is, so look the name up in the index's `names` (name -> domain).
-  function zooAiLinkEntry(anchor, domains, names) {
-    var href = anchor.href || anchor.getAttribute('href') || '';
-    if (!names || href.indexOf('/goto?url=') === -1) return null;
-    var label = anchor.getAttribute && anchor.getAttribute('aria-label');
-    var text = String(anchor.textContent || '').trim();
-    var candidates = [label, text.length <= 40 ? text : ''];
-    for (var i = 0; i < candidates.length; i++) {
-      var key = zooExploredKey(candidates[i]);
-      if (key && names[key] && domains[names[key]]) return domains[names[key]];
+  // Google serves some sessions opaque google.com/goto?url=<token> links (AI overview references, source cards, even the
+  // organic results of a signed-out profile): the href names no site, so read it off the page. Hints, in order: the
+  // link's aria-label, its short text, and the first lines of the card/result around it (the site-name line, or the
+  // visible "https://host › path" line). A hint is a site name or a host; the server decides what it is.
+  function zooGotoHints(anchor) {
+    var hints = [anchor.getAttribute && anchor.getAttribute('aria-label')];
+    var own = String(anchor.textContent || '').trim();
+    if (own.length <= 40) hints.push(own);
+    var box = anchor.closest && anchor.closest('li, ' + ZOO_EXPLORED_BLOCK);
+    var lines = String(box ? (box.innerText || box.textContent || '') : '').split('\n');
+    for (var i = 0, taken = 0; i < lines.length && taken < 4; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      taken++;
+      if (line.length <= 40) hints.push(line);
+      var host = line.match(/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:[\s\/\u203a]|$)/i);
+      if (host) hints.push(host[1]);
     }
-    return null;
+    return hints;
   }
 
-  function zooPaintExplored(doc, domains, names) {
-    var anchors = doc.querySelectorAll('#search a[href], #rso a[href], [role="main"] a[href], #main a[href]');
-    names = names || {};
+  // The keys of one link, most specific first: its direct host (not Google's own), then, for an opaque /goto link,
+  // the hints read off the page.
+  function zooAnchorKeys(anchor) {
+    var href = anchor.href || anchor.getAttribute('href') || '';
+    var host = zooResultHost(href);
+    var keys = host && !/(^|\.)(google\.[a-z.]+|gstatic\.com)$/.test(host) ? [host] : [];
+    if (href.indexOf('/goto?url=') !== -1) keys = keys.concat(zooGotoHints(anchor));
+    return keys.filter(function(key) { return key && String(key).length <= 200; });
+  }
+
+  var ZOO_EXPLORED_SELECTOR = '#search a[href], #rso a[href], [role="main"] a[href], #main a[href]';
+
+  // Keys of the page's links not asked yet.
+  function zooPendingKeys(doc, asked) {
+    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+    var keys = [];
+    for (var i = 0; i < anchors.length; i++) {
+      var own = zooAnchorKeys(anchors[i]);
+      for (var j = 0; j < own.length; j++) {
+        if (!asked[own[j]] && keys.indexOf(own[j]) === -1) keys.push(own[j]);
+      }
+    }
+    return keys.slice(0, ZOO_EXPLORED_MAX_KEYS);
+  }
+
+  function zooPaintExplored(doc, matches) {
+    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
     var painted = 0;
     for (var i = 0; i < anchors.length; i++) {
       try {
         var anchor = anchors[i];
         var ai = !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]');
-        var entry = ai ? zooAiLinkEntry(anchor, domains, names) : domains[zooExploredDomain(zooResultHost(anchor.href || anchor.getAttribute('href')))];
+        var entry = null;
+        var keys = zooAnchorKeys(anchor);
+        for (var k = 0; k < keys.length && !entry; k++) entry = matches[keys[k]] || null;
         // An AI-panel reference is a small chip/inline link: outline the link itself instead of a whole block.
         var block = ai ? anchor : (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor);
         if (ai && !entry && !block.dataset.zooExplored) continue;
         if (!entry) {
-          if (block.dataset.zooExplored) { block.style.background = ''; block.style.boxShadow = ''; block.title = ''; delete block.dataset.zooExplored; }
+          if (block.dataset.zooExplored) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
           continue;
         }
-        block.style.background = entry.color;
-        if (ai) block.style.boxShadow = '0 0 0 3px ' + entry.color;
+        // Organic results get a plain background (it lies under the text). A headingless link is often a transparent overlay
+        // above a chip or card: a plain fill hid what is under it (measured: an empty green block).
+        // `multiply` tints what lies under the overlay instead of covering it, so chip text stays readable.
+        if (ai) { block.style.background = entry.color; block.style.mixBlendMode = 'multiply'; block.style.outline = '2px solid ' + entry.color; block.style.outlineOffset = '-1px'; block.style.borderRadius = '6px'; }
+        else block.style.background = entry.color;
         block.title = entry.label;
         block.dataset.zooExplored = '1';
         painted++;
@@ -195,7 +219,7 @@
   // growing delays instead of waiting a minute, results are repainted on mutations, on a timer (Google swaps its
   // result block without a reload), and when the tab is shown again; the /search check is made at paint time, not
   // once, and any failure is swallowed so the next tick tries again.
-  var ZOO_EXPLORED_CACHE_KEY = 'zooExploredSites';
+  var ZOO_EXPLORED_CACHE_KEY = 'zooExploredMatches';
   var ZOO_EXPLORED_RETRY_MS = [1500, 3000, 6000, 12000, 24000];
   var ZOO_EXPLORED_REPAINT_MS = 2500;
 
@@ -203,8 +227,8 @@
     try { return JSON.parse(localStorage.getItem(ZOO_EXPLORED_CACHE_KEY)) || null; } catch (error) { return null; }
   }
 
-  function zooExploredCacheWrite(data) {
-    try { localStorage.setItem(ZOO_EXPLORED_CACHE_KEY, JSON.stringify({version: data.version, domains: data.domains, names: data.names})); } catch (error) { /* quota/private mode */ }
+  function zooExploredCacheWrite(state) {
+    try { localStorage.setItem(ZOO_EXPLORED_CACHE_KEY, JSON.stringify({version: state.version, matches: state.matches})); } catch (error) { /* quota/private mode */ }
   }
 
   function zooStartExploredHighlight(doc, loc) {
@@ -212,18 +236,34 @@
     loc = loc || (typeof location === 'undefined' ? null : location);
     if (!loc || !/(^|\.)google\.[a-z.]+$/.test(loc.hostname)) return Promise.resolve(false);
     var cached = zooExploredCacheRead();
-    var state = {version: '', domains: cached && cached.domains ? cached.domains : {}, names: cached && cached.names ? cached.names : {}};
+    var state = {version: cached && cached.version || '', matches: cached && cached.matches ? cached.matches : {}, asked: {}, loaded: false};
+    Object.keys(state.matches).forEach(function(key) { state.asked[key] = true; });
+    var ask = function() {
+      // Nothing is asked before the server has answered once: then the version is known and failures need no retry here.
+      var keys = state.loaded ? zooPendingKeys(doc, state.asked) : [];
+      if (!keys.length) return;
+      keys.forEach(function(key) { state.asked[key] = true; });
+      zooGetJSON('/v1/explored-sites/match', {keys: JSON.stringify(keys)}).then(function(data) {
+        Object.keys(data.matches || {}).forEach(function(key) { state.matches[key] = data.matches[key]; });
+        zooExploredCacheWrite(state);
+        zooPaintExplored(doc, state.matches);
+      }, function() {});
+    };
     var paintNow = function() {
-      try { if (zooIsGoogleSearchPage(loc)) zooPaintExplored(doc, state.domains, state.names); } catch (error) { /* retry on next tick */ }
+      try {
+        if (!zooIsGoogleSearchPage(loc)) return;
+        zooPaintExplored(doc, state.matches);
+        ask();
+      } catch (error) { /* retry on next tick */ }
     };
     var paint = zooDebounce(paintNow, 150);
     var attempt = function(n) {
-      return zooGetJSON('/v1/explored-sites', state.version ? {since: state.version} : {}).then(function(data) {
-        if (data.unchanged) return;
+      return zooGetJSON('/v1/explored-sites/match', {keys: '[]'}).then(function(data) {
+        state.loaded = true;
+        if (data.version === state.version) { paintNow(); return; }
         state.version = data.version;
-        state.domains = data.domains || {};
-        state.names = data.names || {};
-        zooExploredCacheWrite(data);
+        state.matches = {}; state.asked = {};
+        zooExploredCacheWrite(state);
         paintNow();
       }, function() {
         if (n < ZOO_EXPLORED_RETRY_MS.length) setTimeout(function() { attempt(n + 1); }, ZOO_EXPLORED_RETRY_MS[n]);
