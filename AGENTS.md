@@ -21,7 +21,7 @@ The repository intentionally tracks generated assets: `*.jade` compiles to a com
 **not committed**: they are gitignored, minified into `dist/` by esbuild, and published as
 GitHub Release assets (`make release-userscripts`). Edit the source, then rebuild.
 
-`package.json` exists only for the build-time devDependency `esbuild` (run `npm install` once);
+`package.json` pins build-time dependencies esbuild, Pug, Stylus and TypeScript (run `npm ci` once);
 there are no runtime dependencies, and the shipped browser code is still plain JavaScript.
 Verify with:
 
@@ -39,7 +39,7 @@ make verify
 | `zd-extension/` | Legacy name; shared dictionary data (`db_src/`) and shared browser runtime/styles used by the website and userscripts |
 | `zd-extension/js/zd-words.js` | Shared Vietnamese word primitives — one definition, used by the website and the popup userscript |
 | `zd-extension/js/zd-nom-match.js` | Shared Chu Nom matching engine — one definition, inlined into the nom-ruby userscript and required by `scripts/nom-inspect.js`/tests |
-| `zd-extension/db_src/` | Dictionary sources, including the hand-maintained `user_nom_entries.jsonc` and chunom.org's generated, gitignored `chunom_standard.json` (`docs/chunom-standard.md`) |
+| `zd-extension/db_src/` | Dictionary sources, including the hand-maintained `user_nom_entries/` CSV shards and chunom.org's generated, gitignored `chunom_standard.json` (`docs/chunom-standard.md`) |
 | `scripts/lib/` | Shared primitives for scripts; defined once, imported never redefined |
 | `scripts/userscript/` | The browser runtime and CSS embedded in the generated userscripts |
 | `scripts/check-openspec-lifecycle.js` | OpenSpec lifecycle check; `make check-openspec` |

@@ -37,7 +37,12 @@ function readShard(rootDir, relativeShardPath) {
   if (!fs.existsSync(target)) {
     throw new MissingShardError(rootDir, relativeShardPath);
   }
-  return parseShardCsv(fs.readFileSync(target, 'utf8'));
+  try {
+    return parseShardCsv(fs.readFileSync(target, 'utf8'));
+  } catch (error) {
+    error.message = `${target}: ${error.message}`;
+    throw error;
+  }
 }
 
 // Reads every shard and returns the flat `{vi, key, nom, explain}[]` shape existing callers
@@ -131,6 +136,7 @@ function upsertEntries(rootDir, incomingEntries) {
 
   const written = [];
   const unchanged = [];
+  const prepared = [];
   for (const [relativeShardPath, incomingForShard] of byShardPath) {
     const shardEntries = readShard(rootDir, relativeShardPath);
     const byKey = new Map(shardEntries.map((entry) => [normalizeTerm(entry.vi), entry]));
@@ -139,7 +145,12 @@ function upsertEntries(rootDir, incomingEntries) {
       const merged = mergeEntry(byKey.get(key), incoming);
       byKey.set(key, merged);
     }
-    const changed = writeShardIfChanged(rootDir, relativeShardPath, Array.from(byKey.values()));
+    const entries = Array.from(byKey.values());
+    serializeShardCsv(entries); // Validate all pending writes before publishing any shard.
+    prepared.push([relativeShardPath, entries]);
+  }
+  for (const [relativeShardPath, entries] of prepared) {
+    const changed = writeShardIfChanged(rootDir, relativeShardPath, entries);
     (changed ? written : unchanged).push(relativeShardPath);
   }
   return {written, unchanged};

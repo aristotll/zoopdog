@@ -34,7 +34,9 @@ inlines any of it and never asks for the `GM_xmlhttpRequest` / `127.0.0.1` grant
 `popupdict-local.runtime.js` has no header or IIFE of its own: `scripts/build-popupdict-userscript.js`
 concatenates it inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
 `__ZOOPDOG_RUNTIME_SOURCES__`, the same mechanism used for the other inlined browser sources),
-so it shares scope with the core runtime. The core file calls into it through three
+so it shares scope with the core runtime. The separately testable `local-transport.js` factory
+is inlined ahead of the fragment and receives the userscript manager request function explicitly;
+it preserves the same local routes, payloads, timeouts and error responses. The core file calls into it through three
 `typeof x === 'function'` guarded call sites (`zooRenderLocalActions`, `zooProbeLocalMode`,
 `zooWireSelectionBar`) that are silent no-ops when this fragment isn't built in. Matching styles
 are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
@@ -104,7 +106,7 @@ never overwrite uncommitted work in this repo).
 
 `scripts/build-nom-userscript.js` and `scripts/build-popupdict-userscript.js` each write two
 files per run: the github-hosted `.user.js` (unchanged name, `@updateURL`/`@downloadURL` point
-at the raw github URL as before) and a `-local.user.js` variant whose `@name` gets a `(Local)`
+at GitHub Release assets) and a `-local.user.js` variant whose `@name` gets a `(Local)`
 suffix and whose `@updateURL`/`@downloadURL` point at `file://<absolute path to that file on
 this machine>` instead — so Violentmonkey's "track local file" picks up a rebuild directly,
 without waiting on a github push or periodic update check. The `-local` files are never
@@ -129,7 +131,7 @@ plain wrapper as tampering) while open shadow roots are still annotated.
 
 | Piece | Function(s) |
 | --- | --- |
-| Reachability probe | `zooProbeLocalMode` — one `GET /healthz`, sets `ZOO_LOCAL_AVAILABLE` |
+| Availability initialization | `zooProbeLocalMode` enables local actions; individual requests report connection failures |
 | HTTP transport | `zooHttpRequest` / `zooGetJSON` / `zooPost` — `GM_xmlhttpRequest`, not `fetch` (bypasses CORS; needs `@connect`) |
 | Buttons on the hover popup | `zooRenderLocalActions`, wired via `[data-zd-action]` delegation on `popup.body` in `main()` |
 | Selection toolbar (multi-word) | `zooWireSelectionBar` / `zooHandleSelectionChange` / `zooShowSelectionBar` |
@@ -155,10 +157,14 @@ there is nothing to hand-sync in this file except the rendering of a new field.
 
 ## Reachability and endpoints
 
+- Versioned request/response and method catalog: [`test/fixtures/local-mode-contract.json`](../test/fixtures/local-mode-contract.json),
+  mirrored in book-translator's `tests/fixtures/zoopdog-local-contract.json`. Each repository tests
+  its own routes or callers; when both checkouts exist, tests compare the fixtures too. The catalog
+  version describes the fixture, not a negotiated network protocol version.
 - Base URL: `http://127.0.0.1:8770` (`ZOO_LOCAL_BASE`). Hard-coded — the reader server always
   runs on this port locally (see `AGENTS-book-server.md` in `book-translator`).
-- Probe: `GET /healthz`. Runs once at `document-idle`; result is not re-checked, so a server that
-  starts *after* a page has already loaded needs that page reloaded to pick up local mode.
+- No startup probe: the local build enables its actions immediately. Each request reports its own
+  failure, and requests made after the reader starts can succeed without reloading the page.
 - `GET /v1/suggest?kind=nom&text=...` — Chữ Nôm candidates for the "Add entry" field's datalist.
 - `GET /v1/suggest?kind=nom-notes&text=...` — a live-translated Notes draft. Fetched in parallel,
   never blocking the fields above — see "Known slow paths" below.
@@ -191,7 +197,9 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `current_hint` and default `pick` (the recorded first choice when it is not already the ruby on screen, else the second rendering: never the shown one) already
   written by the server.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
-  This one *replaces* the preference, so it always goes through preview → confirm.
+  This one *replaces* the preference, so it always goes through preview → confirm. When the
+  case-sensitive option is selected, both preview and save include `caseSensitive=1` so they
+  refer to the same exact-spelling row.
 
 - `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` (optionally `session` and `voice: "next"`: the Eudic plugins' "play all" button rotates the engine per session, the userscript does not use it) — read the selection aloud. Triggered
   by Alt+R (matched by physical key, so macOS Option works) or the 🔊 button in the selection bar

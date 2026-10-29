@@ -68,7 +68,8 @@ function scanTime(matcher, words) {
   return best;
 }
 
-test('scanning one long run of words costs linear, not quadratic, time', () => {
+test('benchmark: scanning one long run of words costs linear, not quadratic, time',
+  {skip: process.env.ZD_BENCHMARK !== '1' && 'set ZD_BENCHMARK=1 to run timing benchmark'}, () => {
   const matcher = zdCreateNomMatcher({'zz1 zz2': '二', 'nhà': '茹'}, {annotateAsciiTerms: true});
   scanTime(matcher, 500); // warm up
   const small = scanTime(matcher, 1500);
@@ -77,4 +78,22 @@ test('scanning one long run of words costs linear, not quadratic, time', () => {
   // The threshold sits well below the quadratic case but leaves headroom above the ~2-4x
   // typically observed, so a real regression still trips it without noise-driven flakes.
   assert.ok(large / small < 12, `6000 words took ${(large / small).toFixed(1)}x the time of 1500`);
+});
+
+test('matching work grows linearly with long word runs', () => {
+  function probes(count) {
+    const matcher = zdCreateNomMatcher({'zz1 zz2': '二', 'nhà': '茹'}, {annotateAsciiTerms: true});
+    let calls = 0;
+    for (const method of ['get', 'has', 'hasPrefix']) {
+      const original = matcher.index[method];
+      matcher.index[method] = function(key) { calls++; return original.call(this, key); };
+    }
+    const text = Array.from({length: count}, (_, i) => `zz${i % 97}`).join(' ');
+    let offset = 0, match;
+    while ((match = matcher.findNomMatch(text, offset))) offset = match.index + match.length;
+    return calls;
+  }
+  const small = probes(1500), large = probes(6000);
+  assert.ok(small > 0);
+  assert.ok(large <= small * 5, `${large} probes for 6000 words vs ${small} for 1500`);
 });

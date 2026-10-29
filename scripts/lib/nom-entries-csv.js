@@ -30,13 +30,25 @@ function parseCsv(text) {
   let row = [];
   let field = '';
   let inQuotes = false;
+  let closedQuote = false;
   let i = 0;
+  const fail = (message) => {
+    const before = text.slice(0, i);
+    const lines = before.split(/\r\n|\r|\n/);
+    const line = lines.length;
+    const column = lines[lines.length - 1].length + 1;
+    throw new Error(`${message} at line ${line}, column ${column}`);
+  };
   const push = () => {
     row.push(field);
     field = '';
+    closedQuote = false;
   };
   const endRow = () => {
     push();
+    if (!(row.length === 1 && row[0] === '') && row.length !== HEADER.length) {
+      fail('Expected three CSV columns');
+    }
     rows.push(row);
     row = [];
   };
@@ -50,6 +62,7 @@ function parseCsv(text) {
           continue;
         }
         inQuotes = false;
+        closedQuote = true;
         i++;
         continue;
       }
@@ -58,6 +71,7 @@ function parseCsv(text) {
       continue;
     }
     if (char === '"') {
+      if (field !== '' || closedQuote) fail('Unexpected quote');
       inQuotes = true;
       i++;
       continue;
@@ -77,10 +91,12 @@ function parseCsv(text) {
       i++;
       continue;
     }
+    if (closedQuote) fail('Unexpected character after closing quote');
     field += char;
     i++;
   }
-  if (field !== '' || row.length) {
+  if (inQuotes) fail('Unclosed quote');
+  if (field !== '' || row.length || closedQuote) {
     endRow();
   }
   return rows;

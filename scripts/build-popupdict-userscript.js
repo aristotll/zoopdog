@@ -27,10 +27,15 @@ const userNomPath = repoPaths.absolute.userNomEntries;
 const userNomOrderPath = repoPaths.absolute.userNomOrder;
 const chunomPath = repoPaths.absolute.chunomStandard;
 
+/** @typedef {[string, string] | [string, string, string]} PopupSenseTuple */
+/** @typedef {[string[], PopupSenseTuple[]]} PopupEntryTuple */
+
 const sourceFiles = [
   // Shared word primitives, inlined ahead of the runtime that calls them. The popup shows no
   // auto-generated pronunciation, so the pron/chroma code is deliberately not embedded.
-  'zd-extension/js/zd-words.js'
+  'zd-extension/js/zd-words.js',
+  'scripts/userscript/nom-review-store.js',
+  'scripts/userscript/safe-html.js'
 ];
 
 // The -local variant adds the "add/edit Chu Nom entries" ability (docs/local-mode.md) by
@@ -99,6 +104,26 @@ function readRuntimeSources(localMode) {
   });
 
   if (localMode) {
+    parts.push([
+      '// ===== scripts/userscript/local-transport.js =====',
+      readRuntime('local-transport.js')
+    ].join('\n'));
+    parts.push([
+      '// ===== scripts/userscript/local-selection.js =====',
+      readRuntime('local-selection.js')
+    ].join('\n'));
+    parts.push([
+      '// ===== scripts/userscript/local-modal-geometry.js =====',
+      readRuntime('local-modal-geometry.js')
+    ].join('\n'));
+    parts.push([
+      '// ===== scripts/userscript/local-entry-diff.js =====',
+      readRuntime('local-entry-diff.js')
+    ].join('\n'));
+    parts.push([
+      '// ===== scripts/userscript/local-modal-guard.js =====',
+      readRuntime('local-modal-guard.js')
+    ].join('\n'));
     parts.push([
       '// ===== scripts/userscript/popupdict-local.runtime.js =====',
       readRuntime('popupdict-local.runtime.js')

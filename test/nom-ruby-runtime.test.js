@@ -120,7 +120,7 @@ function createDom() {
       }
       this.childNodes.splice(index, 1);
       node.parentNode = null;
-      record({type: 'childList', target: this, addedNodes: []});
+      record({type: 'childList', target: this, addedNodes: [], removedNodes: [node]});
       return node;
     }
   }
@@ -751,4 +751,254 @@ test('the attachShadow patch of an ordinary page still reads as native code', ()
 
   assert.equal(dom.attachShadowPatched(), true);
   assert.match(Function.prototype.toString.call(dom.attachShadowFn()), /\[native code\]/);
+});
+
+test('character changes and queued additions inside excluded ancestors are not annotated', () => {
+  for (const tag of ['ruby', 'rt', 'rp', 'script', 'style', 'noscript', 'select', 'textarea',
+    'input', 'button', 'option', 'code', 'pre', 'kbd', 'samp']) {
+    const dom = runRuntime(NOM_MAP);
+    const wrapper = dom.document.createElement(tag);
+    const child = dom.document.createElement('span');
+    const text = dom.document.createTextNode('foo');
+    child.appendChild(text);
+    wrapper.appendChild(child);
+    dom.body.appendChild(wrapper);
+    dom.tick();
+    text.nodeValue = 'bạn';
+    dom.tick();
+    assert.equal(visibleText(child), 'bạn', tag);
+    assert.deepEqual(rubyAnnotations(child), [], tag);
+    const added = dom.document.createElement('span');
+    added.appendChild(dom.document.createTextNode('bạn'));
+    child.appendChild(added);
+    dom.tick();
+    assert.deepEqual(rubyAnnotations(added), [], `${tag}: nested addition`);
+  }
+});
+
+test('rewriting a later segment retires the entire cross-node annotation', () => {
+  const dom = runRuntime(NOM_MAP);
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  const firstText = dom.document.createTextNode('tình ');
+  const lastText = dom.document.createTextNode('cảm');
+  first.appendChild(firstText);
+  last.appendChild(lastText);
+  parent.appendChild(first);
+  parent.appendChild(last);
+  dom.body.appendChild(parent);
+  dom.tick();
+  lastText.nodeValue = 'bạn';
+  dom.tick();
+  assert.equal(visibleText(parent), 'tình bạn');
+  assert.deepEqual(rubyAnnotations(parent), ['伴']);
+});
+
+test('removing a segment retires remaining pieces without restoring removed content', () => {
+  const dom = runRuntime(NOM_MAP);
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  first.appendChild(dom.document.createTextNode('tình '));
+  last.appendChild(dom.document.createTextNode('cảm'));
+  parent.appendChild(first); parent.appendChild(last); dom.body.appendChild(parent); dom.tick();
+  parent.removeChild(last); dom.tick();
+  assert.equal(visibleText(parent), 'tình ');
+  assert.deepEqual(rubyAnnotations(parent), []);
+});
+
+test('adding an empty element does not rescan unrelated old paragraphs', () => {
+  for (const count of [20, 100]) {
+    const dom = runRuntime(NOM_MAP);
+    const texts = [];
+    for (let i = 0; i < count; i++) {
+      const p = dom.document.createElement('p');
+      const text = dom.document.createTextNode('nothing here');
+      texts.push(text); p.appendChild(text); dom.body.appendChild(p);
+    }
+    dom.tick();
+    let reads = 0;
+    for (const text of texts) Object.defineProperty(text, 'nodeValue', {
+      get() { reads++; return this.data; }, set(value) { this.data = value; }, configurable: true
+    });
+    dom.body.appendChild(dom.document.createElement('div'));
+    dom.tick();
+    assert.ok(reads < 10, `${count} paragraphs caused ${reads} reads`);
+  }
+});
+
+test('rewriting the first segment preserves unchanged following text and tail', () => {
+  const dom = runRuntime(NOM_MAP);
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  const firstText = dom.document.createTextNode('tình ');
+  first.appendChild(firstText);
+  last.appendChild(dom.document.createTextNode('cảm của bạn'));
+  parent.appendChild(first); parent.appendChild(last); dom.body.appendChild(parent); dom.tick();
+  firstText.nodeValue = 'bạn ';
+  dom.tick();
+  assert.equal(visibleText(parent), 'bạn cảm của bạn');
+});
+
+test('queued text moved into an editable ancestor stays unannotated', () => {
+  const dom = runRuntime(NOM_MAP);
+  const paragraph = dom.document.createElement('p');
+  const editor = dom.document.createElement('div');
+  editor.isContentEditable = true;
+  dom.body.appendChild(paragraph); dom.body.appendChild(editor); dom.tick();
+  const text = dom.document.createTextNode('bạn');
+  paragraph.appendChild(text);
+  editor.appendChild(text);
+  dom.tick();
+  assert.equal(visibleText(editor), 'bạn');
+  assert.deepEqual(rubyAnnotations(editor), []);
+});
+
+test('rewriting each segment of a three-node span preserves all other text', () => {
+  for (const changed of [0, 1, 2]) {
+    const dom = runRuntime({...NOM_MAP, 'tình cảm bạn': '情感伴'});
+    const parent = dom.document.createElement('p');
+    const nodes = [];
+    for (const value of ['tình ', 'cảm ', 'bạn']) {
+      const span = dom.document.createElement('span');
+      const text = dom.document.createTextNode(value);
+      nodes.push(text); span.appendChild(text); parent.appendChild(span);
+    }
+    dom.body.appendChild(parent); dom.tick();
+    const replacement = changed === 2 ? 'của' : 'của ';
+    nodes[changed].nodeValue = replacement;
+    dom.tick();
+    const expected = ['tình ', 'cảm ', 'bạn'];
+    expected[changed] = replacement;
+    assert.equal(visibleText(parent), expected.join(''), `changed segment ${changed}`);
+  }
+});
+
+test('a page edit to a generated trailing text node survives later span reconciliation', () => {
+  const dom = runRuntime(NOM_MAP);
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  const firstText = dom.document.createTextNode('tình ');
+  first.appendChild(firstText); last.appendChild(dom.document.createTextNode('cảm xyz'));
+  parent.appendChild(first); parent.appendChild(last); dom.body.appendChild(parent); dom.tick();
+  const tail = last.childNodes.find(node => node.nodeType === TEXT_NODE && node.nodeValue.includes('xyz'));
+  assert.ok(tail);
+  tail.nodeValue = ' mới'; dom.tick();
+  firstText.nodeValue = 'bạn '; dom.tick();
+  assert.equal(visibleText(parent), 'bạn cảm mới');
+});
+
+test('rewriting a segment without its own ruby retires the cross-node annotation', () => {
+  const dom = runRuntime({...NOM_MAP, 'tình cảm': '情'});
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  first.appendChild(dom.document.createTextNode('tình '));
+  const lastText = dom.document.createTextNode('cảm');
+  last.appendChild(lastText); parent.appendChild(first); parent.appendChild(last);
+  dom.body.appendChild(parent); dom.tick();
+  lastText.nodeValue = 'bạn'; dom.tick();
+  assert.equal(visibleText(parent), 'tình bạn');
+  assert.deepEqual(rubyAnnotations(parent), ['伴']);
+});
+
+test('a small body insertion does not rescan a large preceding subtree', () => {
+  const dom = runRuntime(NOM_MAP);
+  const feed = dom.document.createElement('div');
+  const texts = [];
+  for (let i = 0; i < 120; i++) {
+    const p = dom.document.createElement('p');
+    const text = dom.document.createTextNode('unrelated');
+    texts.push(text); p.appendChild(text); feed.appendChild(p);
+  }
+  dom.body.appendChild(feed); dom.tick();
+  let reads = 0;
+  for (const text of texts) Object.defineProperty(text, 'nodeValue', {
+    get() { reads++; return this.data; }, set(value) { this.data = value; }, configurable: true
+  });
+  const added = dom.document.createElement('p');
+  added.appendChild(dom.document.createTextNode('bạn'));
+  dom.body.appendChild(added); dom.tick();
+  assert.ok(reads < 10, `read ${reads} unrelated text nodes`);
+  assert.deepEqual(rubyAnnotations(added), ['伴']);
+});
+
+test('changing a segment with its own later annotation retires the cross-node annotation', () => {
+  const dom = runRuntime({'tình bạn': '情', 'bạn': '伴', 'của': '𧵑'});
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  first.appendChild(dom.document.createTextNode('tình '));
+  const lastText = dom.document.createTextNode('bạn');
+  last.appendChild(lastText); parent.appendChild(first); parent.appendChild(last);
+  dom.body.appendChild(parent); dom.tick();
+  lastText.nodeValue = 'của'; dom.tick();
+  assert.equal(visibleText(parent), 'tình của');
+  assert.deepEqual(rubyAnnotations(parent), ['𧵑']);
+});
+
+test('an unannotated span segment leaves its following text eligible for annotation', () => {
+  const dom = runRuntime({'tình bạn': '情', 'bạn': '伴', 'của': '𧵑'});
+  const parent = dom.document.createElement('p');
+  const first = dom.document.createElement('span');
+  const last = dom.document.createElement('span');
+  first.appendChild(dom.document.createTextNode('tình '));
+  last.appendChild(dom.document.createTextNode('bạn của'));
+  parent.appendChild(first); parent.appendChild(last); dom.body.appendChild(parent); dom.tick();
+  assert.equal(visibleText(parent), 'tình bạn của');
+  assert.deepEqual(rubyAnnotations(parent), ['情', '𧵑']);
+});
+
+test('removing a deeply nested detached subtree does not overflow during mutation cleanup', () => {
+  const dom = runRuntime(NOM_MAP);
+  const root = dom.document.createElement('div');
+  let parent = root;
+  for (let i = 0; i < 12000; i++) {
+    const child = dom.document.createElement('div');
+    // Construct the detached fixture without enqueuing unrelated mutation records.
+    parent.childNodes.push(child); child.parentNode = parent; parent = child;
+  }
+  dom.body.appendChild(root);
+  dom.body.removeChild(root);
+  assert.doesNotThrow(() => dom.tick());
+  assert.deepEqual(rubyAnnotations(dom.body), []);
+});
+
+test('edits and nested additions in a contenteditable ancestor are never annotated', () => {
+  const dom = runRuntime(NOM_MAP);
+  const editor = dom.document.createElement('div');
+  editor.isContentEditable = true;
+  const child = dom.document.createElement('span');
+  const text = dom.document.createTextNode('foo');
+  child.appendChild(text); editor.appendChild(child); dom.body.appendChild(editor); dom.tick();
+  text.nodeValue = 'bạn';
+  const added = dom.document.createElement('span');
+  added.appendChild(dom.document.createTextNode('bạn'));
+  child.appendChild(added); dom.tick();
+  assert.equal(visibleText(editor), 'bạnbạn');
+  assert.deepEqual(rubyAnnotations(editor), []);
+});
+
+test('append to feeds of different sizes inspects only a bounded preceding region', () => {
+  for (const count of [20, 120, 500]) {
+    const dom = runRuntime(NOM_MAP);
+    const feed = dom.document.createElement('div'), texts = [];
+    for (let i = 0; i < count; i++) {
+      const row = dom.document.createElement('p'), text = dom.document.createTextNode('unrelated');
+      texts.push(text); row.appendChild(text); feed.appendChild(row);
+    }
+    dom.body.appendChild(feed); dom.tick();
+    let reads = 0;
+    for (const text of texts) Object.defineProperty(text, 'nodeValue', {
+      get() { reads++; return this.data; }, set(value) { this.data = value; }, configurable: true
+    });
+    const added = dom.document.createElement('p');
+    added.appendChild(dom.document.createTextNode('bạn'));
+    feed.appendChild(added); dom.tick();
+    assert.ok(reads < 12, `${count} rows caused ${reads} reads`);
+    assert.deepEqual(rubyAnnotations(added), ['伴']);
+  }
 });

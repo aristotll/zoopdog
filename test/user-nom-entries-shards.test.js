@@ -62,3 +62,34 @@ test('no shard holds two rows for the same normalized term', () => {
   }
   assert.deepEqual(duplicates, []);
 });
+
+test('malformed CSV is rejected with position and valid quoted Unicode round-trips', () => {
+  for (const row of ['ba,巴,"\nbốn,四,\n', 'ba,巴,ab"c\n', 'ba,巴,"x"z\n', 'ba,巴\n', 'ba,巴,x,y\n']) {
+    assert.throws(() => parseShardCsv('vi,nom,explain\n' + row), /line \d+.*column \d+/i, row);
+  }
+  const entries = [{vi: 'bốn', nom: ['四'], explain: ['một, "hai"\nba']}];
+  assert.deepEqual(parseShardCsv(serializeShardCsv(entries)), entries);
+});
+
+test('upsert validates every affected shard before writing any', () => {
+  const os = require('node:os');
+  const {upsertEntries} = require('../scripts/lib/nom-entries-store');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nom-shards-invalid-'));
+  try {
+    const first = 'ba';
+    const second = ['bốn', 'chó', 'cá'].find(word => shardPathFor(word) !== shardPathFor(first));
+    const firstFile = path.join(root, shardPathFor(first));
+    const secondFile = path.join(root, shardPathFor(second));
+    const artifact = path.join(root, 'existing-artifact.json');
+    fs.mkdirSync(path.dirname(firstFile), {recursive: true});
+    fs.mkdirSync(path.dirname(secondFile), {recursive: true});
+    fs.writeFileSync(firstFile, 'vi,nom,explain\n');
+    const invalid = 'vi,nom,explain\nx,字,"unclosed';
+    fs.writeFileSync(secondFile, invalid);
+    fs.writeFileSync(artifact, 'unchanged artifact');
+    assert.throws(() => upsertEntries(root, [{vi: first, nom: ['巴']}, {vi: second, nom: ['四']}]), error => error.message.includes(secondFile));
+    assert.equal(fs.readFileSync(firstFile, 'utf8'), 'vi,nom,explain\n');
+    assert.equal(fs.readFileSync(secondFile, 'utf8'), invalid);
+    assert.equal(fs.readFileSync(artifact, 'utf8'), 'unchanged artifact');
+  } finally { fs.rmSync(root, {recursive: true, force: true}); }
+});

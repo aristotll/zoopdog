@@ -215,13 +215,13 @@ test('folds a full-sentence gloss into its matching bundle despite trailing punc
   assert.deepEqual(groups[0].en, [{def: 'to take place, occur, happen, unfold', pos: ''}]);
 });
 
-test('folds a contraction sense into its base word', () => {
+test('keeps a contraction phrase when the other sense does not cover it', () => {
   const groups = groupEntries([
     {vn: 'chuyện gì', en: [{def: 'what (thing, issue)', pos: ''}]},
     {vn: 'chuyện gì', en: [{def: "what's going on", pos: ''}]}
   ]);
   assert.equal(groups.length, 1);
-  assert.deepEqual(groups[0].en, [{def: 'what (thing, issue)', pos: ''}]);
+  assert.deepEqual(groups[0].en, [{def: 'what (thing, issue)', pos: ''}, {def: "what's going on", pos: ''}]);
 });
 
 test('folds a middle-word sense via suffix morphology, not just literal substring match', () => {
@@ -399,12 +399,12 @@ test('folds a lone adverb into a phrase it suffixes once, when a generic verb pr
   assert.deepEqual(groups[0].en, [{def: 'to act suddenly', pos: ''}]);
 });
 
-test('folds a lone adverb into a phrase it suffixes once, when a pronoun precedes it', () => {
+test('keeps a pronoun phrase when the other sense does not cover it', () => {
   const groups = groupEntries([
     {vn: 'cá nhân tôi', en: [{def: 'personally (I feel, think, etc)', pos: ''}]},
     {vn: 'cá nhân tôi', en: [{def: 'I personally', pos: ''}]}
   ]);
-  assert.deepEqual(groups[0].en, [{def: 'personally (I feel, think, etc)', pos: ''}]);
+  assert.deepEqual(groups[0].en, [{def: 'personally (I feel, think, etc)', pos: ''}, {def: 'I personally', pos: ''}]);
 });
 
 test('does not fold a lone adverb suffixing a phrase headed by a real content verb', () => {
@@ -499,4 +499,56 @@ test('buildCollisionReport and groupEntries are deterministic across reruns (byt
   const reportA = buildCollisionReport(groupEntries(source));
   const reportB = buildCollisionReport(groupEntries(source));
   assert.equal(JSON.stringify(reportA), JSON.stringify(reportB));
+});
+
+test('partially overlapping meaning bundles retain every distinct token', () => {
+  const source = [{vn: 'sắc', en: [
+    {def: 'sharp, biting, cutting', pos: 'adj'},
+    {def: 'sharp, acute, keen', pos: 'adj'}
+  ]}, {vn: 'bao bọc', en: [
+    {def: 'cover, envelope, covering', pos: 'v'},
+    {def: 'to envelope, protect', pos: 'v'}
+  ]}];
+  const groups = groupEntries(source);
+  assert.equal(groups[0].en.length, 2);
+  assert.ok(groups[1].en.some(sense => sense.def.includes('protect')));
+});
+
+test('lossless validator rejects missing token, POS and headword', () => {
+  const {verifyLossless} = require('../scripts/lib/dictionary-identity');
+  const source = [{vn: 'Ba Lê', en: [{def: 'sharp, acute', pos: 'adj'}]},
+    {vn: 'ba lê', en: [{def: 'ballet', pos: 'n'}]}];
+  const good = groupEntries(source);
+  for (const mutate of [
+    g => {g[0].en[0].def = 'sharp';},
+    g => {g[0].en[0].pos = '';},
+    g => {g[0].en[1].headword = 'Ba Lê';}
+  ]) {
+    const copy = JSON.parse(JSON.stringify(good));
+    mutate(copy);
+    assert.throws(() => verifyLossless(source, copy), /Lossy/);
+  }
+});
+
+test('lossless validation accepts source tokens preserved across separate output senses', () => {
+  const {verifyLossless} = require('../scripts/lib/dictionary-identity');
+  const source = [{vn: 'sắc', en: [{def: 'sharp, biting, cutting', pos: 'adj'}]}];
+  const output = [{key: 'sắc', headwords: ['sắc'], en: [
+    {def: 'sharp, biting', pos: 'adj'}, {def: 'cutting', pos: 'adj'}
+  ]}];
+  assert.doesNotThrow(() => verifyLossless(source, output));
+});
+
+test('a blank-POS bridge does not collapse independently tagged senses', () => {
+  const source = [{vn: 'đọc', en: [
+    {def: 'read', pos: 'noun'},
+    {def: 'read', pos: 'verb'},
+    {def: 'read', pos: ''}
+  ]}];
+  const [group] = groupEntries(source);
+  assert.deepEqual(group.en, [{def: 'read', pos: 'noun'}, {def: 'read', pos: 'verb'}]);
+  const reversed = [{vn: 'đọc', en: [source[0].en[1], source[0].en[0], source[0].en[2]]}];
+  assert.deepEqual(groupEntries(reversed)[0].en, [
+    {def: 'read', pos: 'verb'}, {def: 'read', pos: 'noun'}
+  ]);
 });

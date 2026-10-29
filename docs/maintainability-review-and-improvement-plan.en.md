@@ -8,7 +8,103 @@ The static website architecture and plain JavaScript suit this project. Shared m
 
 The highest priorities are data integrity, annotation lifecycle, UI result contracts, and reproducible builds and releases. The current green test suite does not prevent several issues that have concrete reproductions. Once these gaps are closed, incrementally split up the runtimes and add static checks.
 
-This document records findings and an implementation plan; the issues below are **not fixed**. This review did not change source code, tests, dictionary data, lockfiles, or third-party libraries.
+The findings below describe the original review and are retained as historical evidence. See the implementation update below for the current status; unchecked work and browser verification remain open.
+
+## Implementation update — 2026-10-28
+
+The changes between the reviewed commit and `c872e08` added compatibility with sites that replace `Array.from` in the popup and Nôm runtimes, plus dictionary entries. They do not address the underlying F01–F17 findings; the original line numbers and counts are historical rather than current. The following subsequent changes address parts of phase B:
+
+- F07: lookup now checks own dictionary properties; a JSON-parsed fixture covers missing and legitimate `constructor` entries.
+- F08: the core returns arrays for input without words, and the website handles whitespace and null paragraph matches. Core and VM adapter regressions cover whitespace and recovery; broader input and browser smoke coverage remain open.
+- F09: Cartesian products use an iterative generator preserving order and the existing limit check. A regression covers 4,000 singleton tokens and a small branching product.
+- F01: partial-overlap bundles are retained, and validation checks tokens, POS and display-headword association; fixture and real-data builds pass. A later regression found that an untagged sense could bridge and erase two different POS tags; grouping now retains both. On one copied real-data snapshot the build before and after that additional fix produced 77,822 entries and the same 9,624,352-byte payload, SHA-256 `d55df7f819634129f529b0f5823a82b0db2470a7e58f1833c0c382eb8b19ab62`. The semantic comparison below records the earlier grouping changes.
+- F02, F05–F06: cross-node ownership now covers later segments, unannotated segments, edited tails and removals; queued scans check excluded ancestors and limit preceding-sibling inspection to 64 nodes. A review regression also covers an unannotated segment which would otherwise overwrite its span ownership with an independent annotation. DOM fixtures cover rewrites, removal, editable moves, delayed lines and bounded appends. Removal cleanup now walks iteratively to avoid overflowing the stack on deep detached trees. Additional browser smoke remains open.
+- F03–F04: malformed CSV fails with location and shard path before affected shards are written; release minification waits for builders. Fixture tests cover failure propagation and serial/parallel Make ordering.
+- F10: release versions are based on both assets from a pinned latest GitHub Release, with optional explicit versions, a recheck before publication and mocked tests. A dry run against actual release metadata succeeded in a temporary copy; actual remote publication remains untested.
+- F11: new metadata points to an immutable digest-named payload written before the pointer; interleaved and injected-failure tests pass. A current reader detecting a legacy payload mismatch checks for a newer pointer once, and refuses to install a mutable legacy payload without a digest. A local HTTP integration test switches generations between requests and checks the preceding immutable payload remains available. A local static-host publisher validates both generations, writes the pointer last and retains prior payloads. A subprocess killed after either payload write left the prior revision readable and was successfully retried. Actual remote hosting has not been tested; legacy readers still use the mutable file and may see a transient mismatch.
+- F12: verification prepares each run in its own source snapshot and preserves the first failure. Two simultaneous isolated runs each passed 387 tests with one optional audit skipped. An inherited `NODE` setting selected Node 26 for those two runs; the latest run explicitly selected Node 24 and passed 441 tests, with the optional audit and benchmark skipped.
+- F13–F14: Node 24, Pug, Stylus and esbuild are pinned; byte comparison matched the existing generated pages/styles. PR CI runs build, tests, minification and drift checks in an isolated snapshot; a separate scheduled/data-change audit runs the optional check.
+- F15–F16: local HTTP transport, selection and drag-range helpers, modal geometry, entry-diff rendering, modal submission guard and the offline review queue have independently tested adapters; website popup position uses localStorage without extension APIs. The local runtime retains UI event wiring and modal state. A versioned route and response-fixture catalog is mirrored and checked in book-translator, including legacy/current suggestion replies and validation errors. A preview previously omitted `caseSensitive` and compared a different row from the save; both clients and the reader route are now tested for the same flag.
+  The current checkouts passed the two Zoopdog contract tests and the three selected reader
+  contract, exact-case preview and validation tests using the reader's `.venv`; this is not
+  a record of maintainer acceptance.
+- F17: corrected several stale build, local-mode and contributor instructions. The optional meaning audit records 285 overlapping pairs as pending data curation; passing the audit means no new findings, not that those pairs have been resolved. The `chỗ nào`, `sáng chế ra`, `mục từ` and `đấu loại` pairs came from concurrently edited shards and were retained, not removed from user data. Their overlapping terms sit alongside additional words, so the loose overlap alone does not justify discarding either definition.
+- Browser smoke: on localhost the website fetched a revision-named payload and reported 77,817 entries; pronunciation and homophone pages handled whitespace, recovered on valid input, and the homophone UI completed 4,000 tokens. Metadata failure used the previous IndexedDB data and Retry recovered; a pointer lookup displayed a sandboxed iframe and Shift pinned it. The first browser run exposed a status-rendering TypeError, now covered by a regression and fixed. Additional dynamic-widget and CSP smoke is recorded below; actual userscript-manager testing remains open.
+
+On a subsequent local website run the dictionary refreshed 77,822 entries. Pointer lookup of
+`buổi sáng` rendered the result in an iframe with `sandbox="allow-scripts"`; the frame message
+changed its initial zero-sized dimensions to 260 by 340 pixels. This was an in-app browser
+check, not a test of a userscript manager.
+
+On 2026-10-29, a read-only semantic comparison used one copied source snapshot against the
+grouping module from `2378451`: 82,317 input rows, 5,993 user rows, 77,822 keys, 467 keys with
+changed sense tuples, 788 added tuples and 96 removed tuples. Of the 96 removed tuples, 92 have
+the same definition under a corrected source POS or headword; the other four are `derived from`
+(`do`), `to worry` (`lo lắng`), `mistake` (`sai lầm`) and `sick, ill` (`ốm`), represented by
+the retained related definitions. `bao bọc` now retains `protect` on the verb sense, and `chuyện
+gì` retains `what's going on`. The copied shard tree (128 CSVs plus SHARDING.md, sorted paths
+and bytes) SHA-256 was `3942a035bbecfadce71cffe3262b240658d831df2aa458d31e733fee755e6299`;
+`vnedict2.json` SHA-256 was `c63c216c37d6ef29d92840b64c28fe5dd2201078c43b86c1c6732976ad6ffae2`.
+The optional chunom layer was present. These are exact-tuple differences, not a claim that all
+semantic equivalence has been proved; source shards can change concurrently after the snapshot.
+
+A separate 2026-10-29 build used the current builders and the same copied inputs with either
+the `2378451` or current identity module. The source checkout revision was `c872e08` plus
+working-tree edits. The sorted shard tree (129 files, hashing each relative path, NUL, then
+bytes) was `006c3e914e893ff5bda8d53c61112a196c8fca88c66b87dbf1a5ef066b410980`;
+`vnedict2.json` was `c63c216c37d6ef29d92840b64c28fe5dd2201078c43b86c1c6732976ad6ffae2`,
+the present chunom layer was `4adb9f9b7f7a20c71129652f6fff3cc1160fc570d0933a2951685b12bb`,
+and the order file was `d2a7c87831b761e0bfb928ddb67fdad3afdc551e5fe583cd327ab0e66229c31c`.
+Both builds produced 77,822 keys: the baseline payload was 9,596,642 bytes with SHA-256
+`f720a4733b2a862efb96db0c8c3b87372e7e67da4177b7954f7b61f450152f0e`; the current payload
+was 9,624,352 bytes with SHA-256
+`d55df7f819634129f529b0f5823a82b0db2470a7e58f1833c0c382eb8b19ab62`. For `bao bọc`, the
+baseline order was `包襆 (包幞)`, `cover, envelope, covering` (verb); current order is the
+same Nôm form, `cover, envelope, covering` (untagged), then `to envelope, protect` (verb).
+For `chuyện gì`, current output preserves `傳之`, `what (thing, issue)`, then `what's going
+on`; baseline omitted the last sense. The earlier tuple comparison remains the semantic
+review, rather than treating equal counts or digests as proof of losslessness.
+
+Additional browser smoke on a local synthetic page exercised a cross-node span whose reading has
+fewer characters than words, a later source rewrite, an excluded `<pre>` and an open shadow
+root. It used the real rendered runtime but did not install it in a userscript manager.
+Another local page exercised rewrites of the first, middle and last segments of separate
+three-node annotations, mutation inside a contenteditable element, and an appended feed item.
+The changed text and unaffected segments remained visible, the editor stayed unannotated,
+and the appended word received ruby in the in-app browser.
+
+A second synthetic browser check exercised Trusted Types: the popup worked when the CSP
+permitted the `zoopdog-userscript` policy, but `trusted-types 'none'` prevented policy
+creation and the string fallback initially failed at the `innerHTML` sink. The fallback now
+builds the escaped internal templates using restricted DOM operations; the same browser check
+showed dictionary results under both policies. Unit tests cover rejected markup, decoded text,
+the denied-policy path and the real local modal templates. Actual userscript-manager
+compatibility remains unverified.
+Tampermonkey and Violentmonkey are present in Chrome profiles on this machine. On 2026-10-30,
+the user provided a specific Google Search tab through the book-translator CDP bridge. Its
+already-running Zoopdog runtimes rendered a three-segment fixture and preserved the expected
+text after separate first, middle and last rewrites; a contenteditable node stayed unannotated.
+Hovering `phút chót` displayed `last minute`, and dragging a selection opened the toolbar and
+the local order modal. The fixture was removed and the modal closed without saving. This shows
+behavior in that tab, but the installed manager identity and exact userscript version were not
+verified, nor was a manager-driven strict-CSP run; those checks remain open.
+
+An isolated build comparison used that same copied dictionary snapshot for `2378451` and the
+current sources. The embedded Nôm maps were identical (47,424 keys), and the public and local
+userscript `@grant`/`@connect` lines were unchanged. Minified public Nôm size changed from
+1,396,704 to 1,398,588 bytes; the popup changed from 6,129,699 to 6,147,776 bytes. One sequential
+`bench-nom.js` run on the same machine measured old/new map evaluation at 13.8/12.8 ms for Nôm
+and 73.3/75.3 ms for popup, and clause scanning at 12.2/13.8 ms for 4,350 matches. These are
+single benchmark observations, not a timing gate or evidence of a stable performance ratio.
+
+After extracting the local diff renderer and submit guard, a separate pair of builds used the
+same copied inputs, with the previous inline code reconstructed in one copy. The public popup
+userscripts were byte-identical at 7,136,413 bytes. The local script changed from 7,233,600 to
+7,233,926 bytes; its metadata also contains the different absolute paths of the two temporary
+directories. The standalone and existing local-runtime tests exercise rendering and submission
+behavior; the comparison does not replace userscript-manager testing.
+
+Other findings and remaining acceptance criteria remain open until independently verified. In particular, legacy deployment compatibility, real-browser interactions, further runtime extraction and cross-repository contracts remain unresolved. The phases are separate work streams rather than a single safe refactor; retain their acceptance criteria and do not archive the OpenSpec change prematurely.
 
 ## Scope and method
 
@@ -194,45 +290,45 @@ Effort estimates are relative estimates for a maintainer familiar with the code,
 
 ### A — Protect data and DOM ownership
 
-- [ ] Record baseline source revision, candidate order, entry count, artifact digest, and intentional output. Do not use a whole-output digest as the sole oracle when correct output must change.
-- [ ] Add failing F01 tests, then fix grouping and validate independently; review semantic differences in senses/headwords/POS on real data.
-- [ ] Add failing F02 tests, then fix ownership for every segment; preserve cross-node/shadow/removal regressions.
-- [ ] Add malformed CSV fixtures for F03; retain codec round-trip and error context at the loader boundary.
-- [ ] Use the corresponding tasks in the existing OpenSpec change; do not create a second change describing R1–R3.
+- [x] Record baseline source revision, candidate order, entry count, artifact digest, and intentional output. Do not use a whole-output digest as the sole oracle when correct output must change.
+- [x] Add failing F01 tests, then fix grouping and validate independently; review semantic differences in senses/headwords/POS on real data.
+- [x] Add failing F02 tests, then fix ownership for every segment; preserve cross-node/shadow/removal regressions.
+- [x] Add malformed CSV fixtures for F03; retain codec round-trip and error context at the loader boundary.
+- [x] Use the corresponding tasks in the existing OpenSpec change; do not create a second change describing R1–R3.
 
 ### B — Runtime behavior and cost
 
-- [ ] Fix the Make graph and test order/failure propagation with an event logger (F04).
-- [ ] Unify eligibility and bound dirty regions, measuring with counters (F05–F06). Preserve first-line recovery before optimization.
-- [ ] Block inherited dictionary hits and test a real entry with the same name (F07).
-- [ ] Normalize empty results in the core/UI and add VM adapter tests (F08).
-- [ ] Remove token-count recursion from the Cartesian product while preserving ordering and limits (F09).
+- [x] Fix the Make graph and test order/failure propagation with an event logger (F04).
+- [x] Unify eligibility and bound dirty regions, measuring with counters (F05–F06). Preserve first-line recovery before optimization.
+- [x] Block inherited dictionary hits and test a real entry with the same name (F07).
+- [x] Normalize empty results in the core/UI and add VM adapter tests (F08).
+- [x] Remove token-count recursion from the Cartesian product while preserving ordering and limits (F09).
 - [ ] Close the OpenSpec harden-runtime change only after its tasks/tests/browser evidence are satisfied; documentation alone is not completion evidence.
 
 ### C — Trustworthy builds and releases
 
-- [ ] Define version authority and separate local development stamping from release preflight; mock release metadata/registry in tests (F10).
-- [ ] Choose a generation publication design and compatibility plan; add interleaved-reader and crash/fault cases (F11).
-- [ ] Separate preparation from verification, use per-run artifact directories, and remove blanket gate retries; test cold/warm/concurrent preparation (F12).
-- [ ] Generate a manifest with commit, Node/tool versions, input hashes, optional chunom/font state, artifact hashes, and release versions. Record absent optional inputs explicitly; builds with and without a data layer are not equivalent.
-- [ ] Release dry-run validates manifest, version, metadata/header, artifact presence, and digest; tests must not call `gh release create`.
+- [x] Define version authority and separate local development stamping from release preflight; mock release metadata/registry in tests (F10).
+- [x] Choose a generation publication design and compatibility plan; add interleaved-reader and crash/fault cases (F11). The tested filesystem publisher retains old immutable payloads; remote hosts must provide equivalent retention, and legacy clients retain the documented transient mismatch risk.
+- [x] Separate preparation from verification, use per-run artifact directories, and remove blanket gate retries; test cold/warm/concurrent preparation (F12).
+- [x] Generate a manifest with commit, Node/tool versions, input hashes, optional chunom/font state, artifact hashes, and release versions. Record absent optional inputs explicitly; builds with and without a data layer are not equivalent.
+- [x] Release dry-run validates manifest, version, metadata/header, artifact presence, and digest; tests must not call `gh release create`.
 
 ### D — Contributor workflow and CI
 
-- [ ] Pin toolchain/CLIs and add `build-pages`, `build-styles`, `check-generated`, or clearly named equivalents (F13).
-- [ ] Add a quickstart with `npm ci`, preparation, verification, and serving; document Node version, optional local mode, and required/optional network/secrets (the default flow requires no secrets).
-- [ ] Add PR CI for reproducible gates; build/minify and generated-artifact drift checks run in a temporary directory (F14).
-- [ ] Run the optional dictionary audit separately by schedule/data changes and report the actual outcome; a skipped test is not a completed audit.
-- [ ] Correct stale instructions in build/local-mode/AGENTS/runner when the related contract changes; review docs and commands together (F17).
+- [x] Pin toolchain/CLIs and add `build-pages`, `build-styles`, `check-generated`, or clearly named equivalents (F13).
+- [x] Add a quickstart with `npm ci`, preparation, verification, and serving; document Node version, optional local mode, and required/optional network/secrets (the default flow requires no secrets).
+- [x] Add PR CI for reproducible gates; build/minify and generated-artifact drift checks run in a temporary directory (F14).
+- [x] Run the optional dictionary audit separately by schedule/data changes and report the actual outcome; a skipped test is not a completed audit.
+- [x] Correct stale instructions in build/local-mode/AGENTS/runner when the related contract changes; review docs and commands together (F17).
 
 ### E — Reduce coupling deliberately
 
-- [ ] Extract transport and storage adapters first, then queue/selection/modal modules; preserve entry points and builder output (F15).
-- [ ] Document shapes and dependency map briefly; pilot static checking on pure modules before expanding scope.
-- [ ] Standardize the local-mode contract with `book-translator` maintainers; do not change endpoints/payloads/hotkeys/control UI only in this repository (F16).
-- [ ] Add minimum browser smoke checks: fresh/stale/retry IndexedDB dictionary, sandbox frame/message/resize, whitespace and long-input pronunciation, selection/pointer, dynamic cross-node rewrite, excluded editor, and open shadow root.
+- [x] Extract transport and storage adapters first, then queue/selection/modal modules; preserve entry points and builder output (F15). UI wiring remains in the local runtime; the extracted boundaries are documented and tested.
+- [x] Document shapes and dependency map briefly; pilot static checking on pure modules before expanding scope. The strict JSDoc check covers the isolated Nôm review store and runs in `make verify`.
+- [ ] Standardize the local-mode contract with `book-translator` maintainers; do not change endpoints/payloads/hotkeys/control UI only in this repository (F16). Mirrored fixtures and tests are in place; maintainer acceptance is not yet recorded.
+- [x] Add minimum browser smoke checks: fresh/stale/retry IndexedDB dictionary, sandbox frame/message/resize, whitespace and long-input pronunciation, selection/pointer, dynamic cross-node rewrite, excluded editor, and open shadow root.
 - [ ] Test strict Trusted Types CSP and actual userscript managers; the current pass-through policy does not prove compatibility with every CSP. Test policy creation and fallback before claiming support.
-- [ ] Separate noisy performance benchmarks from gates; keep deterministic counter/complexity regressions. Record before/after measurements on the same dataset and machine.
+- [x] Separate noisy performance benchmarks from gates; keep deterministic counter/complexity regressions. Record before/after measurements on the same dataset and machine.
 
 ## Verification strategy and completion criteria
 

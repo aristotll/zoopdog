@@ -13,7 +13,7 @@ Pronunciation guide SHALL trả hợp đồng đã công bố chứa hanoi, quan
 
 #### Scenario: Input is unsupported
 - **WHEN** core nhận token ngoài grammar word/number đã công bố
-- **THEN** nó trả diagnostic đầu vào không được hỗ trợ ổn định theo hợp đồng đã công bố và mọi UI adapter vẫn dùng được
+- **THEN** nó trả kết quả có kiểu ổn định theo hợp đồng đã công bố; ký tự dấu câu và ký hiệu được giữ dưới dạng text, có thể được tách bằng khoảng trắng, và mọi UI adapter vẫn dùng được
 
 #### Scenario: Both website adapters render whitespace
 - **WHEN** source js/zd-pron.js thật chạy trên trang pronunciation và homophones với input chỉ có whitespace

@@ -8,6 +8,11 @@ const vm = require('node:vm');
 
 const runtimePath = path.join(__dirname, '..', 'scripts', 'userscript', 'popupdict-local.runtime.js');
 const runtime = fs.readFileSync(runtimePath, 'utf8');
+const transport = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-transport.js'), 'utf8');
+const selectionTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-selection.js'), 'utf8');
+const modalGeometry = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-geometry.js'), 'utf8');
+const entryDiff = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-entry-diff.js'), 'utf8');
+const modalGuard = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-guard.js'), 'utf8');
 
 function element() {
   const listeners = {};
@@ -54,7 +59,7 @@ function createHarness(request) {
     GM_xmlhttpRequest: request,
     escapeHtml(value) { return String(value); }
   });
-  vm.runInContext(runtime, context, {filename: runtimePath});
+  vm.runInContext(transport + '\n' + selectionTools + '\n' + modalGeometry + '\n' + entryDiff + '\n' + modalGuard + '\n' + runtime, context, {filename: runtimePath});
   return {context, elements, add(id) { const node = element(); elements.set(id, node); return node; }};
 }
 
@@ -567,4 +572,75 @@ test('explored highlight paints the cached answers at once, retries a failed fir
   assert.deepEqual(asked[1], ['vdict.com']);
   assert.equal(hit.block.style.background, '#c8f7c5');
   assert.equal(JSON.parse(storage.zooExploredMatches).version, 'v2');
+});
+
+test('local transport can run with an injected request adapter and preserves error payloads', async () => {
+  const transportPath = path.join(__dirname, '..', 'scripts/userscript/local-transport.js');
+  const code = fs.readFileSync(transportPath, 'utf8');
+  const context = vm.createContext({Promise, Error, JSON, Object, encodeURIComponent, setTimeout, clearTimeout});
+  vm.runInContext(code, context);
+  let details;
+  const request = context.createZooLocalTransport({baseUrl: 'http://127.0.0.1:8770',
+    getTimeout: () => 100, send: options => {details = options;}});
+  const pending = request('POST', '/v1/test', {word: 'tình cảm'}, '{"x":1}');
+  assert.equal(details.url, 'http://127.0.0.1:8770/v1/test?word=t%C3%ACnh%20c%E1%BA%A3m');
+  assert.equal(details.data, '{"x":1}');
+  details.onload({status: 409, responseText: '{"error":"confirm","confirm":true}'});
+  await assert.rejects(pending, error => error.status === 409 && error.payload.confirm);
+});
+
+test('order preview uses the same case-sensitive row as the confirmed save', async () => {
+  const requests = [];
+  const harness = createHarness(options => requests.push(options));
+  const ids = harness.context.ZOO_MODAL_IDS.order;
+  Object.keys(ids).forEach(key => harness.add(ids[key]));
+  harness.context.zooWireNomOrderForm();
+  harness.elements.get(ids.vi).value = 'Đỗ';
+  harness.elements.get(ids.nom).value = '杜';
+  harness.elements.get(ids.caseSensitive).checked = true;
+  harness.elements.get(ids.form).dispatch('submit');
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /(?:\?|&)preview=1(?:&|$)/);
+  assert.match(requests[0].url, /(?:\?|&)caseSensitive=1(?:&|$)/);
+  harness.context.zooRenderEntryDiff = () => 1;
+  requests[0].onload({status: 200, responseText: '{"diff":{"changed":1,"rows":[]}}'});
+  await new Promise(resolve => setImmediate(resolve));
+  harness.elements.get(ids.confirmBtn).dispatch('click');
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].url, /(?:\?|&)caseSensitive=1(?:&|$)/);
+  assert.doesNotMatch(requests[1].url, /(?:\?|&)preview=/);
+  requests[1].onerror();
+});
+
+test('local suggestions accept legacy and current response fixtures', async () => {
+  const contract = require('./fixtures/local-mode-contract.json');
+  for (const response of [contract.examples.suggestLegacy, contract.examples.suggestCurrent]) {
+    let request;
+    const harness = createHarness(options => {request = options;});
+    const pending = harness.context.zooFetchSuggestions('nom', 'ba');
+    request.onload({status: 200, responseText: JSON.stringify(response)});
+    assert.deepEqual(Array.from(await pending), ['巴']);
+  }
+});
+
+test('local form surfaces the reader validation-error fixture', async () => {
+  const contract = require('./fixtures/local-mode-contract.json');
+  let request;
+  const harness = createHarness(options => {request = options;});
+  const pending = harness.context.zooFetchNomForm('ba');
+  request.onload({status: 422, responseText: JSON.stringify(contract.examples.validationError)});
+  await assert.rejects(pending, error => error.status === 422 && error.message === 'vi is required');
+});
+
+test('local selection wrappers use injected page caret and selection', () => {
+  const {context} = createHarness(() => {});
+  const node = {nodeType: 3, parentElement: {closest: () => ({closest: () => true})}};
+  const selected = [];
+  context.zdCaretFromPoint = point => ({node, offset: point.x});
+  context.document.createRange = () => ({collapsed: true, setStart(_node, offset) { this.start = offset; },
+    setEnd(_node, offset) { this.collapsed = offset <= this.start; }});
+  context.window = {getSelection: () => ({removeAllRanges() {}, addRange(range) { selected.push(range); }})};
+  assert.ok(context.zooAnnotationInLinkAt(0, 0));
+  context.zooSelectBetweenPoints({x: 0, y: 0}, {x: 2, y: 0});
+  assert.equal(selected.length, 1);
 });

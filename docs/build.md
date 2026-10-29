@@ -1,8 +1,21 @@
 # Build and Verification
 
-The repository has no `package.json` and pins no build dependencies. Maintenance tasks run
-through the dependency-free `Makefile`; page and style compilation needs `pug` and `stylus`
-installed on the machine.
+Use Node 24 (see `.nvmrc`) and run `npm ci`. The lockfile pins esbuild, Pug, Stylus and TypeScript; all
+are development dependencies, and the shipped website has no runtime npm dependency.
+
+## Quickstart
+
+```sh
+npm ci
+make verify
+make rebuild-extension-vnedict-json
+python3 -m http.server 8000
+```
+
+Open `http://localhost:8000/popupdict.html`. Installing dependencies requires npm registry
+access; the build and verification need no credentials or network after installation. Optional
+local-mode reader integration requires a separately running `book-translator` service; see
+[local mode](local-mode.md). Publishing a release requires authenticated GitHub access.
 
 ## Verification
 
@@ -10,9 +23,13 @@ installed on the machine.
 make verify
 ```
 
-`make verify` runs every suite under `test/` and syntax-checks every first-party JavaScript file
-under `scripts/`, `js/`, and `zd-extension/js/` (third-party `lib/` files are excluded). The test
-command on its own:
+`make verify` copies current inputs to a temporary directory unique to the run, builds its
+userscripts and dictionary there, runs every suite under `test/`, minifies the userscripts and
+checks generated page/style drift in that same temporary directory. It also syntax-checks
+first-party JavaScript under `scripts/`, `js/`, and `zd-extension/js/` (third-party `lib/`
+files are excluded) and checks the JSDoc types of the review store. It never retries a failed
+test or writes generated artifacts to the checkout. The
+direct command below is useful during development, but may use or refresh shared artifacts:
 
 ```sh
 node --test test/*.test.js
@@ -24,33 +41,20 @@ Root pages are authored in `*.jade` and committed as matching `*.html`; root sty
 authored in `css/*.styl` and committed as matching `css/*.css`. `zd-extension/` pages and
 styles (the sandboxed popup frame the website embeds) follow the same pattern.
 
-Website pages:
+Build all pages and styles using the repository-pinned compilers:
 
 ```sh
-pug index.jade popupdict.jade pronunciation.jade homophones.jade pronguide.jade
+make build-pages build-styles
 ```
 
-The frame page, with pretty output:
+Check committed outputs without modifying them:
 
 ```sh
-pug -P zd-extension/frame.jade
+make check-generated
 ```
 
-Website styles:
-
-```sh
-stylus css/style.styl css/pronunciation.styl
-```
-
-`zd-extension/` styles:
-
-```sh
-stylus zd-extension/css/zoopdog.styl zd-extension/css/zoopdog-frame.styl zd-extension/css/zd-pron.styl
-```
-
-If these CLIs are missing, say so in the final response. Hand-edit generated output only when
-the change is small enough to keep the source and the generated file consistent, and commit
-both together.
+The frame page retains its pretty output; the other pages are compact. Pug emits deprecation
+warnings for the existing `.jade` include names. Always edit sources before generated files.
 
 ## Rebuilding the userscripts
 
@@ -64,7 +68,7 @@ rebuild is required. The builders also stamp `@version`.
 The github-hosted `zoopdog-*.user.js` are gitignored build output, not committed. Publishing:
 
 ```sh
-npm install                 # once: esbuild is the only dependency
+npm ci                      # install pinned build dependencies
 make release-userscripts    # rebuild, minify into dist/, gh release create (DRY_RUN=1 to preview)
 ```
 
@@ -72,11 +76,20 @@ make release-userscripts    # rebuild, minify into dist/, gh release create (DRY
 verbatim; the `-local` builds are not minified). `release-userscripts` needs the GitHub CLI
 (`gh`) and uploads them as assets of a new release; `@updateURL`/`@downloadURL` point at
 `releases/latest/download/<name>`, so a new release is what makes installed copies auto-update.
-The version stamp is derived from the previous local build, so keep the last build around
-(or bump manually) when releasing from a fresh clone.
+Development builds still use the previous local file for their stamp. Release preflight instead
+reads both userscript versions from one latest GitHub Release, stamps the minified release
+assets with a version newer than both, and checks that the latest tag has not changed before
+publishing. This requires an authenticated `gh` and access to the previous release even for a
+dry run. `RELEASE_VERSION=2026.10.28.2 make release-userscripts` selects an explicit newer
+numeric version; otherwise a date-based version is chosen automatically. A missing or
+unreadable prior release is an error, not permission to guess. A dry run builds and stamps
+gitignored output but does not publish it. Before the build, the release target captures input
+hashes; preflight fails if inputs changed during the build. Its manifest records the commit,
+Node/compiler versions, input and output hashes, release versions, and whether optional
+chunom/font inputs were present. It is checked again before publishing and included as an asset.
 
-Each builder writes two files: the committed `zoopdog-*.user.js` (updates from github, as
-above) and an uncommitted `zoopdog-*-local.user.js` that updates from its own `file://` path on
+Each builder writes two gitignored files: the release `zoopdog-*.user.js` (updates from GitHub, as
+above) and a `zoopdog-*-local.user.js` that updates from its own `file://` path on
 this machine instead — for `zoopdog-popupdict-local.user.js` that also means it is the only
 build carrying the local Chữ Nôm add/edit ability (see
 [local-mode.md](local-mode.md)). See `.gitignore` for the `-local` filenames.
@@ -91,7 +104,7 @@ still render one with a plain object. `scripts/lib/userscript.js`'s `extractAssi
 the maps back and understands both forms — never grep the generated file for a raw
 `"term":"value"` pair, the quotes are escaped.
 
-`node scripts/bench-nom.js` prints the load and scan timings for the committed userscripts (map
+`node scripts/bench-nom.js` prints the load and scan timings for the built userscripts (map
 evaluation, matcher build, scan speed). It is not part of `make verify` because timings depend on
 the machine; run it before and after a performance change. `test/nom-match-equivalence.test.js`
 keeps the matcher honest by running it against a frozen copy of the previous character-trie
@@ -99,14 +112,18 @@ engine (`test/support/reference-nom-match.js`) — leave that copy alone.
 
 ## Known site compatibility limitations
 
-- **Trusted Types CSP (fixed).** Sites that enforce a Trusted Types Content Security Policy
+- **Trusted Types CSP.** Sites that enforce a Trusted Types Content Security Policy
   (YouTube among them) throw an uncaught `TypeError: ... requires 'TrustedHTML' assignment` on a
   plain `element.innerHTML = string` assignment. That exception used to abort
   `mainListener` in `popupdict.runtime.js` before `popup.show()` ran, so the popup looked
   "impossible to show" on those sites even though word/context detection worked fine. Fixed via
   the `zooSetHTML()` helper (feature-detects `window.trustedTypes` and wraps the string through a
   policy), applied everywhere both `popupdict.runtime.js` and `popupdict-local.runtime.js` used
-  to assign `innerHTML` directly.
+  to assign `innerHTML` directly. When the site forbids creation of the
+  `zoopdog-userscript` policy, the helper builds the escaped internal templates using DOM
+  methods and a restricted tag and attribute set. A local browser smoke test covered both
+  an allowed policy and `trusted-types 'none'`; userscript-manager behavior under these
+  policies has not yet been verified.
 - **Chữ Nôm ruby glyphs invisible on some sites (fixed for -local, open for the committed
   build).** `nom-ruby.runtime.js` builds its `<ruby>`/`<rt>` annotations with
   `createElement`/`textContent`, so it is unaffected by Trusted Types. But its `@font-face` for
@@ -116,11 +133,12 @@ engine (`test/support/reference-nom-match.js`) — leave that copy alone.
   Extension B/C code points Nom readings use, so the annotation exists in the DOM (confirmed
   correct `<rt>` markup and CSS) but paints as nothing. The committed build still loads from
   GitHub (keeping it small); the `-local` build instead embeds the whole font as a `data:` URI,
-  which no `font-src` directive can block since there is no network fetch to intercept. Place the
+  which avoids a network fetch but still depends on the site's CSP allowing data fonts. Place the
   font at `zd-extension/db_src/fonts/NomNaTong-Regular.otf` (gitignored, ~10MB) before running
   `make rebuild-nom-userscript --local-only` -- `nomFontSrcFor()` in
   `scripts/build-nom-userscript.js` falls back to the GitHub URL if that file is absent, so
   forgetting it degrades gracefully rather than breaking the build.
+
 - **A foreign overlay can block hover word-detection entirely (fixed).** A video-caption
   translation widget (Eudict/欧路翻译, Immersive Translate, Dualsub) injects its own overlay
   element over the player. When it has no text of its own and sits far enough from the real
@@ -132,16 +150,45 @@ engine (`test/support/reference-nom-match.js`) — leave that copy alone.
   climb is exhausted; `zdTextNodeAtPoint`'s own bounding-box pruning keeps this bounded to what is
   actually painted at that pixel rather than walking the whole page.
 
+The website stores the pinned popup position in `localStorage`, scoped to its origin; a legacy
+host can inject a position-storage adapter. If storage is unavailable, pinning still works for
+the current page without persistence.
+
 ## Rebuilding the browser runtime dictionary
 
 ```sh
 make rebuild-extension-vnedict-json
 ```
 
-This writes both `zd-extension/js/vnedict.json` and its deterministic revision sidecar
-`zd-extension/js/vnedict.meta.json`. Both are gitignored build output (like the userscripts):
-run this once after cloning. `make release-userscripts` rebuilds them and attaches them to the
-GitHub Release. The website compares the sidecar revision with IndexedDB before serving lookups.
+This writes the legacy `zd-extension/js/vnedict.json`, the revision sidecar
+`zd-extension/js/vnedict.meta.json`, and a `vnedict.<sha256>.json` immutable payload. All are
+gitignored build output. The builder writes the immutable payload before switching the sidecar;
+the website loads the payload named by the sidecar and compares its digest before installing it
+when Web Crypto is available. Without Web Crypto, a revision-named payload is checked for
+shape and count; a mutable legacy payload is not installed because its revision cannot be
+verified. Existing usable data remains available as stale in that case.
+Old metadata without a payload name and older website clients continue using `vnedict.json`,
+whose update is not atomic with the metadata switch. A current client that detects a mismatch
+with old metadata checks once for a newer pointer and retries if it changed; old clients do not
+have that recovery. `make release-userscripts` includes all
+three current files. Deploy the immutable payload alongside the sidecar and retain previously
+deployed revision files: an in-flight reader may still hold the prior sidecar. Do not delete old
+payloads while clients or caches may reference them. A release asset set alone contains the
+current generation; a static hosting deployment must preserve older revision files itself.
+
+For a static server whose document tree is locally writable, build the runtime dictionary,
+then publish to its existing `zd-extension/js` directory with:
+
+```sh
+node scripts/publish-runtime-dictionary.js /path/to/site/zd-extension/js
+```
+
+The command validates both the new source generation and any existing target pointer,
+writes the new immutable payload first and the metadata last, and retains older immutable
+payloads. It updates the legacy mutable file as well; old clients may still observe a
+temporary mismatch during that update. This is a local filesystem operation, not a remote
+upload, and hosts that replace their entire deployment tree must preserve old payloads by
+another mechanism.
 
 ## Rebuilding the legacy base dictionary
 

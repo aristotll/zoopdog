@@ -1,0 +1,25 @@
+name: Dictionary meaning audit
+on:
+  pull_request:
+    paths:
+      - 'zd-extension/db_src/**'
+      - 'scripts/lib/dictionary-identity.js'
+      - 'scripts/user-nom-entries.js'
+      - 'test/dictionary-redundancy-*'
+      - '.github/workflows/dictionary-audit.yml'
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test test/dictionary-redundancy-review.test.js
+        env:
+          ZD_REVIEW_DICTIONARY: '1'

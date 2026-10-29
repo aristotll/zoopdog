@@ -1,11 +1,17 @@
 {
   "name": "zoopdog",
   "private": true,
-  "description": "Build tooling only: esbuild minifies the generated userscripts. No runtime dependencies.",
+  "description": "Build and static-check tooling only; no runtime dependencies.",
   "scripts": {
     "verify": "make verify"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "pug": "3.0.3",
+    "stylus": "0.64.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }

@@ -53,7 +53,8 @@ test('runtime dictionary builder emits deterministic compact bytes and exact met
   assert.deepEqual(metadata, {
     schemaVersion: METADATA_SCHEMA_VERSION,
     revision: crypto.createHash('sha256').update(bytes).digest('hex'),
-    entryCount: 2
+    entryCount: 2,
+    payload: `vnedict.${crypto.createHash('sha256').update(bytes).digest('hex')}.json`
   });
 });
 
@@ -429,15 +430,30 @@ test('digest mismatch blocks replacement while no-digest mode is explicit', asyn
   assert.equal(rejectedAdapter.state.replacements, 0);
 
   const reducedAdapter = createAdapter();
+  const immutableMetadata = {...metadata, payload: `vnedict.${metadata.revision}.json`};
   const reduced = createCoordinator({
     adapter: reducedAdapter,
-    fetchMetadata: async () => metadata,
+    fetchMetadata: async () => immutableMetadata,
     fetchDictionaryText: async () => bytes,
     digest: null
   });
   const reducedResult = await reduced.ensureReady();
   assert.equal(reducedResult.state, STATES.READY_REFRESHED);
   assert.equal(reducedResult.verification, 'shape-and-count');
+});
+
+test('legacy mutable payload is not installed when digest verification is unavailable', async () => {
+  const oldBytes = fixtureBytes('old');
+  const changedBytes = fixtureBytes('new');
+  const adapter = createAdapter();
+  const coordinator = createCoordinator({adapter,
+    fetchMetadata: async () => fixtureMetadata(oldBytes),
+    fetchDictionaryText: async () => changedBytes,
+    digest: null});
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.UNAVAILABLE);
+  assert.equal(result.error.code, ERRORS.DIGEST_UNAVAILABLE.code);
+  assert.equal(adapter.state.replacements, 0);
 });
 
 // Task 4.3: an installed row still carrying schema-1 metadata (one row per source headword,
@@ -535,6 +551,17 @@ test('the extension and popup-userscript builders agree on a collision fixture',
     popupSenses.map(([def, pos, headword]) => (headword ? {def, pos, headword} : {def, pos})),
     extensionGroup.en
   );
+});
+
+test('both dictionary consumers retain distinct POS when an untagged sense bridges them', () => {
+  const {buildDictionary} = require('../scripts/build-popupdict-userscript');
+  const source = [{vn: 'đọc', en: [{def: 'read', pos: 'noun'},
+    {def: 'read', pos: 'verb'}, {def: 'read', pos: ''}]}];
+  const [website] = groupEntries(source);
+  const [[headwords, senses]] = buildDictionary(source).dictionary['đọc'];
+  assert.deepEqual(headwords, website.headwords);
+  assert.deepEqual(senses, website.en.map(({def, pos}) => [def, pos]));
+  assert.deepEqual(senses, [['read', 'noun'], ['read', 'verb']]);
 });
 
 function createFakeDexie({entries, metadata, failBulkAdd = false}) {
@@ -821,7 +848,10 @@ test('runtime dictionary build is wired, documented and uses one atomic writer',
 test('make verify syntax-checks first-party browser modules', () => {
   const makefile = fs.readFileSync(path.join(repoRoot, 'Makefile'), 'utf8');
 
-  assert.match(makefile, /^verify:\s+verify-scripts\s+verify-browser$/mu);
+  const dependencies = makefile.match(/^verify:\s+([^\n]+)/mu)[1].trim().split(/\s+/u);
+  assert.ok(dependencies.includes('verify-scripts'));
+  assert.ok(dependencies.includes('verify-browser'));
+  assert.ok(dependencies.includes('check-types'));
   assert.match(makefile, /^verify-browser:/mu);
   assert.match(makefile, /find js zd-extension\/js -name '\*\.js'/u);
   assert.match(makefile, /! -path '\*\/lib\/\*'/u);
@@ -856,4 +886,216 @@ test('popup retains Chu Nom definitions when Prototype replaces Array.from', () 
     ${functions}`, context);
   const output = vm.runInContext("renderDefinitionItems([['查究', ''], ['查究 | 𧵑', ''], ['to consult', 'verb']])", context);
   assert.equal(output, '<li class="zoopdog-cjk-def">查究 | 𧵑</li><li>to consult</li>');
+});
+
+test('popup lookup ignores inherited dictionary properties but accepts own entries', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
+  const body = source.slice(source.indexOf('  function lookupContext('), source.indexOf('\n  // Element.contains()', source.indexOf('  function lookupContext(')));
+  const lookup = new Function('ZOO_DICTIONARY', 'ZOO_MAX_WORDS', 'normalizeLookup', `${body}; return lookupContext;`);
+  const dictionary = JSON.parse('{"bạn":[["friend",""]]}');
+  const find = lookup(dictionary, 5, value => value);
+  assert.equal(find('constructor'), null);
+  assert.equal(find('bạn').results[0][0], 'friend');
+  dictionary.constructor = [['builder', '']];
+  assert.equal(find('constructor').results[0][0], 'builder');
+});
+
+test('revision payload remains readable while a dictionary generation is published', () => {
+  const os = require('node:os');
+  const {atomicWrite} = require('../scripts/lib/fsutil');
+  const {publishDictionaryAndMetadata} = require('../scripts/build-extension-vnedict-json');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-published-generations-'));
+  try {
+    const dictionary = path.join(dir, 'vnedict.json');
+    const metadataFile = path.join(dir, 'vnedict.meta.json');
+    const oldBytes = serializeRuntimeDictionary(groupEntries([{vn: 'chó', en: [{def: 'dog', pos: ''}]}]));
+    const newBytes = serializeRuntimeDictionary(groupEntries([{vn: 'mèo', en: [{def: 'cat', pos: ''}]}]));
+    const encode = bytes => JSON.stringify(buildMetadata(bytes));
+    publishDictionaryAndMetadata(dictionary, oldBytes, metadataFile, encode(oldBytes));
+    const oldMetadata = JSON.parse(fs.readFileSync(metadataFile, 'utf8'));
+    const readGeneration = () => {
+      const metadata = JSON.parse(fs.readFileSync(metadataFile, 'utf8'));
+      const data = fs.readFileSync(path.join(dir, metadata.payload), 'utf8');
+      assert.equal(crypto.createHash('sha256').update(data).digest('hex'), metadata.revision);
+    };
+    const writer = (target, content) => { atomicWrite(target, content); readGeneration(); };
+    publishDictionaryAndMetadata(dictionary, newBytes, metadataFile, encode(newBytes), {write: writer});
+    assert.equal(fs.readFileSync(path.join(dir, oldMetadata.payload), 'utf8'), oldBytes);
+    readGeneration();
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('coordinator requests the revision advertised by metadata', async () => {
+  const bytes = fixtureBytes();
+  const metadata = fixtureMetadata(bytes);
+  metadata.payload = `vnedict.${metadata.revision}.json`;
+  let requested;
+  const coordinator = createCoordinator({adapter: createAdapter(), fetchMetadata: async () => metadata,
+    fetchDictionaryText: async value => {requested = value; return bytes;},
+    digest: async () => metadata.revision});
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.READY_REFRESHED);
+  assert.equal(requested.payload, metadata.payload);
+});
+
+test('revision payload publication failure keeps the previous generation readable', () => {
+  const {atomicWrite} = require('../scripts/lib/fsutil');
+  const {publishDictionaryAndMetadata} = require('../scripts/build-extension-vnedict-json');
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'zoopdog-failed-generation-'));
+  try {
+    const payload = path.join(dir, 'vnedict.json');
+    const meta = path.join(dir, 'vnedict.meta.json');
+    const old = fixtureBytes('dog');
+    const next = fixtureBytes('cat');
+    publishDictionaryAndMetadata(payload, old, meta, JSON.stringify(buildMetadata(old)));
+    const metadataBefore = fs.readFileSync(meta, 'utf8');
+    assert.throws(() => publishDictionaryAndMetadata(payload, next, meta, JSON.stringify(buildMetadata(next)), {
+      write(file, content) { if (file === meta) throw new Error('injected metadata failure'); atomicWrite(file, content); }
+    }), /injected/);
+    assert.equal(fs.readFileSync(meta, 'utf8'), metadataBefore);
+    const metadata = JSON.parse(metadataBefore);
+    assert.equal(fs.readFileSync(path.join(dir, metadata.payload), 'utf8'), old);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('metadata rejects untrusted payload paths and revisions', () => {
+  const metadata = fixtureMetadata();
+  assert.throws(() => validateMetadata({...metadata, payload: '../escape.json'}), /Invalid runtime dictionary metadata/);
+  assert.throws(() => validateMetadata({...metadata, payload: `vnedict.${'a'.repeat(64)}.json`}), /Invalid runtime dictionary metadata/);
+});
+
+test('website popup remembers its pin position without extension APIs', () => {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/showframe.js'), 'utf8');
+  const values = new Map();
+  const storage = {getItem(key) { return values.get(key) || null; }, setItem(key, value) { values.set(key, value); }};
+  const makeFrame = () => ({style: {}, addEventListener() {}, setAttribute() {},
+    getBoundingClientRect() { return {left: 123, top: 45, width: 80, height: 50}; }});
+  const context = vm.createContext({document: {createElement: makeFrame},
+    window: {localStorage: storage, innerWidth: 800, innerHeight: 600}});
+  vm.runInContext(source + '\nglobalThis.ResultFrame = ResultFrame;', context);
+  const first = new context.ResultFrame('frame.html');
+  first.savePinPosition();
+  const second = new context.ResultFrame('frame.html');
+  assert.equal(second.pinPosition.left, 123);
+  assert.equal(second.pinPosition.top, 45);
+});
+
+test('popup pin adapter tolerates unavailable storage and supports injected legacy storage', () => {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/showframe.js'), 'utf8');
+  const context = vm.createContext({document: {createElement: () => ({style: {}, addEventListener() {}, setAttribute() {},
+    getBoundingClientRect: () => ({left: 10, top: 20})})}, window: {get localStorage() {throw new Error('denied');}}});
+  vm.runInContext(source + '\nglobalThis.ResultFrame = ResultFrame;', context);
+  assert.doesNotThrow(() => new context.ResultFrame('frame.html').savePinPosition());
+  let saved;
+  const adapter = {get(callback) {callback({left: 3, top: 4});}, set(value) {saved = value;}};
+  const frame = new context.ResultFrame('frame.html', adapter);
+  assert.equal(frame.pinPosition.left, 3);
+  frame.savePinPosition();
+  assert.equal(saved.top, 20);
+});
+
+test('website dictionary status renders success and stale states without assuming an error', () => {
+  const vm = require('node:vm');
+  const source = fs.readFileSync(path.join(repoRoot, 'js/popupdict.js'), 'utf8');
+  const start = source.indexOf('  const renderState =');
+  const end = source.indexOf('  const coordinator =', start);
+  const status = {textContent: ''};
+  const retry = {hidden: false};
+  const context = vm.createContext({status, retry});
+  vm.runInContext(source.slice(start, end) + '\nglobalThis.renderState = renderState;', context);
+  assert.doesNotThrow(() => context.renderState({state: 'ready-refreshed', entryCount: 12}));
+  assert.equal(status.textContent, 'Dictionary refreshed (12 entries).');
+  assert.equal(retry.hidden, true);
+  context.renderState({state: 'ready-stale', error: {remedy: 'Retry now.'}});
+  assert.equal(status.textContent, 'Using the previous dictionary. Retry now.');
+  assert.equal(retry.hidden, false);
+});
+
+test('reader retries a legacy metadata race when publication switches to an immutable generation', async () => {
+  const oldBytes = fixtureBytes('old');
+  const newBytes = fixtureBytes('new');
+  const oldMetadata = fixtureMetadata(oldBytes);
+  const newMetadata = {...fixtureMetadata(newBytes), payload: `vnedict.${fixtureMetadata(newBytes).revision}.json`};
+  const adapter = createAdapter();
+  let metadataCalls = 0;
+  const paths = [];
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => (++metadataCalls === 1 ? oldMetadata : newMetadata),
+    fetchDictionaryText: async (metadata) => { paths.push(metadata.payload || 'legacy'); return newBytes; },
+    digest: async text => crypto.createHash('sha256').update(text).digest('hex')
+  });
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.READY_REFRESHED);
+  assert.equal(result.revision, newMetadata.revision);
+  assert.deepEqual(paths, ['legacy', newMetadata.payload]);
+  assert.equal(adapter.state.replacements, 1);
+});
+
+test('reader does not retry endlessly when legacy metadata remains unchanged', async () => {
+  const oldBytes = fixtureBytes('old');
+  const newBytes = fixtureBytes('new');
+  const metadata = fixtureMetadata(oldBytes);
+  let metadataCalls = 0, payloadCalls = 0;
+  const adapter = createAdapter();
+  const coordinator = createCoordinator({
+    adapter,
+    fetchMetadata: async () => { metadataCalls++; return metadata; },
+    fetchDictionaryText: async () => { payloadCalls++; return newBytes; },
+    digest: async text => crypto.createHash('sha256').update(text).digest('hex')
+  });
+  const result = await coordinator.ensureReady();
+  assert.equal(result.state, STATES.UNAVAILABLE);
+  assert.equal(result.error.code, ERRORS.DIGEST_MISMATCH.code);
+  assert.equal(metadataCalls, 2);
+  assert.equal(payloadCalls, 1);
+  assert.equal(adapter.state.replacements, 0);
+});
+
+test('HTTP reader recovers when a legacy deployment is upgraded during a fetch', async () => {
+  const http = require('node:http');
+  const os = require('node:os');
+  const {atomicWrite} = require('../scripts/lib/fsutil');
+  const {publishDictionaryAndMetadata} = require('../scripts/build-extension-vnedict-json');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zd-http-generation-'));
+  const dictionary = path.join(dir, 'vnedict.json');
+  const meta = path.join(dir, 'vnedict.meta.json');
+  const oldBytes = fixtureBytes('old'), nextBytes = fixtureBytes('new');
+  const legacy = fixtureMetadata(oldBytes), next = buildMetadata(nextBytes);
+  atomicWrite(dictionary, oldBytes);
+  atomicWrite(meta, JSON.stringify(legacy));
+  const server = http.createServer((request, response) => {
+    const name = request.url.slice(1);
+    if (!/^vnedict(?:\.[a-f0-9]{64}|\.meta)?\.json$/.test(name)) { response.writeHead(404).end(); return; }
+    try { response.end(fs.readFileSync(path.join(dir, name))); }
+    catch { response.writeHead(404).end(); }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}/`;
+    let upgraded = false;
+    const coordinator = createCoordinator({adapter: createAdapter(),
+      fetchMetadata: async () => (await fetch(base + 'vnedict.meta.json')).json(),
+      fetchDictionaryText: async metadata => {
+        if (!upgraded) {
+          upgraded = true;
+          publishDictionaryAndMetadata(dictionary, nextBytes, meta, JSON.stringify(next));
+        }
+        const response = await fetch(base + (metadata.payload || 'vnedict.json'));
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+      },
+      digest: async text => crypto.createHash('sha256').update(text).digest('hex')});
+    const result = await coordinator.ensureReady();
+    assert.equal(result.state, STATES.READY_REFRESHED);
+    assert.equal(result.revision, next.revision);
+    const thirdBytes = fixtureBytes('third'), third = buildMetadata(thirdBytes);
+    publishDictionaryAndMetadata(dictionary, thirdBytes, meta, JSON.stringify(third));
+    assert.equal(await (await fetch(base + next.payload)).text(), nextBytes);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
 });

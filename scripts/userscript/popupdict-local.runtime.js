@@ -12,7 +12,7 @@
   // Talks to the book-translator reader server (scripts/reader/tts_server.py
   // in the book-translator repo) running on the user's own machine, so
   // "Add Ch\u1EEF N\u00F4m entry" / "Set Ch\u1EEF N\u00F4m order" write to the very same
-  // user_nom_entries.jsonc / user_nom_order.jsonc the reader itself edits.
+  // user_nom_entries/ shards / user_nom_order.jsonc the reader itself edits.
   // Every piece below mirrors the reader's own modals (reader_nom.js,
   // reader_nom_order.js, and the shared shared/entry_forms.js,
   // shared/suggest.js, shared/modal.js, reader_entry_diff.js) field for
@@ -32,70 +32,14 @@
   // so a channel request waits that long plus a margin before the client calls it failed.
   var ZOO_NOTES_ALL_TIMEOUT = 75000;
 
-  function zooHttpRequest(method, path, params, body, timeout) {
-    var limit = timeout || ZOO_LOCAL_REQUEST_TIMEOUT;
-    return new Promise(function(resolve, reject) {
-      var settled = false;
-      var watchdog = null;
-      function settle(callback, value) {
-        if (settled) return;
-        settled = true;
-        clearTimeout(watchdog);
-        callback(value);
-      }
-      if (typeof GM_xmlhttpRequest !== 'function') {
-        settle(reject, new Error('GM_xmlhttpRequest unavailable'));
-        return;
-      }
-      var pairs = [];
-      if (params) {
-        Object.keys(params).forEach(function(key) {
-          var value = params[key];
-          if (value === undefined || value === null || value === '') return;
-          pairs.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
-        });
-      }
-      var query = pairs.join('&');
-      var url = ZOO_LOCAL_BASE + path + (query ? (path.indexOf('?') === -1 ? '?' : '&') + query : '');
-      watchdog = setTimeout(function() {
-        settle(reject, new Error('request timed out'));
-      }, limit + 25);
-      try {
-      var details = {
-        method: method,
-        url: url,
-        timeout: limit,
-        onload: function(response) {
-          var payload = {};
-          try {
-            payload = JSON.parse(response.responseText || '{}');
-          } catch (parseError) {
-            payload = {};
-          }
-          if (response.status >= 200 && response.status < 300) {
-            settle(resolve, payload);
-          } else {
-            // The status and body ride on the error: a 409 "confirm" answer is a question to put
-            // to the user, not a failure, and only the caller knows which it is.
-            var failure = new Error(payload.error || payload.message || ('request failed (' + response.status + ')'));
-            failure.status = response.status;
-            failure.payload = payload;
-            settle(reject, failure);
-          }
-        },
-        onerror: function() { settle(reject, new Error('request failed')); },
-        ontimeout: function() { settle(reject, new Error('request timed out')); }
-      };
-      if (body !== undefined) {
-        details.data = body;
-        details.headers = {'Content-Type': 'application/json'};
-      }
+  var zooHttpRequest = createZooLocalTransport({
+    baseUrl: ZOO_LOCAL_BASE,
+    getTimeout: function() { return ZOO_LOCAL_REQUEST_TIMEOUT; },
+    send: function(details) {
+      if (typeof GM_xmlhttpRequest !== 'function') throw new Error('GM_xmlhttpRequest unavailable');
       GM_xmlhttpRequest(details);
-      } catch (error) {
-        settle(reject, error);
-      }
-    });
-  }
+    }
+  });
 
   function zooGetJSON(path, params, timeout) { return zooHttpRequest('GET', path, params, undefined, timeout); }
   function zooPost(path, params) { return zooHttpRequest('POST', path, params); }
@@ -626,20 +570,10 @@
 
   // Normalised here because a selection becomes the key of a saved Chu Nom entry: a decomposed
   // selection would be stored as a term no precomposed lookup can ever reach again.
-  function zooTrimSelectionPunctuation(value) {
-    // Some pages (v2ex among them) embed invisible Unicode format characters
-    // -- zero-width space U+200B chief among them -- inside long Vietnamese
-    // phrases as a line-wrap hint. A mouse-drag selection picks those up
-    // along with the visible text, and the resulting string never matches
-    // any dictionary key: "kiến​thức" looks identical to "kiến thức" on screen
-    // but is a different string, so every suggestion/entry/order lookup for
-    // it silently comes back empty. Strip the whole Cf (Format) category --
-    // not just zero-width space -- since the same invisible-hint trick shows
-    // up as word joiners and directional marks too, and none of them belong
-    // in a Chu Nom dictionary key either way.
-    return String(value || '').trim().replace(/\p{Cf}/gu, '')
-      .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
-  }
+  var zooSelectionTools = createZooSelectionTools({document: document, scanLimit: 5000,
+    caretFromPoint: function(point) { return zdCaretFromPoint(point); },
+    getSelection: function() { return window.getSelection(); }});
+  function zooTrimSelectionPunctuation(value) { return zooSelectionTools.trim(value); }
 
   // -- entry-diff preview (draws the server's `diff`, like reader_entry_diff.js) --
   //
@@ -648,69 +582,7 @@
   // `diff`: {changed, rows}. This only draws segments, with textContent, so a stored value
   // can never inject markup.
 
-  function zooDiffEl(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function zooDiffLine(kind, mark, segments) {
-    var line = zooDiffEl('div', 'zd-entry-diff-line zd-entry-diff-' + kind);
-    var markEl = zooDiffEl('span', 'zd-entry-diff-mark', mark);
-    markEl.setAttribute('aria-hidden', 'true');
-    var text = zooDiffEl(kind === 'old' ? 'del' : 'ins');
-    if (!segments.length) text.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
-    segments.forEach(function(segment) {
-      text.appendChild(segment.changed ? zooDiffEl('mark', '', segment.text) : document.createTextNode(segment.text));
-    });
-    line.appendChild(markEl);
-    line.appendChild(text);
-    return line;
-  }
-
-  function zooEntryDiffRow(row) {
-    var item = zooDiffEl('li', 'zd-entry-diff-row');
-    var head = zooDiffEl('div', 'zd-entry-diff-field', row.field);
-    if (row.badge) {
-      var kind = row.badge === 'locked' || row.badge === 'new' ? ' zd-entry-diff-badge-' + row.badge : '';
-      head.appendChild(zooDiffEl('span', 'zd-entry-diff-badge' + kind, row.badge));
-    }
-    item.appendChild(head);
-    if (row.kind === 'change') {
-      if (row.old) item.appendChild(zooDiffLine('old', '\u2212', row.old));
-      item.appendChild(zooDiffLine('new', '+', row.new));
-      return item;
-    }
-    item.className += row.kind === 'key' ? ' zd-entry-diff-key' : ' zd-entry-diff-context';
-    var line = zooDiffEl('div', 'zd-entry-diff-line');
-    var mark = zooDiffEl('span', 'zd-entry-diff-mark', '\u00B7');
-    mark.setAttribute('aria-hidden', 'true');
-    var value = zooDiffEl('span', row.kind === 'key' ? 'zd-entry-diff-keyterm' : '');
-    if (row.value) value.textContent = row.value;
-    else value.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
-    line.appendChild(mark);
-    line.appendChild(value);
-    item.appendChild(line);
-    return item;
-  }
-
-  function zooScrollEntryDiffToHead(list) {
-    list.scrollTop = 0;
-    var modal = list.closest ? list.closest('.zd-modal') : null;
-    if (!modal) return;
-    modal.scrollTop = Math.max(0, list.offsetTop - 12);
-  }
-
-  // Returns the number of *changes* drawn; neither the key nor a context row is something to confirm.
-  function zooRenderEntryDiff(list, diff) {
-    list.textContent = '';
-    var rows = diff && Array.isArray(diff.rows) ? diff.rows : [];
-    rows.forEach(function(row) { list.appendChild(zooEntryDiffRow(row)); });
-    list.hidden = !list.childElementCount;
-    zooScrollEntryDiffToHead(list);
-    return diff && diff.changed ? diff.changed : 0;
-  }
+  var zooRenderEntryDiff = createZooEntryDiffRenderer(document);
 
   // -- modal mechanics (mirrors shared/modal.js) --
 
@@ -742,59 +614,23 @@
     return ZOO_MULTI_LABEL_TLDS.indexOf(lastTwo) !== -1 ? lastThree : lastTwo;
   }
 
-  function zooModalPositionKey(modalId) {
-    return 'zd-modal-pos:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
-  }
-
-  function zooSaveModalPosition(modalId, left, top) {
-    if (typeof GM_setValue !== 'function') return;
-    GM_setValue(zooModalPositionKey(modalId), JSON.stringify({ left: left, top: top }));
-  }
-
-  // Applied on every open so a modal dragged once on a site keeps reopening
-  // there, instead of the anchoring wherever its markup happens to land.
-  function zooRestoreModalPosition(modalId, panel) {
-    if (!panel || typeof GM_getValue !== 'function') return;
-    var raw = GM_getValue(zooModalPositionKey(modalId), null);
-    if (!raw) return;
-    var pos;
-    try { pos = JSON.parse(raw); } catch (e) { return; }
-    if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return;
-    var maxLeft = Math.max(window.innerWidth - panel.offsetWidth, 0);
-    var maxTop = Math.max(window.innerHeight - panel.offsetHeight, 0);
-    panel.style.position = 'fixed';
-    panel.style.margin = '0';
-    panel.style.left = Math.min(Math.max(pos.left, 0), maxLeft) + 'px';
-    panel.style.top = Math.min(Math.max(pos.top, 0), maxTop) + 'px';
-  }
-
-  // Size of a modal, saved per registrable domain and modal like its position
-  // (GM storage when the manager grants it, else the page's localStorage).
-  function zooModalSizeKey(modalId) {
-    return 'zd-modal-size:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
-  }
-
-  function zooSaveModalSize(modalId, width, height) {
-    var raw = JSON.stringify({ width: width, height: height });
-    try {
-      if (typeof GM_setValue === 'function') GM_setValue(zooModalSizeKey(modalId), raw);
-      else localStorage.setItem(zooModalSizeKey(modalId), raw);
-    } catch (e) { /* quota/private mode: the size just resets next open */ }
-  }
-
-  function zooRestoreModalSize(modalId, panel) {
-    if (!panel) return;
-    var raw = null;
-    try {
-      raw = typeof GM_getValue === 'function' ? GM_getValue(zooModalSizeKey(modalId), null) : localStorage.getItem(zooModalSizeKey(modalId));
-    } catch (e) { return; }
-    if (!raw) return;
-    var size;
-    try { size = JSON.parse(raw); } catch (e) { return; }
-    if (!size || !(size.width > 0) || !(size.height > 0)) return;
-    panel.style.width = Math.min(size.width, window.innerWidth) + 'px';
-    panel.style.height = Math.min(size.height, window.innerHeight) + 'px';
-  }
+  var zooModalGeometry = createZooModalGeometry({
+    domain: function() { return zooRegistrableDomain(location.hostname); },
+    viewport: function() { return {width: window.innerWidth, height: window.innerHeight}; },
+    readPosition: function(key) { return typeof GM_getValue === 'function' ? GM_getValue(key, null) : null; },
+    writePosition: function(key, value) { if (typeof GM_setValue === 'function') GM_setValue(key, value); },
+    readSize: function(key) { return typeof GM_getValue === 'function' ? GM_getValue(key, null) : localStorage.getItem(key); },
+    writeSize: function(key, value) {
+      if (typeof GM_setValue === 'function') GM_setValue(key, value);
+      else localStorage.setItem(key, value);
+    }
+  });
+  function zooModalPositionKey(id) { return zooModalGeometry.positionKey(id); }
+  function zooSaveModalPosition(id, left, top) { zooModalGeometry.savePosition(id, left, top); }
+  function zooRestoreModalPosition(id, panel) { zooModalGeometry.restorePosition(id, panel); }
+  function zooModalSizeKey(id) { return zooModalGeometry.sizeKey(id); }
+  function zooSaveModalSize(id, width, height) { zooModalGeometry.saveSize(id, width, height); }
+  function zooRestoreModalSize(id, panel) { zooModalGeometry.restoreSize(id, panel); }
 
   // The native `resize: both` grip (class zd-modal-resizable); the size is saved on
   // pointer release only when the user changed it, so content growth is never frozen.
@@ -844,46 +680,6 @@
     } else {
       node.classList.remove('zd-error');
     }
-  }
-
-  // A Save/Preview/Confirm handler is asynchronous: until its request settles a
-  // second click (or Enter) would send the same write again and race the first
-  // on the server. Wraps such a handler so the modal's action buttons are
-  // disabled while its promise is pending and a re-entry is ignored. Every
-  // action button is covered (Save and Confirm write the same entry); Cancel
-  // stays usable. Mirrors ReaderShared.modal.guard (shared/modal.js).
-  function zooGuard(handler) {
-    return function(event) {
-      var origin = event && (event.currentTarget || event.target);
-      var scope = origin && origin.closest ? (origin.closest('.zd-modal, form') || origin) : null;
-      if (scope && scope.getAttribute('data-zd-busy')) {
-        if (event && event.preventDefault) event.preventDefault();
-        return undefined;
-      }
-      var buttons = scope && scope.querySelectorAll
-        ? Array.prototype.filter.call(scope.querySelectorAll('button'), function(button) {
-            return !button.disabled && !button.hasAttribute('data-zd-modal-cancel');
-          })
-        : [];
-      if (origin && origin.matches && origin.matches('button') && !origin.disabled && buttons.indexOf(origin) < 0) {
-        buttons.push(origin);
-      }
-      if (scope) scope.setAttribute('data-zd-busy', '1');
-      buttons.forEach(function(button) { button.disabled = true; });
-      var release = function() {
-        buttons.forEach(function(button) { button.disabled = false; });
-        if (scope) scope.removeAttribute('data-zd-busy');
-      };
-      var result;
-      try {
-        result = handler.call(this, event);
-      } catch (error) {
-        release();
-        throw error;
-      }
-      Promise.resolve(result).then(release, release);
-      return result;
-    };
   }
 
   function zooShowToast(message) {
@@ -1062,13 +858,7 @@
   // only ever walks upwards -- never matches. The caret lands in the text
   // node itself, which does sit inside the <ruby>.
   function zooAnnotationInLinkAt(x, y) {
-    var caret = zdCaretFromPoint({x: x, y: y});
-    var node = caret && caret.node;
-    if (!node) return null;
-    var element = node.nodeType === 1 ? node : node.parentElement;
-    if (!element || !element.closest) return null;
-    var ruby = element.closest('ruby.zoopdog-nom-ruby');
-    return ruby && ruby.closest('a[href]') ? ruby : null;
+    return zooSelectionTools.annotationInLinkAt(x, y);
   }
 
   // `zdCaretFromPoint` rather than caretRangeFromPoint directly: it carries
@@ -1076,39 +866,7 @@
   // boundary instead of a text node, which is most of them over <ruby> in a
   // tight row -- exactly the text this drag exists to select.
   function zooSelectBetweenPoints(from, to) {
-    var start = zdCaretFromPoint({x: from.x, y: from.y});
-    var end = zdCaretFromPoint({x: to.x, y: to.y});
-    if (!start || !end) return;
-    var range = zooRangeBetween(start, end) || zooRangeBetween(end, start);
-    if (!range && start.node === end.node) {
-      // Both ends landed on the same offset of the same node, so the range
-      // between them is empty even though the pointer has moved across the
-      // word. That is the ordinary case for the text this drag exists to
-      // select: a word wrapped in its own <ruby> is one short text node, and
-      // a caret recovered from an element boundary (Chromium hands those back
-      // over <ruby> -- see zdClosestTextNode) carries no offset within it. A
-      // drag that stays inside one such word means that whole word.
-      range = document.createRange();
-      range.selectNodeContents(start.node);
-    }
-    if (!range || range.collapsed) return;
-    var selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-
-  // Null when the two carets are the wrong way round in document order, so
-  // the caller can retry them swapped -- a drag runs in both directions and
-  // only one order makes a non-empty Range.
-  function zooRangeBetween(start, end) {
-    var range = document.createRange();
-    try {
-      range.setStart(start.node, start.offset);
-      range.setEnd(end.node, end.offset);
-    } catch (error) {
-      return null;
-    }
-    return range.collapsed ? null : range;
+    return zooSelectionTools.selectBetweenPoints(from, to);
   }
 
   function zooEnsureSelectionBar() {
@@ -1186,55 +944,8 @@
     }
   }
 
-  var ZOO_SHADOW_SCAN_LIMIT = 5000;
-
-  // Open shadow roots under `node`, nested ones included, bounded so a huge
-  // page cannot stall the selection handler.
-  function zooCollectOpenShadowRoots(node) {
-    var roots = [];
-    if (!node) return roots;
-    var start = node.nodeType === 1 ? node : node.parentElement;
-    if (!start) return roots;
-    var queue = [start];
-    var scanned = 0;
-    while (queue.length && scanned < ZOO_SHADOW_SCAN_LIMIT) {
-      var current = queue.pop();
-      scanned++;
-      if (current.shadowRoot) {
-        roots.push(current.shadowRoot);
-        queue.push(current.shadowRoot);
-      }
-      var children = current.children || [];
-      for (var i = 0; i < children.length; i++) queue.push(children[i]);
-    }
-    return roots;
-  }
-
-  // Bounding rect and annotation-free text of a selection that lives inside a
-  // shadow root, or null when there is none or the browser lacks
-  // Selection.getComposedRanges.
-  function zooComposedSelection(selection, container) {
-    if (typeof selection.getComposedRanges !== 'function') return null;
-    try {
-      var roots = zooCollectOpenShadowRoots(container);
-      if (!roots.length) return null;
-      var composed = selection.getComposedRanges({shadowRoots: roots});
-      if (!composed || !composed.length) return null;
-      var range = document.createRange();
-      range.setStart(composed[0].startContainer, composed[0].startOffset);
-      range.setEnd(composed[0].endContainer, composed[0].endOffset);
-      var rect = range.getBoundingClientRect();
-      if (!rect || (!rect.width && !rect.height)) return null;
-      var holder = document.createElement('div');
-      holder.appendChild(range.cloneContents());
-      Array.prototype.forEach.call(holder.querySelectorAll('rt, rp'), function(node) {
-        node.parentNode.removeChild(node);
-      });
-      return {rect: rect, text: holder.textContent};
-    } catch (error) {
-      return null;
-    }
-  }
+  function zooCollectOpenShadowRoots(node) { return zooSelectionTools.collectRoots(node); }
+  function zooComposedSelection(selection, container) { return zooSelectionTools.composed(selection, container); }
 
   function zooHandleSelectionChange() {
     // Defensive: this runs on arbitrary third-party pages that may carry
@@ -1797,7 +1508,7 @@
       event.preventDefault();
       var q = query();
       if (!q.vi || !q.nom) return;
-      var previewQuery = { vi: q.vi, nom: q.nom, scope: q.scope, preview: '1' };
+      var previewQuery = Object.assign({}, q, {preview: '1'});
       return zooPost('/v1/nom/order', previewQuery).then(function(payload) {
         var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {

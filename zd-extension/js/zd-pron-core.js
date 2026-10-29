@@ -488,10 +488,17 @@ function createPronunciationCore(pronData, allPossibleRealWords) {
 
     prefix = prefix || ''
     if (!array.length) return prefix
-    var result = array[0].reduce((result, value) => {
-      return result.concat(getPermutations(array.slice(1), prefix + " " + value))
-    }, [])
-    return result.map((x) => x.trim()) // get rid of initial spaces
+    if (array.some(values => !values.length)) return []
+    var indices = array.map(() => 0), result = []
+    while (true) {
+      result.push((prefix + ' ' + array.map((values, i) => values[indices[i]]).join(' ')).trim())
+      var i = indices.length - 1
+      while (i >= 0 && ++indices[i] === array[i].length) {
+        indices[i] = 0
+        i--
+      }
+      if (i < 0) return result
+    }
   }
 
   const howManyPossibilities = (array) => {
@@ -508,15 +515,15 @@ function createPronunciationCore(pronData, allPossibleRealWords) {
     // ======================================================== */
 
     var normalized  = (str === null || str === undefined) ? "" : String(str).normalize().toLowerCase()
-      , sourceArray  = normalized.match(wordUnitsRegex)
+      , sourceArray  = normalized.trim() ? normalized.match(wordUnitsRegex) : null
       , outputArray  = (sourceArray !== null) ? sourceArray.map(word => getHomophones(word, true)) : []
       , result       = {}
     dialects.forEach((dialect) => {
       var sequence = outputArray.map(homophones => homophones[dialect])
         , total    = howManyPossibilities(sequence)
-      if (!sourceArray) result[dialect] = "&nbsp;"
+      if (!sourceArray) result[dialect] = []
       else if (total >= limit) result[dialect] = total // return a number if the total exceeds the limit
-      else result[dialect] = getPermutations(sequence).filter(hp => hp !== sourceArray.join(" ")) || "&nbsp;"
+      else result[dialect] = getPermutations(sequence).filter(hp => hp !== sourceArray.join(" "))
     })
     return result
   }
