@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "base": "http://127.0.0.1:8770",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/v1/explored-sites/match",
+      "request": "keys: JSON array of page hosts or names",
+      "response": "version and matches keyed by requested value"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/google-search",
+      "request": "no parameters",
+      "response": "lang, langs and server-computed suffix"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/nom/form",
+      "request": "vi and optional order",
+      "response": "candidates, title, existing_info, is_update and next_order"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/nom/order",
+      "request": "vi, global scope and optional caseSensitive",
+      "response": "variants, order, exists, title, existing_info, current_hint and pick"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/nom/entries",
+      "request": "query vi, nom, optional explain, replace and preview",
+      "response": "note or preview diff with changed and rows"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/nom/order",
+      "request": "query vi, nom, global scope, optional caseSensitive and preview",
+      "response": "note or preview diff with changed and rows"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/suggest",
+      "request": "kind, text and optional refresh, engines, engine, session or error",
+      "response": "candidates or server-rendered rows and engines"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/zoopdog/speak",
+      "request": "JSON text and confirm",
+      "response": "label on success; HTTP 409 status confirm and message when confirmation is required"
+    }
+  ],
+  "examples": {
+    "suggestLegacy": {
+      "candidates": [
+        "巴"
+      ]
+    },
+    "suggestCurrent": {
+      "candidates": [
+        "巴"
+      ],
+      "engine": "fixture"
+    },
+    "confirmation": {
+      "status": "confirm",
+      "message": "Confirm reading?"
+    },
+    "validationError": {
+      "error": "vi is required"
+    }
+  }
+}
