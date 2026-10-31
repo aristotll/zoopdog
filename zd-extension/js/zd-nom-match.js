@@ -55,6 +55,12 @@ function zdNomIsWhitespaceCode(code) {
   return code === code && ZD_NOM_WHITESPACE_PATTERN.test(String.fromCharCode(code));
 }
 
+function zdNomIsContractionApostrophe(text, index) {
+  var code = text.charCodeAt(index);
+  return (code === 39 || code === 0x2019) && zdNomIsWordCode(text.charCodeAt(index - 1)) &&
+    zdNomIsWordCode(text.charCodeAt(index + 1));
+}
+
 function zdNomIsWordChar(ch) {
   return !!ch && zdNomIsWordCode(ch.charCodeAt(0));
 }
@@ -416,6 +422,11 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
     }
     var word = located.run.words[located.index + first.length - 1];
     var length = word.end - start;
+    // An apostrophe joining two word characters ("don't", "don’t") makes the pieces fragments of
+    // one English contraction, not words: "don" must not be annotated.
+    if (zdNomIsContractionApostrophe(text, start - 1) || zdNomIsContractionApostrophe(text, start + length)) {
+      return null;
+    }
     var nom = first.value;
     if (caseSensitiveMap) {
       var exact = caseSensitiveMap[text.substring(start, start + length)];
@@ -488,6 +499,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ZD_NOM_VIETNAMESE_SIGNAL_PATTERN: ZD_NOM_VIETNAMESE_SIGNAL_PATTERN,
     ZD_NOM_ASCII_BLOCKLIST: ZD_NOM_ASCII_BLOCKLIST,
     zdNomIsWordChar: zdNomIsWordChar,
+    zdNomIsContractionApostrophe: zdNomIsContractionApostrophe,
     zdNomIsWhitespace: zdNomIsWhitespace,
     zdNomBuildIndex: zdNomBuildIndex,
     zdNomLower: zdNomLower,
