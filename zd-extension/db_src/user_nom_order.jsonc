@@ -320,5 +320,6 @@
   {"vi": "chua", "nom": ["䣷"]},
   {"vi": "Thị", "nom": ["氏"], "caseSensitive": true},
   {"vi": "tử hình", "nom": ["死刑"]},
-  {"vi": "hài", "nom": ["諧"]}
+  {"vi": "hài", "nom": ["諧"]},
+  {"vi": "huy hoàng", "nom": ["輝煌"]}
 ]

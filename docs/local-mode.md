@@ -102,8 +102,8 @@ links are found under `#search`, `#rso`, `main` or `#main`; one odd result never
 every organic result (a link with a title heading), coloured or not, gets them inline right after its title; `decorate` is idempotent and
 runs with every repaint, so a result Google re-renders gets them back. (2) Hovering any other link that is not coloured (chips, cards)
 shows one small floating pill at its top-right corner (fixed position, outside Google's DOM, no layout shift).
-`↻` asks the server again for that link's keys only (`zooAnchorKeys`, bypassing what was asked or answered before) and colours the
-link if the site is explored by now (a toast says which). `⛔` opens the project-style modal "Blacklist a site: no need to
+`↻` is a manual retry for the whole page: it asks the server again for the keys (`zooAnchorKeys`) of the clicked link and of every
+link still without colour (up to 100), bypassing what was asked or answered before, and colours those explored by now (a toast says how many). `⛔` opens the project-style modal "Blacklist a site: no need to
 explore": the site field is pre-filled with the link's own host (editable; the server stores the registrable domain), the reason
 defaults to `no search` (editable), and submit sends `POST /v1/explored-sites/blacklist?host=&reason=`, which appends it to
 book-translator's `docs/explored_sites_blacklist.json` (hot reload) and answers the finished grey entry; the link is then asked

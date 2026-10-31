@@ -224,11 +224,17 @@
       eligible: function(anchor) {
         return zooIsGoogleSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && !zooExploredBlock(anchor).dataset.zooExplored;
       },
+      // Refresh is a manual retry for the whole page: every link still without colour is asked again, not only the one clicked.
       refresh: function(anchor) {
         var keys = zooAnchorKeys(anchor);
+        var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+        for (var i = 0; i < anchors.length && keys.length < ZOO_EXPLORED_MAX_KEYS; i++) {
+          if (zooExploredBlock(anchors[i]).dataset.zooExplored) continue;
+          zooAnchorKeys(anchors[i]).forEach(function(key) { if (keys.indexOf(key) === -1 && keys.length < ZOO_EXPLORED_MAX_KEYS) keys.push(key); });
+        }
         return requery(keys).then(function(found) {
           zooBuildModals();
-          zooShowToast(found ? 'Explored: coloured' : 'Not explored yet: no plugin, engine or note names this site');
+          zooShowToast(found ? 'Refreshed ' + keys.length + ' site(s): ' + found + ' now coloured' : 'Refreshed ' + keys.length + ' site(s): none explored yet');
         }, function(error) {
           zooBuildModals();
           zooShowToast(error.message || 'Could not reach the reader server');

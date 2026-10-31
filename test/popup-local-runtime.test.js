@@ -727,7 +727,7 @@ test('the blacklist modal starts with the link host and the default reason, and 
   assert.equal(done[0].domain, 'x.com');
 });
 
-test('hovering an uncoloured link offers refresh, which asks again for that link only and colours it', async () => {
+test('hovering an uncoloured link offers refresh, which asks again for every uncoloured link of the page and colours what is explored', async () => {
   const asked = [];
   let explored = false;
   const harness = createHarness((options) => {
@@ -740,6 +740,7 @@ test('hovering an uncoloured link offers refresh, which asks again for that link
   const toast = harness.add('zoopdog-toast');
   harness.context.zooBuildModals = () => {};
   const anchor = link('https://newsite.example.vn/a');
+  const other = link('https://other.example.vn/b');
   const handlers = {};
   const made = [];
   const heading = element();
@@ -747,13 +748,13 @@ test('hovering an uncoloured link offers refresh, which asks again for that link
   anchor.querySelector = () => heading;
   const doc = {
     body: {appendChild: (child) => made.push(child)}, defaultView: {innerWidth: 1000},
-    querySelectorAll: () => [anchor], createElement: () => { const n = element(); n.style = {}; return n; },
+    querySelectorAll: () => [anchor, other], createElement: () => { const n = element(); n.style = {}; return n; },
     addEventListener: (type, fn) => { handlers[type] = fn; }
   };
   anchor.getBoundingClientRect = () => ({top: 10, right: 400, left: 0});
   await harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'});
   await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.deepEqual(asked, [[], ['newsite.example.vn']]);      // probe, then the page's key once: not explored yet
+  assert.deepEqual(asked, [[], ['newsite.example.vn', 'other.example.vn']]);      // probe, then the page's keys once: not explored yet
   assert.equal(anchor.dataset.zooExplored, undefined);
 
   assert.equal(heading.children.length, 1, 'the inline buttons are there without any hover');
@@ -764,8 +765,8 @@ test('hovering an uncoloured link offers refresh, which asks again for that link
   explored = true;                                            // a plugin was added meanwhile
   pill.children[0].dispatch('click');
   await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.deepEqual(asked[2], ['newsite.example.vn']);
+  assert.deepEqual(asked[2], ['newsite.example.vn', 'other.example.vn']);   // the clicked link first, then every other uncoloured one
   assert.equal(anchor.style.background, '#c8f7c5');
   assert.equal(anchor.title, 'Explored: dict newsite');
-  assert.match(toast.textContent, /Explored/);
+  assert.match(toast.textContent, /Refreshed 2 site\(s\): 1 now coloured/);
 });
