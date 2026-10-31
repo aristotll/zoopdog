@@ -129,6 +129,12 @@
     return keys.slice(0, ZOO_EXPLORED_MAX_KEYS);
   }
 
+  // What gets painted for a link: the whole result block of an organic result, else the link itself.
+  function zooExploredBlock(anchor) {
+    var organic = anchor.querySelector && anchor.querySelector('h3, [role="heading"]');
+    return organic ? (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor) : anchor;
+  }
+
   function zooPaintExplored(doc, matches) {
     var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
     var painted = 0;
@@ -140,7 +146,7 @@
         var keys = zooAnchorKeys(anchor);
         for (var k = 0; k < keys.length && !entry; k++) entry = matches[keys[k]] || null;
         // An AI-panel reference is a small chip/inline link: outline the link itself instead of a whole block.
-        var block = ai ? anchor : (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor);
+        var block = zooExploredBlock(anchor);
         if (ai && !entry && !block.dataset.zooExplored) continue;
         if (!entry) {
           if (block.dataset.zooExplored) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
@@ -197,10 +203,52 @@
       try {
         if (!zooIsGoogleSearchPage(loc)) return;
         zooPaintExplored(doc, state.matches);
+        decorateAll();
         ask();
       } catch (error) { /* retry on next tick */ }
     };
     var paint = zooDebounce(paintNow, 150);
+    // Ask again for these keys only, ignoring what was asked or answered before (the refresh button, and after a blacklist).
+    var requery = function(keys) {
+      keys.forEach(function(key) { delete state.asked[key]; delete state.matches[key]; });
+      return zooGetJSON('/v1/explored-sites/match', {keys: JSON.stringify(keys)}).then(function(data) {
+        keys.forEach(function(key) { state.asked[key] = true; });
+        Object.keys(data.matches || {}).forEach(function(key) { state.matches[key] = data.matches[key]; });
+        zooExploredCacheWrite(state);
+        zooPaintExplored(doc, state.matches);
+        return keys.filter(function(key) { return state.matches[key]; }).length;
+      });
+    };
+    var tools = zooExploredToolsCreate({
+      doc: doc,
+      eligible: function(anchor) {
+        return zooIsGoogleSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && !zooExploredBlock(anchor).dataset.zooExplored;
+      },
+      refresh: function(anchor) {
+        var keys = zooAnchorKeys(anchor);
+        return requery(keys).then(function(found) {
+          zooBuildModals();
+          zooShowToast(found ? 'Explored: coloured' : 'Not explored yet: no plugin, engine or note names this site');
+        }, function(error) {
+          zooBuildModals();
+          zooShowToast(error.message || 'Could not reach the reader server');
+        });
+      },
+      blacklist: function(anchor) {
+        var keys = zooAnchorKeys(anchor);
+        // The link's own host first; a name hint ("Tuổi Trẻ") is no host, so then the field starts empty.
+        var host = keys.filter(function(key) { return /^[^\s]+\.[a-z]{2,}$/i.test(key); })[0] || '';
+        tools.hide();
+        zooOpenBlacklistModal(host, function() { requery(keys).catch(function() {}); });
+      }
+    });
+    // The inline buttons of every organic result that has keys (the hover pill covers the other links); idempotent, so it runs with every repaint.
+    var decorateAll = function() {
+      var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+      for (var i = 0; i < anchors.length; i++) {
+        try { if (zooAnchorKeys(anchors[i]).length) tools.decorate(anchors[i]); } catch (error) { /* one odd result must not stop the rest */ }
+      }
+    };
     var attempt = function(n) {
       return zooGetJSON('/v1/explored-sites/match', {keys: '[]'}).then(function(data) {
         state.loaded = true;
@@ -215,6 +263,7 @@
     };
     var refresh = function() { return attempt(ZOO_EXPLORED_RETRY_MS.length); };
     var root = doc.body || doc.documentElement;
+    if (doc.body) tools.attach();
     if (typeof MutationObserver === 'function' && root) new MutationObserver(paint).observe(root, {childList: true, subtree: true});
     if (doc.addEventListener) {
       doc.addEventListener('visibilitychange', function() { if (!doc.hidden) { refresh(); paint(); } });
@@ -406,6 +455,22 @@
             li.appendChild(document.createTextNode(' '));
             li.appendChild(copy);
           }
+          (row.actions || []).forEach(function(action) {
+            // A failing channel's row: the server finished the buttons (label, GET); we only send them.
+            var toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'zd-notes-all-copy';
+            toggle.textContent = action.label;
+            toggle.addEventListener('click', function() {
+              toggle.disabled = true;
+              zooGetJSON(action.path, action.params).then(function() { toggle.textContent = 'Done'; }, function() {
+                toggle.textContent = 'Failed';
+                toggle.disabled = false;
+              });
+            });
+            li.appendChild(document.createTextNode(' '));
+            li.appendChild(toggle);
+          });
           list.appendChild(li);
         });
       }
@@ -807,6 +872,15 @@
       status: 'zoopdog-nom-order-form-status',
       saveBtn: 'zoopdog-nom-order-save-btn',
       confirmBtn: 'zoopdog-nom-order-confirm-btn'
+    },
+    blacklist: {
+      backdrop: 'zoopdog-explored-blacklist-modal',
+      form: 'zoopdog-explored-blacklist-form',
+      title: 'zoopdog-explored-blacklist-title',
+      host: 'zoopdog-explored-blacklist-host',
+      reason: 'zoopdog-explored-blacklist-reason',
+      status: 'zoopdog-explored-blacklist-status',
+      saveBtn: 'zoopdog-explored-blacklist-save-btn'
     }
   };
 
@@ -1554,6 +1628,47 @@
     zooOrderState.refresh();
   }
 
+  // The "blacklist" button next to an uncoloured Google link: the modal asks for the site (pre-filled with the link's
+  // host, editable) and a reason (default "no search"), POSTs it, and tells the caller which answer to paint.
+  var ZOO_BLACKLIST_DEFAULT_REASON = 'no search';
+  var zooBlacklistDone = null;
+
+  function zooOpenBlacklistModal(host, done) {
+    zooBuildModals();
+    var ids = ZOO_MODAL_IDS.blacklist;
+    document.getElementById(ids.host).value = host || '';
+    document.getElementById(ids.reason).value = ZOO_BLACKLIST_DEFAULT_REASON;
+    zooSetModalStatus(ids.status, '');
+    zooBlacklistDone = done || null;
+    zooOpenModal(ids.backdrop);
+    var input = document.getElementById(ids.host);
+    if (input.focus) input.focus();
+  }
+
+  function zooWireBlacklistForm() {
+    var ids = ZOO_MODAL_IDS.blacklist;
+    document.getElementById(ids.form).addEventListener('submit', zooGuard(function(event) {
+      event.preventDefault();
+      var host = document.getElementById(ids.host).value.trim();
+      if (!host) {
+        zooSetModalStatus(ids.status, 'The site is required.', true);
+        return undefined;
+      }
+      var reason = document.getElementById(ids.reason).value.trim() || ZOO_BLACKLIST_DEFAULT_REASON;
+      zooSetModalStatus(ids.status, 'Saving...');
+      return zooPost('/v1/explored-sites/blacklist', {host: host, reason: reason}).then(function(data) {
+        zooCloseModal(ids.backdrop);
+        zooShowToast('Blacklisted ' + data.domain + ': ' + data.reason);
+        var done = zooBlacklistDone;
+        zooBlacklistDone = null;
+        if (done) done(data);
+      }, function(error) {
+        var payload = error.payload || {};
+        zooSetModalStatus(ids.status, payload.error || error.message || 'Could not reach the reader server', true);
+      });
+    }));
+  }
+
   function zooBuildModals() {
     if (document.getElementById(ZOO_MODAL_IDS.nom.backdrop)) return;
 
@@ -1630,19 +1745,42 @@
       '</div>'
     ].join('');
 
+    var blIds = ZOO_MODAL_IDS.blacklist;
+    var blacklistHtml = [
+      '<div id="', blIds.backdrop, '" class="zd-modal-backdrop" hidden>',
+      '<form id="', blIds.form, '" class="zd-modal">',
+      '<h2 id="', blIds.title, '">Blacklist a site: no need to explore</h2>',
+      '<p class="zd-modal-hint">Appended to book-translator\'s docs/explored_sites_blacklist.json; links to it are then shown in grey.</p>',
+      '<label>Site (host or link; the registrable domain is stored)',
+      '<input id="', blIds.host, '" type="text" required autocomplete="off">',
+      '</label>',
+      '<label>Reason',
+      '<input id="', blIds.reason, '" type="text" autocomplete="off">',
+      '</label>',
+      '<p id="', blIds.status, '" class="zd-modal-status" hidden></p>',
+      '<div class="zd-modal-actions">',
+      '<button type="button" data-zd-modal-cancel>Cancel</button>',
+      '<button type="submit" id="', blIds.saveBtn, '">Add to blacklist</button>',
+      '</div>',
+      '</form>',
+      '</div>'
+    ].join('');
+
     var toastHtml = '<div id="zoopdog-toast" class="zd-toast" hidden></div>';
 
     var container = document.createElement('div');
     container.id = 'zoopdog-userscript-modals';
-    zooSetHTML(container, nomHtml + orderHtml + toastHtml);
+    zooSetHTML(container, nomHtml + orderHtml + blacklistHtml + toastHtml);
     document.body.appendChild(container);
     container.addEventListener('mousedown', function(event) { event.stopPropagation(); });
 
     zooBindModalDismiss();
     zooMakeModalDraggable(ZOO_MODAL_IDS.nom.backdrop);
     zooMakeModalDraggable(ZOO_MODAL_IDS.order.backdrop);
+    zooMakeModalDraggable(ZOO_MODAL_IDS.blacklist.backdrop);
     zooMakeModalResizable(ZOO_MODAL_IDS.nom.backdrop);
     zooMakeModalResizable(ZOO_MODAL_IDS.order.backdrop);
     zooWireNomForm();
     zooWireNomOrderForm();
+    zooWireBlacklistForm();
   }

@@ -125,6 +125,10 @@ function readRuntimeSources(localMode) {
       readRuntime('local-modal-guard.js')
     ].join('\n'));
     parts.push([
+      '// ===== scripts/userscript/local-explored-tools.js =====',
+      readRuntime('local-explored-tools.js')
+    ].join('\n'));
+    parts.push([
       '// ===== scripts/userscript/popupdict-local.runtime.js =====',
       readRuntime('popupdict-local.runtime.js')
     ].join('\n'));

@@ -318,5 +318,7 @@
   {"vi": "đôi", "nom": ["對"]},
   {"vi": "ngoại thương", "nom": ["外商"]},
   {"vi": "chua", "nom": ["䣷"]},
-  {"vi": "Thị", "nom": ["氏"], "caseSensitive": true}
+  {"vi": "Thị", "nom": ["氏"], "caseSensitive": true},
+  {"vi": "tử hình", "nom": ["死刑"]},
+  {"vi": "hài", "nom": ["諧"]}
 ]

@@ -9,6 +9,12 @@
       "response": "version and matches keyed by requested value"
     },
     {
+      "method": "POST",
+      "path": "/v1/explored-sites/blacklist",
+      "request": "query host (a host or a link) and optional reason, default no search",
+      "response": "domain, reason, replaced and the finished grey entry; HTTP 422 error when host is not a site"
+    },
+    {
       "method": "GET",
       "path": "/v1/google-search",
       "request": "no parameters",
@@ -41,8 +47,8 @@
     {
       "method": "GET",
       "path": "/v1/suggest",
-      "request": "kind, text and optional refresh, engines, engine, session or error",
-      "response": "candidates or server-rendered rows and engines"
+      "request": "kind, text and optional refresh, engines, engine, session or error; or channel and disabled (1, 0, global) to switch a Notes channel off for the server process, on again, or off for good in provider-lists.toml",
+      "response": "candidates or server-rendered rows (a failing channel's row may carry actions: a list of label, path, params) and engines"
     },
     {
       "method": "POST",

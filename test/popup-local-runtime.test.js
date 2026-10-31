@@ -13,6 +13,7 @@ const selectionTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'us
 const modalGeometry = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-geometry.js'), 'utf8');
 const entryDiff = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-entry-diff.js'), 'utf8');
 const modalGuard = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-guard.js'), 'utf8');
+const exploredTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-explored-tools.js'), 'utf8');
 
 function element() {
   const listeners = {};
@@ -28,7 +29,7 @@ function element() {
     disabled: false,
     checked: false,
     addEventListener(type, listener) { (listeners[type] || (listeners[type] = [])).push(listener); },
-    dispatch(type) { (listeners[type] || []).forEach((listener) => listener({preventDefault() {}})); },
+    dispatch(type) { (listeners[type] || []).forEach((listener) => listener({preventDefault() {}, stopPropagation() {}})); },
     appendChild(child) { this.children.push(child); },
     querySelector() { return null; },
     get childElementCount() { return this.children.length; }
@@ -59,7 +60,7 @@ function createHarness(request) {
     GM_xmlhttpRequest: request,
     escapeHtml(value) { return String(value); }
   });
-  vm.runInContext(transport + '\n' + selectionTools + '\n' + modalGeometry + '\n' + entryDiff + '\n' + modalGuard + '\n' + runtime, context, {filename: runtimePath});
+  vm.runInContext(transport + '\n' + selectionTools + '\n' + modalGeometry + '\n' + entryDiff + '\n' + modalGuard + '\n' + exploredTools + '\n' + runtime, context, {filename: runtimePath});
   return {context, elements, add(id) { const node = element(); elements.set(id, node); return node; }};
 }
 
@@ -457,6 +458,40 @@ test('Refresh all retries a failing channel alone and shows it as an error next 
   assert.match(unreachable[0].message, /unreachable/);
 });
 
+test('Refresh all draws the buttons the server put on a failing channel and sends its GET', async () => {
+  const seen = [];
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    seen.push(q);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['ink']});
+    if (q.get('channel')) return reply({channel: 'ink', disabled: true});
+    return reply({rows: [{
+      engines: ['ink'], label: 'failing: ink', text: '', message: '(failed 5 times in a row: HTTP 502)', failing: true,
+      actions: [
+        {label: 'Disable globally', path: '/v1/suggest', params: {channel: 'ink', disabled: 'global'}},
+        {label: 'Disable for this process', path: '/v1/suggest', params: {channel: 'ink', disabled: '1'}}
+      ]
+    }]});
+  });
+  const button = harness.add('b');
+  const list = harness.add('l');
+  harness.context.zooWireNotesAll(button, list, 'nom-notes', () => 'a', 's').run();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const li = list.children[0];
+  const global = li.children.find((child) => child.textContent === 'Disable globally');
+  const process = li.children.find((child) => child.textContent === 'Disable for this process');
+  assert.ok(global && process, 'the row carries both server-made buttons');
+  global.dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(seen[seen.length - 1].get('disabled'), 'global');
+  assert.equal(global.textContent, 'Done');
+  process.dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(seen[seen.length - 1].get('channel'), 'ink');
+  assert.equal(seen[seen.length - 1].get('disabled'), '1');
+});
+
 test('Refresh all waits for a slow channel far longer than the generic request timeout', async () => {
   const timeouts = {};
   const harness = createHarness((options) => {
@@ -643,4 +678,94 @@ test('local selection wrappers use injected page caret and selection', () => {
   assert.ok(context.zooAnnotationInLinkAt(0, 0));
   context.zooSelectBetweenPoints({x: 0, y: 0}, {x: 2, y: 0});
   assert.equal(selected.length, 1);
+});
+
+test('the blacklist modal starts with the link host and the default reason, and posts what was edited', async () => {
+  const requests = [];
+  const harness = createHarness((options) => {
+    requests.push(options);
+    const url = new URL(options.url);
+    if (url.searchParams.get('host') === 'localhost') return options.onload({status: 422, responseText: JSON.stringify({error: 'host is not a site'})});
+    options.onload({status: 200, responseText: JSON.stringify({domain: 'x.com', reason: url.searchParams.get('reason'), replaced: false, entry: {label: 'No need to explore: cloudflare', color: '#d9d9d9'}})});
+  });
+  const ids = harness.context.ZOO_MODAL_IDS.blacklist;
+  const nodes = {};
+  Object.keys(ids).forEach((key) => { nodes[key] = harness.add(ids[key]); });
+  const toast = harness.add('zoopdog-toast');
+  harness.context.zooBuildModals = () => {};          // the DOM-built modals are not under test here
+  harness.context.zooWireBlacklistForm();
+  const done = [];
+  harness.context.zooOpenBlacklistModal('www.x.com', (data) => done.push(data));
+  assert.equal(nodes.host.value, 'www.x.com');
+  assert.equal(nodes.reason.value, 'no search');
+  assert.equal(nodes.backdrop.hidden, false);
+
+  nodes.host.value = '';
+  nodes.form.dispatch('submit');
+  assert.match(nodes.status.textContent, /required/);
+  assert.equal(requests.length, 0);
+
+  nodes.host.value = 'localhost';
+  nodes.form.dispatch('submit');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(nodes.status.textContent, 'host is not a site');   // the server's own refusal, shown in the modal
+  assert.equal(nodes.backdrop.hidden, false);
+
+  nodes.host.value = 'https://www.x.com/y';
+  nodes.reason.value = 'cloudflare';
+  nodes.form.dispatch('submit');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const post = requests[requests.length - 1];
+  assert.equal(post.method, 'POST');
+  const query = new URL(post.url);
+  assert.equal(query.pathname, '/v1/explored-sites/blacklist');
+  assert.equal(query.searchParams.get('host'), 'https://www.x.com/y');
+  assert.equal(query.searchParams.get('reason'), 'cloudflare');
+  assert.equal(nodes.backdrop.hidden, true);
+  assert.match(toast.textContent, /Blacklisted x\.com: cloudflare/);
+  assert.equal(done.length, 1);
+  assert.equal(done[0].domain, 'x.com');
+});
+
+test('hovering an uncoloured link offers refresh, which asks again for that link only and colours it', async () => {
+  const asked = [];
+  let explored = false;
+  const harness = createHarness((options) => {
+    const keys = JSON.parse(new URL(options.url).searchParams.get('keys'));
+    asked.push(keys);
+    const matches = explored && keys.includes('newsite.example.vn') ? {'newsite.example.vn': {color: '#c8f7c5', label: 'Explored: dict newsite'}} : {};
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', matches})});
+  });
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  const toast = harness.add('zoopdog-toast');
+  harness.context.zooBuildModals = () => {};
+  const anchor = link('https://newsite.example.vn/a');
+  const handlers = {};
+  const made = [];
+  const heading = element();
+  heading.querySelector = function(selector) { return this.children.find((c) => selector.endsWith(c.className)) || null; };
+  anchor.querySelector = () => heading;
+  const doc = {
+    body: {appendChild: (child) => made.push(child)}, defaultView: {innerWidth: 1000},
+    querySelectorAll: () => [anchor], createElement: () => { const n = element(); n.style = {}; return n; },
+    addEventListener: (type, fn) => { handlers[type] = fn; }
+  };
+  anchor.getBoundingClientRect = () => ({top: 10, right: 400, left: 0});
+  await harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(asked, [[], ['newsite.example.vn']]);      // probe, then the page's key once: not explored yet
+  assert.equal(anchor.dataset.zooExplored, undefined);
+
+  assert.equal(heading.children.length, 1, 'the inline buttons are there without any hover');
+  assert.deepEqual(heading.children[0].children.map((b) => b.textContent), ['↻', '⛔']);
+  handlers.mouseover({target: {closest: () => anchor}});
+  const pill = made[0];
+  assert.equal(pill.hidden, false);
+  explored = true;                                            // a plugin was added meanwhile
+  pill.children[0].dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(asked[2], ['newsite.example.vn']);
+  assert.equal(anchor.style.background, '#c8f7c5');
+  assert.equal(anchor.title, 'Explored: dict newsite');
+  assert.match(toast.textContent, /Explored/);
 });

@@ -98,6 +98,18 @@ asked before the server has answered once; a failed first request is retried aft
 results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time;
 links are found under `#search`, `#rso`, `main` or `#main`; one odd result never stops the rest.
 
+**Buttons on Google links** (`scripts/userscript/local-explored-tools.js`), in two forms with the same two buttons. (1) Always present:
+every organic result (a link with a title heading), coloured or not, gets them inline right after its title; `decorate` is idempotent and
+runs with every repaint, so a result Google re-renders gets them back. (2) Hovering any other link that is not coloured (chips, cards)
+shows one small floating pill at its top-right corner (fixed position, outside Google's DOM, no layout shift).
+`↻` asks the server again for that link's keys only (`zooAnchorKeys`, bypassing what was asked or answered before) and colours the
+link if the site is explored by now (a toast says which). `⛔` opens the project-style modal "Blacklist a site: no need to
+explore": the site field is pre-filled with the link's own host (editable; the server stores the registrable domain), the reason
+defaults to `no search` (editable), and submit sends `POST /v1/explored-sites/blacklist?host=&reason=`, which appends it to
+book-translator's `docs/explored_sites_blacklist.json` (hot reload) and answers the finished grey entry; the link is then asked
+again and turns grey. The server's own refusal (HTTP 422 `error`) is shown in the modal. The hover pill never appears on a coloured link; the inline buttons stay.
+The route is in `test/fixtures/local-mode-contract.json`, identical to book-translator's copy.
+
 Troubleshooting and fixing this feature (a link not coloured, a visual regression): follow book-translator's
 `.claude/ai-common/rules/google-explored-highlighter.md` (matching stays on the server, verify on the real page with a screenshot,
 never overwrite uncommitted work in this repo).
@@ -174,7 +186,7 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
 - `GET /v1/google-search` → `{lang, langs, suffix}`; the Google-search icon opens `https://www.google.com/search?q=<term>` + `suffix` (`&hl=ja` etc., empty when unconfigured). The language is set on the server's `/control` page (`POST /v1/google-search?lang=`) and persisted server-side.
-- **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is drawn once, at the end: the channels that answered, and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator.
+- **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is drawn once, at the end: the channels that answered, and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator. A channel that failed 5 times in a row (2026-10-31) comes back as a server-made `failing: <id>` row whose `actions` (a list of `label`, `path`, `params`: "Disable globally", "Disable for this process") the runtime draws as buttons and sends as GETs (`GET /v1/suggest?channel=<id>&disabled=1|0|global`: off for the server process, on again, or off for good in book-translator's `provider-lists.toml`); the runtime decides nothing.
 - `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
   reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
   the "Refresh all" list just draws. Each row has a finished `label` (`"edge, google"`, `"ALL"`, or
