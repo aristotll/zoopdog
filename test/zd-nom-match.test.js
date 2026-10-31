@@ -260,3 +260,14 @@ test('a plain English phrase is not annotated, even when some of its words are A
   assert.equal(find('the day một').index, 0);
   assert.equal(find('the day').index, 0);
 });
+
+test('the pieces of an English contraction are not annotated, but a quoted word still is', () => {
+  const matcher = zdCreateNomMatcher({'don': '吮', 'test': '測'});
+  const find = (text) => matcher.findNomMatch(text, 0);
+
+  assert.equal(find("Don't be biased"), null);
+  assert.equal(find('don’t'), null);
+  assert.equal(find("can't don't"), null);
+  assert.deepEqual(find("'don' quoted"), {index: 1, length: 3, nom: '吮'});
+  assert.equal(find('Don').nom, '吮');
+});
