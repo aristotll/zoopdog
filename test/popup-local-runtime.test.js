@@ -55,7 +55,7 @@ function createHarness(request) {
   };
   const context = vm.createContext({
     Promise, JSON, Error, Object, String, Array, Math, Date, isFinite,
-    clearTimeout, setTimeout, URL, document,
+    clearTimeout, setTimeout, URL, atob, document,
     setInterval(fn, ms) { const timer = setInterval(fn, ms); timer.unref(); return timer; },
     GM_xmlhttpRequest: request,
     escapeHtml(value) { return String(value); }
@@ -769,4 +769,115 @@ test('hovering an uncoloured link offers refresh, which asks again for every unc
   assert.equal(anchor.style.background, '#c8f7c5');
   assert.equal(anchor.title, 'Explored: dict newsite');
   assert.match(toast.textContent, /Refreshed 2 site\(s\): 1 now coloured/);
+});
+
+// Regression (2026-11-05): the auto-filled Chữ Nôm default ("糖蜜") was wiped on focus, so a
+// mouse press to select one character emptied the field under the caret, and a late
+// suggestion fetch rewrote it again; the browser's selection offsets then pointed at the wrong
+// character ("select 糖, delete -> 蜜 went"). A pointer-focused field keeps its text.
+function wiredDefaultField() {
+  const harness = createHarness(() => {});
+  const input = element();
+  harness.context.document.activeElement = input;
+  harness.context.zooWireDatalistAutoClear(input, () => false);
+  input.value = '糖蜜';
+  input.dataset.autofillDefault = '糖蜜';
+  return {harness, input};
+}
+
+test('a mouse press into the untouched default keeps its text so a character can be selected', () => {
+  const {input} = wiredDefaultField();
+  input.dispatch('mousedown');
+  input.dispatch('focus');
+  assert.equal(input.value, '糖蜜');
+});
+
+test('keyboard focus still clears the untouched default so the full datalist shows', () => {
+  const {input} = wiredDefaultField();
+  input.dispatch('focus');
+  assert.equal(input.value, '');
+  input.dispatch('blur');
+  assert.equal(input.value, '糖蜜');
+});
+
+test('a late suggestion refill never rewrites a field the pointer is working in', () => {
+  const {harness, input} = wiredDefaultField();
+  input.dispatch('mousedown');
+  input.dispatch('focus');
+  harness.context.zooSetAutofillDefaultLive(input, '塘密', () => false);
+  assert.equal(input.value, '塘密');
+  input.dispatch('blur');
+  input.value = '';
+  harness.context.zooSetAutofillDefaultLive(input, '塘密', () => false);
+  assert.equal(input.value, '', 'keyboard focus keeps the field blank for the datalist');
+});
+
+test('the search icon asks the server to open the tabs (CDP, same profile) and only falls back to window.open', () => {
+  const start = runtime.indexOf('function zooOpenGoogleSearch');
+  const body = runtime.slice(start, runtime.indexOf('// Each channel is asked', start));
+  assert.match(body, /zooPost\('\/v1\/web-search\/open', \{ q: term, from: window\.location\.href \}\)/);
+  assert.match(body, /data && data\.opened \? \[\]/);
+  assert.doesNotMatch(body, /google\.com\/search/);
+});
+
+function onEngine(context, hostname, pathname) {
+  context.ZOO_ENGINE = context.zooSearchEngineFor({hostname, pathname});
+  assert.ok(context.ZOO_ENGINE, hostname);
+}
+
+test('every listed search engine is recognised by host and path, and unlisted pages are not', () => {
+  const {context} = createHarness(() => {});
+  const pages = {google: ['www.google.com', '/search'], bing: ['www.bing.com', '/search'], duckduckgo: ['duckduckgo.com', '/'],
+    yahoo: ['search.yahoo.com', '/search'], 'yahoo-jp': ['search.yahoo.co.jp', '/search'], baidu: ['www.baidu.com', '/s'],
+    brave: ['search.brave.com', '/search'], ecosia: ['www.ecosia.org', '/search'], startpage: ['www.startpage.com', '/do/search'],
+    qwant: ['www.qwant.com', '/'], naver: ['search.naver.com', '/search.naver'], seznam: ['search.seznam.cz', '/']};
+  Object.keys(pages).forEach((id) => assert.equal(context.zooSearchEngineFor({hostname: pages[id][0], pathname: pages[id][1]}).id, id));
+  assert.equal(context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/images/search'}), null);
+  assert.equal(context.zooSearchEngineFor({hostname: 'yandex.com', pathname: '/'}), null);
+});
+
+test('Bing redirect links are decoded to their target host; Baidu reads the result container\'s mu; own hosts are never keys', () => {
+  const {context} = createHarness(() => {});
+  const target = Buffer.from('https://luatvietnam.vn/dat-dai/x.html').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  onEngine(context, 'www.bing.com', '/search');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.bing.com/ck/a?!&&p=abc&u=a1' + target + '&ntb=1'))), ['luatvietnam.vn']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.bing.com/images/search?q=x'))), []);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://thuvienphapluat.vn/a'))), ['thuvienphapluat.vn']);
+  onEngine(context, 'www.baidu.com', '/s');
+  const inResult = link('http://www.baidu.com/link?url=abc', {closest: (sel) => (sel === '[mu]' ? {getAttribute: () => 'https://hikidasu.com/p/1'} : null)});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(inResult)), ['hikidasu.com']);
+  onEngine(context, 'duckduckgo.com', '/');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://duckduckgo.com/?q=x'))), []);
+});
+
+test('on a non-Google engine the whole result block is painted, a sibling link without an answer does not wipe it, AI/loose links are tinted', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.bing.com', '/search');
+  const block = {style: {}, title: '', dataset: {}};
+  const inBlock = (href) => link(href, {closest: () => block});
+  const title = inBlock('https://luatvietnam.vn/a');
+  const favicon = inBlock('https://www.bing.com/images/search?q=x');          // same block, no key, no answer
+  const aiChip = link('https://www.hellobacsi.com/a');                         // outside any block (AI answer citation)
+  const doc = {querySelectorAll: () => [title, favicon, aiChip]};
+  const matches = {'luatvietnam.vn': {color: '#c8f7c5', label: 'Explored'}, 'www.hellobacsi.com': {color: '#ffe9a8', label: 'Explored: tts'}};
+  assert.equal(context.zooPaintExplored(doc, matches), 2);
+  assert.equal(block.style.background, '#c8f7c5');
+  assert.equal(block.dataset.zooExplored, '1');
+  assert.equal(aiChip.style.mixBlendMode, 'multiply');
+  context.zooPaintExplored(doc, {});
+  assert.equal(block.style.background, '');                                    // cleared once no link of the block has an answer
+  assert.equal(aiChip.style.outline, '');
+});
+
+test('Sogou redirect links take the host from the address shown in the result; Yandex and Kagi are recognised', () => {
+  const {context} = createHarness(() => {});
+  assert.equal(context.zooSearchEngineFor({hostname: 'yandex.com', pathname: '/search/'}).id, 'yandex');
+  assert.equal(context.zooSearchEngineFor({hostname: 'kagi.com', pathname: '/search'}).id, 'kagi');
+  onEngine(context, 'www.sogou.com', '/web');
+  const shown = {children: [], textContent: ' https://helpx.adobe.com/vn/photoshop/... '};
+  const title = {children: [{}], textContent: 'Adobe // other'};
+  const box = {querySelectorAll: () => [title, shown]};
+  const redirect = link('https://www.sogou.com/link?url=abc', {closest: () => box});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(redirect)), ['helpx.adobe.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.sogou.com/web?query=x'))), []);
 });

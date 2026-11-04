@@ -277,7 +277,7 @@ function zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms) {
 }
 
 // Whether a run of words reads as plain English rather than (unaccented) Vietnamese: no
-// Vietnamese diacritic anywhere in it, and fewer than ZD_NOM_VIETNAMESE_HIT_RATE of its words
+// Vietnamese diacritic anywhere in it, and no more than ZD_NOM_VIETNAMESE_HIT_RATE of its words
 // are (the start of) a dictionary term. Unaccented Vietnamese ("toi di hoc") is made of
 // syllables the dictionary knows, so nearly every word hits; English hits only by coincidence
 // ("the", "day"). A lone word has no rate to speak of and is never called English here.
@@ -297,7 +297,7 @@ function zdNomLooksEnglish(termIndex, text, words) {
       hits++;
     }
   }
-  return hits / words.length < ZD_NOM_VIETNAMESE_HIT_RATE;
+  return hits / words.length <= ZD_NOM_VIETNAMESE_HIT_RATE;
 }
 
 // Chu Nom (non-ASCII) matches always annotate. An ASCII-only match annotates only when
@@ -485,7 +485,35 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
     return false;
   }
 
-  return {index: termIndex, matchAt: matchAt, findNomMatch: findNomMatch, canContinuePast: canContinuePast};
+  // Whether `text` is a lone word whose ASCII-only dictionary hit zdNomLooksEnglish cannot judge
+  // (a single word has no hit rate), so a caller whose text is split over several DOM nodes -- one
+  // word per node, as the reader does -- should read on and let the words after it decide.
+  function needsEnglishContext(text) {
+    if (annotateAsciiTerms !== 'safe' || ZD_NOM_VIETNAMESE_SIGNAL_PATTERN.test(text)) {
+      return false;
+    }
+    var words = zdNomRunWords(text, 0);
+    if (!words.length) {
+      var start = 0;
+      while (start < text.length && !zdNomIsWordCode(text.charCodeAt(start))) {
+        start++;
+      }
+      words = zdNomRunWords(text, start);
+    }
+    if (words.length !== 1) {
+      return false;
+    }
+    var hit = findNomMatch(text, 0);
+    return !!hit && !ZD_NOM_NON_ASCII_PATTERN.test(text.substring(hit.index, hit.index + hit.length));
+  }
+
+  return {
+    index: termIndex,
+    matchAt: matchAt,
+    findNomMatch: findNomMatch,
+    canContinuePast: canContinuePast,
+    needsEnglishContext: needsEnglishContext
+  };
 }
 
 // Present only under Node, so the engine is unit-testable and CLI-callable without a browser.

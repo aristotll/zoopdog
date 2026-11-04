@@ -28,7 +28,7 @@
   // ba: 𠀧 is the ordinary Nom numeral; 巴 is a phonetic borrowing that happened to be
   // listed first.
   { "vi": "ba", "nom": ["𠀧"] },
-  {"vi": "Linh", "nom": ["灵"]},
+  {"vi": "linh", "nom": ["零"]},
   {"vi": "cần", "nom": ["𥵚"]},
   {"vi": "biển", "nom": ["㴜"]},
   {"vi": "Sao", "nom": ["哰"]},
@@ -321,5 +321,10 @@
   {"vi": "Thị", "nom": ["氏"], "caseSensitive": true},
   {"vi": "tử hình", "nom": ["死刑"]},
   {"vi": "hài", "nom": ["諧"]},
-  {"vi": "huy hoàng", "nom": ["輝煌"]}
+  {"vi": "huy hoàng", "nom": ["輝煌"]},
+  {"vi": "Thuấn", "nom": ["舜"], "caseSensitive": true},
+  {"vi": "nhục", "nom": ["辱"]},
+  {"vi": "cừu", "nom": ["裘"]},
+  {"vi": "hiệu", "nom": ["號"]},
+  {"vi": "Hoàng", "nom": ["黄"], "caseSensitive": true}
 ]

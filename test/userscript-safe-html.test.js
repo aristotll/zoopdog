@@ -62,8 +62,8 @@ test('the real local modal templates use only supported markup', () => {
   const end = source.indexOf('    var container = document.createElement', start);
   assert.ok(start >= 0 && end > start);
   const ids = new Proxy({}, {get: (_, key) => String(key)});
-  const context = vm.createContext({ZOO_MODAL_IDS: {nom: ids, order: ids}});
+  const context = vm.createContext({ZOO_MODAL_IDS: {nom: ids, order: ids, blacklist: ids}});
   vm.runInContext(source.slice(start, end), context);
-  const fragment = parser()(fakeDocument(), context.nomHtml + context.orderHtml + context.toastHtml);
-  assert.equal(fragment.children.length, 3);
+  const fragment = parser()(fakeDocument(), context.nomHtml + context.orderHtml + context.blacklistHtml + context.toastHtml);
+  assert.equal(fragment.children.length, 4);
 });

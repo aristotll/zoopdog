@@ -68,8 +68,69 @@
   var ZOO_EXPLORED_BLOCK = 'div.g, div.MjjYud, div[data-hveid], li';
   var ZOO_EXPLORED_MAX_KEYS = 100;
 
+  // The search engines whose result pages are coloured, measured on the live pages (docs/research/search_engines_explored/).
+  // Only LAYOUT is described here (where the results are, what one result block is, how to read the real target
+  // off a redirect link); what counts as explored stays on the server. `own`: the engine's own hosts, never a key.
+  // `block` null = no stable wrapper (hashed class names): the link itself is painted. Yandex and Sogou show a bot check
+  // to a profile that never passed it and Kagi needs a login: a profile that did both is read like the others.
+  var ZOO_SEARCH_ENGINES = [
+    {id: 'google', host: /(^|\.)google\.[a-z.]+$/, path: /^\/search$/, own: /(^|\.)(google\.[a-z.]+|gstatic\.com)$/,
+      scope: '#search a[href], #rso a[href], [role="main"] a[href], #main a[href]', block: 'div.g, div.MjjYud, div[data-hveid], li'},
+    {id: 'bing', host: /(^|\.)bing\.com$/, path: /^\/search$/, own: /(^|\.)(bing\.com|microsoft\.com)$/,
+      scope: '#b_results a[href]', block: 'li.b_algo, li.b_ans'},
+    {id: 'duckduckgo', host: /(^|\.)duckduckgo\.com$/, path: /^\/$/, own: /(^|\.)duckduckgo\.com$/,
+      scope: '#web_content_wrapper a[href]', block: '[data-testid="result"]'},
+    {id: 'yahoo', host: /^search\.yahoo\.com$/, path: /^\/search/, own: /(^|\.)yahoo\.com$/,
+      scope: '#web a[href]', block: '#web ol > li'},
+    {id: 'yahoo-jp', host: /^search\.yahoo\.co\.jp$/, path: /^\/search/, own: /(^|\.)yahoo\.co\.jp$/,
+      scope: '.Contents__inner a[href]', block: '.sw-Card.Algo'},
+    {id: 'baidu', host: /(^|\.)baidu\.com$/, path: /^\/s$/, own: /(^|\.)baidu\.com$/,
+      scope: '#content_left a[href]', block: '#content_left .c-container', target: 'mu'},
+    {id: 'brave', host: /^search\.brave\.com$/, path: /^\/search$/, own: /(^|\.)brave\.com$/,
+      scope: '#mixed-main a[href]', block: '#mixed-main .snippet'},
+    {id: 'ecosia', host: /(^|\.)ecosia\.org$/, path: /^\/search$/, own: /(^|\.)ecosia\.org$/,
+      scope: 'article.result a[href]', block: 'article.result'},
+    {id: 'startpage', host: /(^|\.)startpage\.com$/, path: /^\/do\/search|^\/sp\/search/, own: /(^|\.)startpage\.com$/,
+      scope: '.w-gl a[href]', block: '.w-gl .result'},
+    {id: 'qwant', host: /(^|\.)qwant\.com$/, path: /^\/$/, own: /(^|\.)qwant\.com$/,
+      scope: '[data-testid="webResult"] a[href]', block: '[data-testid="webResult"]'},
+    {id: 'yandex', host: /(^|\.)yandex\.[a-z.]+$/, path: /^\/search\/?$/, own: /(^|\.)(yandex\.[a-z.]+|ya\.ru|yastatic\.net)$/,
+      scope: 'main a[href], #inter-search-additional-content a[href]', block: 'li:has(> .Organic)'},
+    // Sogou's links are sogou.com/link?url= redirects; the result shows its real address in a leaf span (`shown`).
+    {id: 'sogou', host: /(^|\.)sogou\.com$/, path: /^\/web/, own: /(^|\.)(sogou\.com|sogoucdn\.com)$/,
+      scope: '.results a[href]', block: '.vrwrap, .rb', shown: true},
+    {id: 'kagi', host: /(^|\.)kagi\.com$/, path: /^\/search/, own: /(^|\.)kagi\.com$/,
+      scope: '#main a[href]', block: '._0_SRI, .__srgi'},
+    {id: 'naver', host: /^search\.naver\.com$/, path: /^\/search\.naver$/, own: /(^|\.)naver\.(com|net)$/,
+      scope: '#main_pack a[href]', block: null},
+    {id: 'seznam', host: /^search\.seznam\.cz$/, path: /^\/$/, own: /(^|\.)(seznam\.cz|zbozi\.cz|mapy\.com|firmy\.cz)$/,
+      scope: '[data-e-b-z="main"] a[href]', block: null}
+  ];
+  // The engine of the page shown (null = not a search page we colour); tests and the Google-only helpers default to Google.
+  var ZOO_ENGINE = ZOO_SEARCH_ENGINES[0];
+
+  function zooSearchEngineFor(loc) {
+    for (var i = 0; i < ZOO_SEARCH_ENGINES.length; i++) {
+      var engine = ZOO_SEARCH_ENGINES[i];
+      if (engine.host.test(loc.hostname) && engine.path.test(loc.pathname)) return engine;
+    }
+    return null;
+  }
+
+  function zooIsSearchPage(loc) {
+    var engine = zooSearchEngineFor(loc);
+    return !!engine && engine === ZOO_ENGINE;
+  }
+
   function zooIsGoogleSearchPage(loc) {
     return /(^|\.)google\.[a-z.]+$/.test(loc.hostname) && loc.pathname === '/search';
+  }
+
+  // Bing's result links are bing.com/ck/a?...&u=a1<base64url of the target>: decode the target.
+  function zooBingTarget(url) {
+    var u = url.searchParams.get('u') || '';
+    if (url.pathname !== '/ck/a' || u.indexOf('a1') !== 0) return '';
+    try { return atob(u.slice(2).replace(/-/g, '+').replace(/_/g, '/')); } catch (error) { return ''; }
   }
 
   // A result href is direct (https://site/...) or, on some layouts, google.com/url?q=<target>.
@@ -77,6 +138,7 @@
     try {
       var url = new URL(href);
       if (/(^|\.)google\./.test(url.hostname) && url.pathname === '/url') url = new URL(url.searchParams.get('q') || url.searchParams.get('url'));
+      if (/(^|\.)bing\.com$/.test(url.hostname)) { var target = zooBingTarget(url); if (target) url = new URL(target); }
       return url.hostname;
     } catch (error) {
       return '';
@@ -109,16 +171,29 @@
   function zooAnchorKeys(anchor) {
     var href = anchor.href || anchor.getAttribute('href') || '';
     var host = zooResultHost(href);
-    var keys = host && !/(^|\.)(google\.[a-z.]+|gstatic\.com)$/.test(host) ? [host] : [];
+    // Baidu links are opaque /link?url= redirects; the result container's `mu` attribute holds the real target.
+    if (ZOO_ENGINE.target && anchor.closest) {
+      var holder = anchor.closest('[' + ZOO_ENGINE.target + ']');
+      var direct = holder ? zooResultHost(holder.getAttribute(ZOO_ENGINE.target)) : '';
+      if (direct) host = direct;
+    }
+    if (ZOO_ENGINE.shown && host && ZOO_ENGINE.own.test(host) && anchor.closest) {
+      var box = anchor.closest(ZOO_ENGINE.block);
+      var leaves = box && box.querySelectorAll ? box.querySelectorAll('span, cite') : [];
+      for (var l = 0; l < leaves.length; l++) {
+        var shown = !leaves[l].children.length && String(leaves[l].textContent || '').trim().match(/^https?:\/\/([^\s\/]+)/i);
+        if (shown) { host = shown[1]; break; }
+      }
+    }
+    var keys = host && !ZOO_ENGINE.own.test(host) ? [host] : [];
     if (href.indexOf('/goto?url=') !== -1) keys = keys.concat(zooGotoHints(anchor));
     return keys.filter(function(key) { return key && String(key).length <= 200; });
   }
 
-  var ZOO_EXPLORED_SELECTOR = '#search a[href], #rso a[href], [role="main"] a[href], #main a[href]';
 
   // Keys of the page's links not asked yet.
   function zooPendingKeys(doc, asked) {
-    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+    var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
     var keys = [];
     for (var i = 0; i < anchors.length; i++) {
       var own = zooAnchorKeys(anchors[i]);
@@ -131,17 +206,31 @@
 
   // What gets painted for a link: the whole result block of an organic result, else the link itself.
   function zooExploredBlock(anchor) {
+    if (ZOO_ENGINE.id !== 'google') return (ZOO_ENGINE.block && anchor.closest && anchor.closest(ZOO_ENGINE.block)) || anchor;
     var organic = anchor.querySelector && anchor.querySelector('h3, [role="heading"]');
     return organic ? (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor) : anchor;
   }
 
   function zooPaintExplored(doc, matches) {
-    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+    var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
     var painted = 0;
+    // A result block holds several links (title, favicon, site line): one without an answer must not wipe the colour
+    // another one of the same block earned, so a block is only cleared when none of its links has an answer.
+    var live = [];
+    for (var j = 0; j < anchors.length; j++) {
+      try {
+        var own = zooAnchorKeys(anchors[j]);
+        for (var m = 0; m < own.length; m++) {
+          if (matches[own[m]]) { live.push(zooExploredBlock(anchors[j])); break; }
+        }
+      } catch (error) { /* one odd result must not stop the rest */ }
+    }
     for (var i = 0; i < anchors.length; i++) {
       try {
         var anchor = anchors[i];
-        var ai = !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]');
+        var ai = ZOO_ENGINE.id === 'google'
+          ? !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]')
+          : !(ZOO_ENGINE.block && anchor.closest && anchor.closest(ZOO_ENGINE.block));
         var entry = null;
         var keys = zooAnchorKeys(anchor);
         for (var k = 0; k < keys.length && !entry; k++) entry = matches[keys[k]] || null;
@@ -149,7 +238,7 @@
         var block = zooExploredBlock(anchor);
         if (ai && !entry && !block.dataset.zooExplored) continue;
         if (!entry) {
-          if (block.dataset.zooExplored) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
+          if (block.dataset.zooExplored && live.indexOf(block) === -1) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
           continue;
         }
         // Organic results get a plain background (it lies under the text). A headingless link is often a transparent overlay
@@ -184,7 +273,9 @@
   function zooStartExploredHighlight(doc, loc) {
     doc = doc || document;
     loc = loc || (typeof location === 'undefined' ? null : location);
-    if (!loc || !/(^|\.)google\.[a-z.]+$/.test(loc.hostname)) return Promise.resolve(false);
+    var engine = loc ? zooSearchEngineFor({hostname: loc.hostname, pathname: loc.pathname || '/search'}) || (/(^|\.)google\.[a-z.]+$/.test(loc.hostname) ? ZOO_SEARCH_ENGINES[0] : null) : null;
+    if (!engine) return Promise.resolve(false);
+    ZOO_ENGINE = engine;
     var cached = zooExploredCacheRead();
     var state = {version: cached && cached.version || '', matches: cached && cached.matches ? cached.matches : {}, asked: {}, loaded: false};
     Object.keys(state.matches).forEach(function(key) { state.asked[key] = true; });
@@ -201,7 +292,7 @@
     };
     var paintNow = function() {
       try {
-        if (!zooIsGoogleSearchPage(loc)) return;
+        if (!zooIsSearchPage(loc)) return;
         zooPaintExplored(doc, state.matches);
         decorateAll();
         ask();
@@ -221,13 +312,16 @@
     };
     var tools = zooExploredToolsCreate({
       doc: doc,
+      headingOf: function(anchor) {
+        return ZOO_ENGINE.id === 'google' || !anchor.closest ? null : anchor.closest('h1, h2, h3, h4, [role="heading"]');
+      },
       eligible: function(anchor) {
-        return zooIsGoogleSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && !zooExploredBlock(anchor).dataset.zooExplored;
+        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && !zooExploredBlock(anchor).dataset.zooExplored;
       },
       // Refresh is a manual retry for the whole page: every link still without colour is asked again, not only the one clicked.
       refresh: function(anchor) {
         var keys = zooAnchorKeys(anchor);
-        var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+        var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
         for (var i = 0; i < anchors.length && keys.length < ZOO_EXPLORED_MAX_KEYS; i++) {
           if (zooExploredBlock(anchors[i]).dataset.zooExplored) continue;
           zooAnchorKeys(anchors[i]).forEach(function(key) { if (keys.indexOf(key) === -1 && keys.length < ZOO_EXPLORED_MAX_KEYS) keys.push(key); });
@@ -250,7 +344,7 @@
     });
     // The inline buttons of every organic result that has keys (the hover pill covers the other links); idempotent, so it runs with every repaint.
     var decorateAll = function() {
-      var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+      var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
       for (var i = 0; i < anchors.length; i++) {
         try { if (zooAnchorKeys(anchors[i]).length) tools.decorate(anchors[i]); } catch (error) { /* one odd result must not stop the rest */ }
       }
@@ -336,16 +430,26 @@
   // finished `rows` ({engines, label, text[, skipped][, unsupported]}), already grouped and folded; an
   // engine with no answer is in a trailing row with empty text, and engines that do not offer the pair
   // are one `unsupported` row whose `label` already says "pair not supported: ...".
-  // The Google-search icon follows the language set on the server's /control page (a finished
-  // `suffix`, "" when unconfigured). It is asked at the click: the local answer is fast and the
-  // click's user activation outlives it, so the tab opens.
+  // The search icon opens every engine enabled on the server's /control page. The SERVER opens the tabs
+  // through CDP in the Chrome profile of this page (`from`), so no popup blocker is involved; only when it
+  // could not (`opened` 0) does the userscript open the server's finished `urls` itself.
+  // Idempotent: a click on the same term while its open is in flight (or a double click) shares that one request;
+  // the guard lets go after 15 s whatever the server does, so the button is never stuck.
+  var zooSearchInFlight = {};
   function zooOpenGoogleSearch(term) {
     if (!term) return Promise.resolve();
-    return zooGetJSON('/v1/google-search', {}).then(function(data) {
-      return (data && data.suffix) || '';
-    }, function() { return ''; }).then(function(suffix) {
-      window.open('https://www.google.com/search?q=' + encodeURIComponent(term) + suffix, '_blank', 'noopener');
+    var key = term + '\n' + window.location.href;
+    if (zooSearchInFlight[key]) return zooSearchInFlight[key];
+    var release = function() { delete zooSearchInFlight[key]; };
+    var run = zooPost('/v1/web-search/open', { q: term, from: window.location.href }).then(function(data) {
+      return data && data.opened ? [] : ((data && data.urls) || []);
+    }, function() { return []; }).then(function(urls) {
+      urls.forEach(function(row) { window.open(row.url, '_blank', 'noopener'); });
     });
+    run.then(release, release);
+    setTimeout(release, 15000);
+    zooSearchInFlight[key] = run;
+    return run;
   }
 
   // Each channel is asked in its own request, so a failing channel is retried alone
@@ -605,7 +709,7 @@
   // default if nothing gets picked.
   function zooSetAutofillDefaultLive(input, value, isEdited) {
     zooSetAutofillDefault(input, value);
-    if (document.activeElement === input && !isEdited()) input.value = '';
+    if (document.activeElement === input && !isEdited() && !input._zooPointerFocus) input.value = '';
   }
 
   function zooClearNomGeneratedState(ids) {
@@ -619,11 +723,18 @@
     return 'Unable to contact the local reader server. Reload the page and try again.';
   }
 
+  // The default is blanked only for keyboard focus. A mouse press means the reader is
+  // pointing at its characters to select or edit them: blanking the text under the caret
+  // (and again when a late suggestion refills it) left the browser's selection offsets on
+  // the wrong character, so "select 糖, delete" removed 蜜. Pointer focus keeps the text.
   function zooWireDatalistAutoClear(input, isEdited) {
+    input.addEventListener('mousedown', function() { input._zooPointerFocus = true; });
     input.addEventListener('focus', function() {
+      if (input._zooPointerFocus) return;
       if (!isEdited() && input.value && input.value === input.dataset.autofillDefault) input.value = '';
     });
     input.addEventListener('blur', function() {
+      input._zooPointerFocus = false;
       if (!isEdited() && !input.value && input.dataset.autofillDefault) input.value = input.dataset.autofillDefault;
     });
   }

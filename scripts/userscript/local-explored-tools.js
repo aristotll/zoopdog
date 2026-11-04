@@ -3,7 +3,7 @@
   // every search result, coloured or not (`decorate`). The buttons are "refresh" (ask the server again whether the site is explored) and "blacklist" (open the modal that
   // appends it to book-translator's docs/explored_sites_blacklist.json). It only draws and routes clicks; what a
   // link's keys are, whether it is already coloured and what the buttons do are injected:
-  //   deps = {doc, eligible(anchor) -> bool, refresh(anchor), blacklist(anchor)}
+  //   deps = {doc, eligible(anchor) -> bool, refresh(anchor), blacklist(anchor)[, headingOf(anchor) -> element|null]}
   // Returns {attach, hide, decorate}. `attach` listens on the document, so links Google adds later work without rewiring.
   // `decorate(anchor)` is idempotent: the runtime calls it on every repaint, so a result Google re-renders gets its inline
   // buttons back and one that still has them is left alone.
@@ -83,6 +83,8 @@
 
     function decorate(anchor) {
       var heading = anchor.querySelector && anchor.querySelector('h3, [role="heading"]');
+      // Engines whose title link sits INSIDE the heading (Bing, DuckDuckGo, Baidu ...): the runtime says which heading.
+      if (!heading && deps.headingOf) heading = deps.headingOf(anchor);
       if (!heading || heading.querySelector('.' + ZOO_EXPLORED_INLINE_CLASS)) return false;
       var box = doc.createElement('span');
       box.className = ZOO_EXPLORED_INLINE_CLASS;

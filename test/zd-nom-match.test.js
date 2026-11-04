@@ -249,6 +249,23 @@ test('canContinuePast is true only when the text ends inside a longer entry', ()
   assert.equal(matcher.canContinuePast('...'), false);
 });
 
+test('a short English title whose words are 75% dictionary terms is still English', () => {
+  const matcher = zdCreateNomMatcher({'man': '𠖾', 'in': '吝', 'the': '𠶢'});
+
+  assert.equal(matcher.findNomMatch('Man in the Dark', 0), null);
+});
+
+test('needsEnglishContext is true only for a lone ASCII hit with no Vietnamese signal', () => {
+  const matcher = zdCreateNomMatcher({'hui': '灰', 'the': '𠶢', 'một': '一', 'xe': '車'});
+
+  assert.equal(matcher.needsEnglishContext('Hui'), true, 'a lone ASCII hit cannot be judged alone');
+  assert.equal(matcher.needsEnglishContext('Lin Hui'), false, 'a run of 2+ words already judges itself');
+  assert.equal(matcher.needsEnglishContext('Lin'), false, 'no hit, nothing to decide');
+  assert.equal(matcher.needsEnglishContext('một'), false, 'a Chu Nom hit always annotates');
+  assert.equal(matcher.needsEnglishContext('xe tốt'), false);
+  assert.equal(matcher.needsEnglishContext(''), false);
+});
+
 test('a plain English phrase is not annotated, even when some of its words are ASCII dictionary terms', () => {
   const matcher = zdCreateNomMatcher({'the': '𠶢', 'day': '𣈜', 'một': '一'});
   const find = (text) => matcher.findNomMatch(text, 0);

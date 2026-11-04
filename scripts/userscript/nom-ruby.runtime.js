@@ -406,7 +406,7 @@
     var text = own.replace(/\u00a0/g, ' ');
     var ahead = {text: text, segments: [{node: textNode, start: 0, end: own.length}]};
 
-    if (!nomMatcher.canContinuePast(text) || !textNode.parentNode) {
+    if (!(nomMatcher.canContinuePast(text) || nomMatcher.needsEnglishContext(text)) || !textNode.parentNode) {
       return ahead;
     }
 
@@ -422,7 +422,7 @@
       }
 
       var i = 0;
-      while (i < data.length && (zdIsWordChar(data.charAt(i)) || /\s/.test(data.charAt(i)))) {
+      while (i < data.length && (zdNomIsWordChar(data.charAt(i)) || /\s/.test(data.charAt(i)))) {
         i++;
       }
       if (i === 0) {
@@ -431,9 +431,9 @@
 
       // "ch" + "ỉ" in two nodes is one word split by markup, not two words: reading on would
       // treat the first half as a whole word, so stop before it if it began after the node.
-      if (zdIsWordChar(text.charAt(text.length - 1)) && zdIsWordChar(data.charAt(0))) {
+      if (zdNomIsWordChar(text.charAt(text.length - 1)) && zdNomIsWordChar(data.charAt(0))) {
         var cut = text.length;
-        while (cut > 0 && zdIsWordChar(text.charAt(cut - 1))) {
+        while (cut > 0 && zdNomIsWordChar(text.charAt(cut - 1))) {
           cut--;
         }
         if (cut >= own.length) {
@@ -460,6 +460,21 @@
 
     ahead.text = text;
     return ahead;
+  }
+
+  // True when the text sits under an element that declares a language other than Vietnamese
+  // (the book reader tags every translated line, e.g. lang="en"). The document root is ignored:
+  // sites set <html lang="en"> on pages that are written in Vietnamese. Such text is not
+  // Vietnamese, so its ASCII-only dictionary hits (the, him, them) are not annotated; Chu Nom
+  // terms spelt with Vietnamese diacritics still are.
+  function isDeclaredNonVietnamese(textNode) {
+    var el = textNode.parentElement;
+    var tagged = el && el.closest ? el.closest('[lang]') : null;
+    if (!tagged || tagged === doc.documentElement) {
+      return false;
+    }
+    var lang = (tagged.getAttribute('lang') || '').toLowerCase();
+    return !!lang && lang !== 'vi' && lang.indexOf('vi-') !== 0;
   }
 
   function annotateTextNode(textNode) {
@@ -491,10 +506,16 @@
     var crossing = null;
     var offset = 0;
     var match;
+    var nonVietnamese = isDeclaredNonVietnamese(textNode);
 
     // A match is this node's to annotate only if it starts inside it; one that starts in the
     // text read ahead belongs to the node it starts in.
     while ((match = nomMatcher.findNomMatch(ahead.text, offset)) && match.index < ownText.length) {
+      if (nonVietnamese && !ZD_NOM_NON_ASCII_PATTERN.test(ahead.text.substr(match.index, match.length))) {
+        offset = match.index + match.length;
+        continue;
+      }
+
       if (match.index + match.length > ownText.length) {
         crossing = match;
         break;

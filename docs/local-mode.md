@@ -62,6 +62,11 @@ The Nôm entry modal also clears its prior datalist choices, generated Nôm valu
 marker immediately when it opens for a different term or its Vietnamese term is edited. A
 slower response for the earlier term is ignored, so suggestions never drift across terms.
 
+The untouched auto-filled Chữ Nôm default is blanked on focus (so the datalist shows every
+suggestion) only for keyboard focus. A mouse press keeps the text, and a late suggestion refill
+does not blank a pointer-focused field: blanking under the caret left the browser's selection on
+the wrong character ("select 糖, delete" removed 蜜).
+
 Save, Preview and Confirm handlers of both modals run through `zooGuard`: while the request is
 pending every action button of that modal is disabled (Cancel is not) and a second submit is
 ignored, so one press cannot send the same write twice. Mirror of `ReaderShared.modal.guard`.
@@ -185,7 +190,7 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `next_order`. The ↻ button sends the previous reply's `next_order`, so one click gives the
   zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
-- `GET /v1/google-search` → `{lang, langs, suffix}`; the Google-search icon opens `https://www.google.com/search?q=<term>` + `suffix` (`&hl=ja` etc., empty when unconfigured). The language is set on the server's `/control` page (`POST /v1/google-search?lang=`) and persisted server-side.
+- `POST /v1/web-search/open?q=<term>&from=<this page's URL>` → `{urls: [{id, name, url}], opened}`; the search icon opens one tab per search engine enabled on the server's `/control` page (Google, Bing, DuckDuckGo, Yahoo, Yandex, Baidu, ... and custom `{q}` URLs). **The server opens the tabs through CDP** (`Target.createTarget` with the `browserContextId` of the tab at `from`), so they appear in the same Chrome profile as the page and no popup blocker applies. The userscript calls `window.open` on the finished `urls` only when `opened` is 0 (no debug port / tab not found). `GET /v1/web-search` returns the settings (`{lang, langs, enabled, engines, custom}`), `POST /v1/web-search?lang=&engines=a,b&custom=<json>` saves them; `/v1/google-search` is the same pair, kept for older clients. Language is each engine's own parameter (`hl=`, `setlang=`, `kl=`), set on `/control`. Mirror: book-translator `scripts/web_search.py`.
 - **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is drawn once, at the end: the channels that answered, and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator. A channel that failed 5 times in a row (2026-10-31) comes back as a server-made `failing: <id>` row whose `actions` (a list of `label`, `path`, `params`: "Disable globally", "Disable for this process") the runtime draws as buttons and sends as GETs (`GET /v1/suggest?channel=<id>&disabled=1|0|global`: off for the server process, on again, or off for good in book-translator's `provider-lists.toml`); the runtime decides nothing.
 - `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
   reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
@@ -320,3 +325,12 @@ shells belonging to its own checkout after two high-CPU observations five
 minutes apart and a fresh ownership/identity check. It does not terminate this
 repository's processes. Keep this server behavior documented in all three
 repositories; client code needs no change while the HTTP contract is unchanged.
+
+## Explored-site colouring on other search engines (2026-11-05)
+
+The Google highlighter (`/v1/explored-sites/match`, refresh and blacklist buttons) also runs on Bing, DuckDuckGo, Yahoo,
+Yahoo! JAPAN, Baidu, Brave, Ecosia, Startpage, Qwant, Naver and Seznam. `ZOO_SEARCH_ENGINES` in
+`popupdict-local.runtime.js` describes only layout per engine: `scope` (every link section, AI answers included),
+`block` (one result; none = paint the link itself), `own` hosts (never keys) and how a redirect link yields its target
+(Bing `ck/a?u=a1<base64url>`; Baidu the container's `mu`). Yandex and Sogou (bot check) and Kagi (login) also work in a profile that passed the check / is logged in; Sogou's redirect
+links read the host from the address shown in the result. Evidence and per-engine verdicts: book-translator `docs/research/search_engines_explored/`.

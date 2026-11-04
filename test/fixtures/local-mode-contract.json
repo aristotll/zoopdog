@@ -15,10 +15,10 @@
       "response": "domain, reason, replaced and the finished grey entry; HTTP 422 error when host is not a site"
     },
     {
-      "method": "GET",
-      "path": "/v1/google-search",
-      "request": "no parameters",
-      "response": "lang, langs and server-computed suffix"
+      "method": "POST",
+      "path": "/v1/web-search/open",
+      "request": "query q (the term) and from (URL of the page that was clicked)",
+      "response": "urls (finished id, name, url rows of the enabled engines) and opened (tabs the server opened through CDP in the profile of the tab at from; 0 = the client opens urls itself)"
     },
     {
       "method": "GET",
