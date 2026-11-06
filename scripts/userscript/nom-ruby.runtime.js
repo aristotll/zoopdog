@@ -834,20 +834,47 @@
     });
   }
 
+  // Turning off must feel instant, but unwrapping thousands of rubies does not: so the
+  // annotations are first hidden with one tiny <style> per root (a single style recalc), and
+  // the real unwrapping runs right after, off the click's critical path.
+  var hideStyles = [];
+  var removalTimer = null;
+
+  function hideAnnotations() {
+    [doc.documentElement].concat(shadowRootList).forEach(function(root) {
+      var style = doc.createElement('style');
+      style.textContent = 'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt { display: none !important; }';
+      root.appendChild(style);
+      hideStyles.push(style);
+    });
+  }
+
+  function showAnnotations() {
+    hideStyles.forEach(function(style) { style.remove(); });
+    hideStyles = [];
+  }
+
   function disableAnnotations() {
     enabled = false;
     observer.disconnect();
     window.clearInterval(rescanTimer);
     rescanTimer = null;
-    removeAnnotations();
+    hideAnnotations();
+    removalTimer = window.setTimeout(function() {
+      removalTimer = null;
+      removeAnnotations();
+    }, 0);
   }
 
   // Single click: annotate the page again from scratch (turning it back on if it was off).
   function renderAnnotations() {
     if (enabled) {
       observer.disconnect();
-      removeAnnotations();
     }
+    window.clearTimeout(removalTimer);
+    removalTimer = null;
+    removeAnnotations();
+    showAnnotations();
     enabled = true;
     observeAll();
     newNodes.add(doc.body);
