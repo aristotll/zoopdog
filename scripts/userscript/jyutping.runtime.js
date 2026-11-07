@@ -68,12 +68,6 @@
     return HAN_RE.test(s);
   }
 
-  // Japanese, Korean and Vietnamese pages use Han characters with their own readings.
-  function isTargetLang(locale) {
-    var lang = String(locale || '').split('-', 1)[0].toLowerCase();
-    return lang !== 'ja' && lang !== 'ko' && lang !== 'vi';
-  }
-
   // ----- stylesheet ---------------------------------------------------------------------------
 
   var CSS = [
@@ -315,11 +309,6 @@
   var observedShadows = new WeakSet();
   var observer = null;
 
-  function langOf(element) {
-    var holder = element && element.closest ? element.closest('[lang]') : null;
-    return holder ? holder.lang : (document.documentElement.lang || '');
-  }
-
   function isSkippable(element) {
     return !!SKIP_TAGS[element.nodeName];
   }
@@ -360,7 +349,6 @@
     if (inflight.has(node) || !hasHanChar(node.nodeValue || '')) return;
     var parent = node.parentNode;
     if (!parent || parent.nodeType !== Node.ELEMENT_NODE || isSkippable(parent)) return;
-    if (!isTargetLang(langOf(parent))) return;
     callback(node);
   }
 
