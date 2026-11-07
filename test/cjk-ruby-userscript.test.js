@@ -29,7 +29,9 @@ test('release and (Local) CJK Ruby builds differ only in name and update locatio
 test('the CJK Ruby runtime is one fault-tolerant pass that never touches other rubies', () => {
   const source = buildUserscript(VARIANTS[0]);
   assert.match(source, /EXCLUDED_SELECTOR/, 'skips text inside other <ruby>/<rt>, at any depth');
-  assert.match(source, /zd-cjk-stacked/, 'katakana reading over, Jyutping under');
+  assert.match(source, /zd-cjk-stacked/, 'katakana reading and Jyutping share one rt');
+  assert.match(source, /ruby-align: space-around/, 'base characters spread to line up with their syllables');
+  assert.match(source, /hoistForeign/, 'translations a translator appends inside a ruby are moved out');
   assert.match(source, /new Worker\(/, 'Jyutping converter runs in a worker');
   assert.match(source, /startMainThreadConverter/, '... with a main-thread fallback');
   assert.match(source, /ENDPOINT_COOLDOWN_MS/, 'a failing endpoint cools down');

@@ -754,7 +754,7 @@ test('the attachShadow patch of an ordinary page still reads as native code', ()
 });
 
 test('character changes and queued additions inside excluded ancestors are not annotated', () => {
-  for (const tag of ['ruby', 'rt', 'rp', 'script', 'style', 'noscript', 'select', 'textarea',
+  for (const tag of ['rt', 'rp', 'script', 'style', 'noscript', 'select', 'textarea',
     'input', 'button', 'option', 'code', 'pre', 'kbd', 'samp']) {
     const dom = runRuntime(NOM_MAP);
     const wrapper = dom.document.createElement(tag);
@@ -774,6 +774,24 @@ test('character changes and queued additions inside excluded ancestors are not a
     dom.tick();
     assert.deepEqual(rubyAnnotations(added), [], `${tag}: nested addition`);
   }
+});
+
+test('Vietnamese inside another script\'s ruby base is annotated, its rt is not', () => {
+  const dom = runRuntime(NOM_MAP);
+  const ruby = dom.document.createElement('ruby');
+  ruby.className = 'zd-cjk-ruby';
+  const base = dom.document.createElement('span');
+  base.appendChild(dom.document.createTextNode('bạn'));
+  ruby.appendChild(base);
+  const rt = dom.document.createElement('rt');
+  const inRt = dom.document.createElement('span');
+  inRt.appendChild(dom.document.createTextNode('bạn'));
+  rt.appendChild(inRt);
+  ruby.appendChild(rt);
+  dom.body.appendChild(ruby);
+  dom.tick();
+  assert.equal(rubyAnnotations(base).length, 1);
+  assert.deepEqual(rubyAnnotations(inRt), []);
 });
 
 test('rewriting a later segment retires the entire cross-node annotation', () => {

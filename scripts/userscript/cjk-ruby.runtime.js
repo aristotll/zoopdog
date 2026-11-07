@@ -556,8 +556,8 @@
         return /^ja\b/i.test(lang);
     }
 
-    function makeRt(kind, phrase, cls) {
-        var rt = doc.createElement('rt');
+    function makeRt(kind, phrase, cls, tag) {
+        var rt = doc.createElement(tag || 'rt');
         rt.classList.add('zd-cjk-rt', cls);
         var key = keyOf(kind, phrase);
         if (!queue.has(key)) queue.set(key, { kind: kind, phrase: phrase, rts: new Set() });
@@ -576,14 +576,18 @@
             ruby.appendChild(makeRt(kinds[0], text, kinds[0] === 'english' ? 'zd-cjk-en' : 'zd-cjk-jp'));
             return ruby;
         }
+        // Two labels share ONE <rt> (two lines over the base). Nested rubies with the second label
+        // under the base looked right in Chrome, but WebKit ignores the width of an under label, so
+        // neighbouring Jyutping overlapped on iOS Safari.
         ruby.classList.add('zd-cjk-stacked');
-        var inner = doc.createElement('ruby');
-        inner.appendChild(doc.createTextNode(text));
-        inner.appendChild(makeRt('reading', text, 'zd-cjk-kana'));
-        ruby.appendChild(inner);
-        var jyutping = makeRt('jyutping', text, 'zd-cjk-jp');
-        jyutping.classList.add('zd-cjk-under');
-        ruby.appendChild(jyutping);
+        ruby.appendChild(doc.createTextNode(text));
+        var rt = doc.createElement('rt');
+        rt.classList.add('zd-cjk-stack');
+        var reading = makeRt('reading', text, 'zd-cjk-kana', 'span');
+        var jyutping = makeRt('jyutping', text, 'zd-cjk-jp', 'span');
+        rt.appendChild(reading);
+        rt.appendChild(jyutping);
+        ruby.appendChild(rt);
         return ruby;
     }
 
@@ -591,6 +595,9 @@
         var ruby = buildRuby(text, kinds);
         var after = node.splitText(index);
         node.parentNode.insertBefore(ruby, after);
+        // A ruby is one unbreakable box in WebKit; a line made of many of them must still be able to
+        // wrap after each (a zero-width break opportunity), or it runs past the container edge.
+        node.parentNode.insertBefore(doc.createElement('wbr'), after);
         after.nodeValue = after.nodeValue.substring(text.length);
         return after;
     }
@@ -645,14 +652,22 @@
     // ----- styling (with a text fallback when ::before cannot be used) ---------------------------
 
     var STYLE = [
-        'rt.zd-cjk-rt::before { content: attr(data-rt); }',
-        'rt.zd-cjk-jp { font-size: 0.7em; font-variant: initial; text-transform: initial; letter-spacing: initial; }',
+        '.zd-cjk-rt::before { content: attr(data-rt); }',
+        
+        '.zd-cjk-jp { font-size: 0.7em; font-variant: initial; text-transform: initial; letter-spacing: initial; }',
         // Annotations above AND below a word need room: a block that holds one gets a looser line
         // height, otherwise one line's under-annotation runs into the next line's over-annotation.
-        '*:has(> ruby.zd-cjk-ruby) { line-height: 2.7 !important; }',
+        '*:has(> ruby.zd-cjk-ruby) { line-height: 2.1 !important; }',
+        '*:has(> ruby.zd-cjk-stacked) { line-height: 2.9 !important; }',
+        'rt.zd-cjk-stack { font-size: 0.7em; white-space: nowrap; text-align: center; }',
+        'rt.zd-cjk-stack > .zd-cjk-rt { display: block; font-size: 1em; line-height: 1.15; }',
+        'rt.zd-cjk-stack > .zd-cjk-kana { font-size: 0.85em; }',
+        // iOS Safari inflates the text of a block that overflows its width; never let that happen here.
+        '*:has(> ruby.zd-cjk-ruby) { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }',
+        // space-around spreads the base characters over a longer label, which is what keeps each
+        // syllable above its own hanzi; `center` bunched them and broke that alignment.
+        'ruby.zd-cjk-ruby { ruby-align: space-around; white-space: normal; }',
         'ruby.zd-cjk-ruby { ruby-overhang: none; padding: 0 0.08em; }',
-        'ruby.zd-cjk-stacked { ruby-position: under; }',
-        'ruby.zd-cjk-stacked > ruby { ruby-position: over; }'
     ].join('\n');
 
     function installStyle() {
@@ -674,13 +689,13 @@
         if (verifyTimer || textMode) return;
         verifyTimer = setTimeout(function () {
             verifyTimer = 0;
-            var rt = doc.querySelector('rt.zd-cjk-rt[data-rt]');
+            var rt = doc.querySelector('[data-rt].zd-cjk-rt');
             if (!rt) return;
             var content = '';
             try { content = getComputedStyle(rt, '::before').content; } catch (error) { return; }
             if (content && content !== 'none' && content !== 'normal') return;
             textMode = true;
-            doc.querySelectorAll('rt.zd-cjk-rt[data-rt]').forEach(function (element) {
+            doc.querySelectorAll('[data-rt].zd-cjk-rt').forEach(function (element) {
                 element.textContent = element.dataset.rt;
             });
         }, 150);
@@ -709,9 +724,28 @@
         newNodes.push(shadowRoot);
     }
 
+    // A page translator (Immersive Translate, Trancy) treats an element that holds a block's whole
+    // text as the unit to translate and appends the translation INSIDE it. When that element is one of
+    // our <ruby>, the Jyutping label then spans the entire translation and overlaps its neighbours,
+    // and nom-ruby used to skip the translation as "inside a ruby". Move anything foreign out of the
+    // ruby, right behind it. Bounded per ruby so a translator that moves it back cannot loop forever.
+    var HOIST_LIMIT = 6;
+    function hoistForeign() {
+        doc.querySelectorAll('ruby.zd-cjk-ruby > :not(rt):not(wbr)').forEach(function (child) {
+            var ruby = child.parentNode;
+            var count = Number(ruby.dataset.zdHoisted || 0);
+            if (count >= HOIST_LIMIT || !ruby.parentNode) return;
+            ruby.dataset.zdHoisted = String(count + 1);
+            var anchor = ruby.nextSibling;
+            while (anchor && anchor.nodeName === 'WBR') anchor = anchor.nextSibling;
+            ruby.parentNode.insertBefore(child, anchor);
+        });
+    }
+
     function rescan() {
         try {
             record(observer.takeRecords());
+            hoistForeign();
             if (newNodes.length) {
                 var nodes = newNodes;
                 newNodes = [];

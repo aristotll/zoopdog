@@ -268,7 +268,12 @@
   };
 
   function isExcludedElement(element) {
-    return element.tagName.toLowerCase() in EXCLUDED_TAGS || element.isContentEditable;
+    var tag = element.tagName.toLowerCase();
+    // Only this script's own ruby and other scripts' annotation text (rt/rp) are off limits. The
+    // base text of a foreign <ruby> can be Vietnamese too: a translator replaces text nodes that
+    // another script (zoopdog-cjk-ruby) had wrapped, leaving the translation inside its <ruby>.
+    if (tag === 'ruby') return /(?:^|\s)zoopdog-nom-ruby(?:\s|$)/.test(String(element.className || ''));
+    return tag in EXCLUDED_TAGS || element.isContentEditable;
   }
 
   function scanTextNodes(node) {
@@ -742,11 +747,11 @@
       return;
     }
 
-    addStyle(rubyCss);
+    try { addStyle(rubyCss); } catch (error) { doc.documentElement.dataset.zoopdogNomError = String(error); }
 
     newNodes.add(doc.body);
 
-    patchAttachShadow();
+    try { patchAttachShadow(); } catch (error) { doc.documentElement.dataset.zoopdogNomError = String(error); }
 
     var frameScheduled = false;
 
@@ -771,7 +776,21 @@
     });
     observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
 
+    // One failing pass (a page-specific node that trips the scanner) must not stop the interval, the
+    // toggle button or later passes: the error is recorded on <html data-zoopdog-nom-error> for
+    // diagnosis (a userscript's console is not reachable from the page or a phone) and retried.
     function rescanTextNodes() {
+      try {
+        rescanTextNodesUnsafe();
+      } catch (error) {
+        try {
+          doc.documentElement.dataset.zoopdogNomError = String(error && error.stack || error).slice(0, 400);
+          console.error('[Zoopdog Nom]', error);
+        } catch (ignored) { /* nothing more to do */ }
+      }
+    }
+
+    function rescanTextNodesUnsafe() {
       if (!enabled) {
         return;
       }
@@ -799,11 +818,14 @@
     }
 
     rescanNow = rescanTextNodes;
-    rescanTextNodes();
-    rescanTimer = window.setInterval(rescanTextNodes, SETTINGS.rescanIntervalMs);
+    // The button first: it is how the user sees that the script is alive at all.
     if (window.top === window) {
-      createToggleButton();
+      try { createToggleButton(); } catch (error) {
+        doc.documentElement.dataset.zoopdogNomError = String(error && error.stack || error).slice(0, 400);
+      }
     }
+    rescanTimer = window.setInterval(rescanTextNodes, SETTINGS.rescanIntervalMs);
+    rescanTextNodes();
   }
 
   // Replaces every ruby this script made with its plain base text.

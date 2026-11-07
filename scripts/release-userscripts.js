@@ -70,14 +70,17 @@ function stampReleaseAssets(assets, version) {
 }
 
 function readPublishedRelease(names, gh) {
-  const {tagName: tag} = JSON.parse(gh(['view', '--json', 'tagName']));
+  const {tagName: tag, assets} = JSON.parse(gh(['view', '--json', 'tagName,assets']));
   if (!tag || typeof tag !== 'string') throw new Error('Cannot determine the latest published release');
-  const versions = names.map(name => {
+  // A script added since the last release has no published asset yet: it is new, not an error.
+  const published = Array.isArray(assets) ? new Set(assets.map(asset => asset.name)) : null;
+  const versions = names.filter(name => !published || published.has(name)).map(name => {
     const contents = gh(['download', tag, '--pattern', name, '--output', '-']);
     const version = validateUserscriptHeader(contents);
     assertVersion(version);
     return version;
   });
+  if (!versions.length) throw new Error(`Release ${tag} contains none of the userscripts`);
   return {tag, versions};
 }
 
