@@ -21,7 +21,7 @@ test('verification prepares a fresh isolated snapshot and propagates the first f
       if (args[0] === '--test') throw new Error('intentional regression');
     };
     assert.throws(() => runIsolatedTests({root, tempRoot: work, run}), /intentional regression/);
-    assert.equal(seen.length, 4);
+    assert.equal(seen.length, 5);
     assert.ok(seen.every(entry => entry.cwd === seen[0].cwd && entry.cwd !== root));
     assert.equal(fs.readFileSync(path.join(root, 'zoopdog-nom-ruby.user.js'), 'utf8'), 'stale');
     assert.equal(fs.readdirSync(work).length, 0);

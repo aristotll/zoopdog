@@ -11,7 +11,7 @@ const repoPaths = require('./lib/paths');
 const {writeMinifiedUserscript} = require('./lib/minify');
 
 function main() {
-  for (const key of ['nomUserscript', 'popupUserscript']) {
+  for (const key of ['nomUserscript', 'popupUserscript', 'jyutpingUserscript']) {
     const distFile = repoPaths.distPath(key);
     const {before, after} = writeMinifiedUserscript(repoPaths.absolute[key], distFile);
     console.log(`Minified ${distFile} (${before} -> ${after} bytes)`);

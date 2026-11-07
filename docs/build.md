@@ -212,3 +212,11 @@ Website changes:
 Userscript changes:
 
 - Install the rebuilt userscript and verify word detection and popup lookup on a normal page.
+
+## Inject Jyutping userscript
+
+`scripts/userscript/jyutping.runtime.js` is the source (header + code). `make rebuild-jyutping-userscript`
+(also part of `rebuild-userscripts` / `rebuild-local-userscripts`) writes `zoopdog-jyutping.user.js`
+(release build, minified into `dist/` and published by `make release-userscripts`) and the
+gitignored `zoopdog-jyutping-local.user.js` (`@name … (Local)`, updates from its own `file://` URL).
+Both are gitignored; the code is identical, only the name and update URLs differ.

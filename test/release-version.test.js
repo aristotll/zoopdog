@@ -78,7 +78,7 @@ test('dry-run preflights and stamps a complete release using mocked GitHub metad
     fs.writeFileSync(path.join(root, 'package-lock.json'), '{}');
     fs.writeFileSync(path.join(root, 'zd-extension/js/zd-words.js'), '');
     fs.writeFileSync(path.join(root, 'zd-extension/js/zd-nom-match.js'), '');
-    for (const name of ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js']) fs.writeFileSync(path.join(root, 'dist', name), template);
+    for (const name of ['zoopdog-nom-ruby.user.js', 'zoopdog-popupdict.user.js', 'zoopdog-jyutping.user.js']) fs.writeFileSync(path.join(root, 'dist', name), template);
     const payload = '[{"key":"bạn","headwords":["bạn"],"en":[]}]';
     const metadata = buildMetadata(payload);
     fs.writeFileSync(path.join(root, 'zd-extension/js/vnedict.json'), payload);
