@@ -29,7 +29,7 @@ function runIsolatedTests({root = path.resolve(__dirname, '..'), tempRoot = os.t
     if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(dir, 'node_modules'), 'dir');
     const options = {cwd: dir, stdio: 'inherit'};
     for (const script of ['scripts/build-nom-userscript.js', 'scripts/build-popupdict-userscript.js',
-      'scripts/build-jyutping-userscript.js', 'scripts/build-extension-vnedict-json.js']) {
+      'scripts/build-jyutping-userscript.js', 'scripts/build-katakana-terminator-userscript.js', 'scripts/build-extension-vnedict-json.js']) {
       run(process.execPath, [script], options);
     }
     const tests = fs.readdirSync(path.join(dir, 'test')).filter(name => name.endsWith('.test.js')).sort()

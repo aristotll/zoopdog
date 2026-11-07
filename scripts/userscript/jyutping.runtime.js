@@ -349,6 +349,7 @@
     if (inflight.has(node) || !hasHanChar(node.nodeValue || '')) return;
     var parent = node.parentNode;
     if (!parent || parent.nodeType !== Node.ELEMENT_NODE || isSkippable(parent)) return;
+    if (parent.closest && parent.closest('ruby,rt,rp,option,textarea,script,style,noscript,template,select')) return;
     callback(node);
   }
 

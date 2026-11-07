@@ -220,3 +220,12 @@ Userscript changes:
 (release build, minified into `dist/` and published by `make release-userscripts`) and the
 gitignored `zoopdog-jyutping-local.user.js` (`@name … (Local)`, updates from its own `file://` URL).
 Both are gitignored; the code is identical, only the name and update URLs differ.
+
+## Katakana Terminator userscript
+
+`scripts/userscript/katakana-terminator.runtime.js` is the source; `make rebuild-katakana-terminator-userscript`
+writes `zoopdog-katakana-terminator.user.js` (release, minified into `dist/`) and the gitignored
+`zoopdog-katakana-terminator-local.user.js` (`… (Local)`, `file://` update URL), exactly like the
+Jyutping script. Katakana get English originals; kanji words on Japanese pages (page/element
+`lang="ja"` or text that already contains kana) get a katakana reading (converted from Google's romaji), both from Google Translate's
+public key-less `translate_a/single` endpoint (`dt=rm` for the reading).

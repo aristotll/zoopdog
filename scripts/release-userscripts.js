@@ -17,7 +17,7 @@ const {createReleaseManifest, verifyReleaseManifest, releaseManifestOptions, ass
 const {atomicWrite} = require('./lib/fsutil');
 const {readUserscriptVersion, setUserscriptVersion, compareVersions, nextUserscriptVersion, versionDatestamp} = require('./lib/userscript');
 
-const KEYS = ['nomUserscript', 'popupUserscript', 'jyutpingUserscript'];
+const KEYS = ['nomUserscript', 'popupUserscript', 'jyutpingUserscript', 'katakanaUserscript'];
 // Generated, gitignored runtime dictionary: shipped as-is (not minified) so the extension and
 // website can be built from a release instead of from committed 7MB blobs.
 const DICTIONARY_KEYS = ['runtimeDictionary', 'runtimeDictionaryMetadata'];

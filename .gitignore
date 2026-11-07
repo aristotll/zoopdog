@@ -13,6 +13,7 @@ gen
 /zoopdog-nom-ruby-local.user.js
 /zoopdog-popupdict-local.user.js
 /zoopdog-jyutping-local.user.js
+/zoopdog-katakana-terminator-local.user.js
 
 # Source font for the -local nom-ruby build's embedded @font-face (docs/build.md, "Known site
 # compatibility limitations"). ~10MB; the committed build keeps loading it from github instead.
@@ -25,6 +26,7 @@ gen
 /zoopdog-nom-ruby.user.js
 /zoopdog-popupdict.user.js
 /zoopdog-jyutping.user.js
+/zoopdog-katakana-terminator.user.js
 
 # The website's runtime dictionary is generated from db_src/ (make rebuild-extension-vnedict-json)
 # and published as GitHub Release assets alongside the userscripts, not committed (~7MB per edit).

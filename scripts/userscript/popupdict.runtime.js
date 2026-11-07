@@ -1191,13 +1191,38 @@ __ZOOPDOG_RUNTIME_SOURCES__
       popup.hide();
     }
 
+    // A hover that throws must never leave the popup silently dead. The error is logged and also
+    // left on the popup element (`data-last-error`), which -- unlike the console of an isolated
+    // userscript world -- is readable from the page and from DevTools' Elements panel.
     function mainListener(event, clearOnMiss) {
+      try {
+        return hoverLookup(event, clearOnMiss);
+      } catch (error) {
+        try {
+          popup.container.dataset.lastError = String(error && error.stack || error).slice(0, 600);
+          console.error('[Zoopdog popup] hover lookup failed:', error);
+        } catch (ignored) { /* nothing more to do */ }
+        return true;
+      }
+    }
+
+    // Last outcome of a hover, on the popup element (`data-last-hover`): a userscript world's
+    // console is hard to reach, the DOM is not. Written only when it changes.
+    function noteHover(outcome) {
+      if (popup.container.dataset.lastHover !== outcome) {
+        popup.container.dataset.lastHover = outcome;
+      }
+    }
+
+    function hoverLookup(event, clearOnMiss) {
       if (popup.locked || isExcludedTarget(event.target)) {
+        noteHover(popup.locked ? 'locked' : 'excluded');
         return true;
       }
 
       var mouse = getEventPoint(event);
       if (!mouse) {
+        noteHover('nopoint');
         return true;
       }
 
@@ -1212,6 +1237,11 @@ __ZOOPDOG_RUNTIME_SOURCES__
       // which is why those rows never showed a popup.
       if (!origin || !origin.word ||
           (!origin.atPoint && !elementContainsTextNode(element, origin.node))) {
+        var caret = null;
+        try { caret = zdCaretFromPoint(mouse); } catch (ignored) { /* reported as null */ }
+        noteHover((origin && origin.word ? 'notcontained' : 'noword') + ' origin=' + JSON.stringify(origin && {w: origin.word, o: origin.begin}) +
+          ' caret=' + (caret && caret.node ? caret.node.nodeType + ':' + String(caret.node.data || '').slice(0, 12) + '@' + caret.offset : 'null') +
+          ' pt=' + mouse.x + ',' + mouse.y + ' hasCPFP=' + !!document.caretPositionFromPoint);
         if (clearOnMiss) {
           clearActiveResult();
         }
@@ -1227,6 +1257,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       // getting stuck on "một câu". Same word: nothing to do, and skipping
       // the clear/reshow keeps the popup from flickering while it sits still.
       if (origin.word === oldWord) {
+        noteHover('same');
         return true;
       }
 
@@ -1234,6 +1265,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       oldWord = origin.word;
       var lookup = lookupContext(origin.context);
       if (!lookup) {
+        noteHover('nolookup');
         window.setTimeout(function() {
           oldWord = null;
         }, ZOO_SETTINGS.oldWordResetMs);
@@ -1242,6 +1274,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
 
       highlighter.on(origin.node, origin.begin, lookup.wordCount);
       popup.populate(lookup.results);
+      noteHover('shown');
       popup.show(highlighter.highlights[0] || {
         left: mouse.x,
         right: mouse.x,

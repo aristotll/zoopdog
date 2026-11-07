@@ -24,6 +24,8 @@ const relative = Object.freeze({
   popupLocalUserscript: 'zoopdog-popupdict-local.user.js',
   jyutpingUserscript: 'zoopdog-jyutping.user.js',
   jyutpingLocalUserscript: 'zoopdog-jyutping-local.user.js',
+  katakanaUserscript: 'zoopdog-katakana-terminator.user.js',
+  katakanaLocalUserscript: 'zoopdog-katakana-terminator-local.user.js',
   distDir: 'dist',
   defaultInput: '.idea/newfile.md',
   openspecChanges: 'openspec/changes',
