@@ -11,6 +11,7 @@ const repoPaths = require('./lib/paths');
 const {
   readRuntime,
   renderRuntime,
+  readLocalSiteRules,
   PENDING_VERSION,
   writeVersionedUserscript
 } = require('./lib/userscript');
@@ -31,6 +32,7 @@ function buildUserscript(variant) {
 
   return renderRuntime(source, {
     '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
+    '__ZOOPDOG_LOCAL_SITE_RULES__': JSON.stringify(readLocalSiteRules('cjk-ruby', variant.localMode)),
     '__ZOOPDOG_UPDATE_URL__': updateUrl,
     '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,
     '__ZOOPDOG_VERSION__': PENDING_VERSION

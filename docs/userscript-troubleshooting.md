@@ -147,3 +147,15 @@ therefore split into a shared core and two renderers; a site picks one.
 - **Debug recipe for "my CSS has no effect":** `getComputedStyle(el).display` before/after
   `styleSheet.disabled = true` per sheet names the culprit sheet; `!important` in a page rule means yours needs
   `!important` plus higher specificity.
+- **Orphaned Jyutping on translated pages (translated listing pages).** Immersive Translate wraps the *word itself* inside our
+  `<ruby>` in a `<font>`. `hoistForeign` took that wrapper for a translation and moved it out, leaving an empty
+  ruby holding only the under-reading, so the Jyutping floated away from its kanji (704 of 938 rubies on one such page).
+  Fix: the first non-`rt` child of a ruby is the word and is never hoisted. Symptom check: a `ruby.zd-cjk-ruby`
+  whose only child is an `rt` (with `data-zd-hoisted`). Not verified live against a translator: the installed
+  copy of the script also acts on the tab, so a clean A/B needs it disabled.
+- **Nom over unequal-width phrases.** `SITE_FIXES.perWord` (nom-ruby) makes one `<ruby>` per word when the
+  reading has one character per word, so each character sits over its word.
+- **Private site rules are not in this repo.** `SITE_FIXES` / `MODE_RULES` entries for such hosts live in
+  `../book-translator/zoopdog-site-rules.json` (or `$ZOOPDOG_LOCAL_SITE_RULES`) and are injected at build time into the
+  `(Local)` builds only (`readLocalSiteRules`, placeholder `__ZOOPDOG_LOCAL_SITE_RULES__`); the published builds get `[]`.
+  Rule: `{"host": "<regex>", "scripts": ["nom-ruby","cjk-ruby"], "css", "maxRun", "perWord", "mode"}`.

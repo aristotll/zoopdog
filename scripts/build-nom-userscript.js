@@ -19,6 +19,7 @@ const repoPaths = require('./lib/paths');
 const {
   readRuntime,
   renderRuntime,
+  readLocalSiteRules,
   jsonParseLiteral,
   PENDING_VERSION,
   writeVersionedUserscript
@@ -141,6 +142,7 @@ function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
     '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
+    '__ZOOPDOG_LOCAL_SITE_RULES__': JSON.stringify(readLocalSiteRules('nom-ruby', variant.targetKey === 'nomLocalUserscript')),
     '{"__ZOOPDOG_NOM_MAP__": true}': jsonParseLiteral(nomMap),
     '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': jsonParseLiteral(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,

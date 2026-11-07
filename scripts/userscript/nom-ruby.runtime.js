@@ -100,6 +100,14 @@
   var MODE_RULES = [
     { host: /(^|\.)zhihu\.com$/, mode: 'overlay' }
   ];
+  // Rules injected at build time into the -local build only (scripts/lib/userscript.js, readLocalSiteRules);
+  // the published build gets an empty list. They never appear in this source.
+  var LOCAL_SITE_RULES = __ZOOPDOG_LOCAL_SITE_RULES__;
+  LOCAL_SITE_RULES.forEach(function(rule) {
+    var host = new RegExp(rule.host);
+    SITE_FIXES.push({ host: host, css: rule.css, perWord: rule.perWord });
+    if (rule.mode) MODE_RULES.push({ host: host, mode: rule.mode });
+  });
   var MODE_KEY = 'zoopdogNomMode';
 
   function pickSiteFix() {
@@ -680,11 +688,37 @@
       var current = matches[i];
       var end = current.index + current.length;
       var nextStart = i + 1 < matches.length ? matches[i + 1].index : ownText.length;
-      var ruby = createRuby(ownText.substring(current.index, end), rubyText(current.nom), current.nom);
+      // One character per word: each word gets its own <ruby>, so every character sits over its own
+      // word instead of being spread evenly over a phrase whose words differ in width.
+      var chars = [...rubyText(current.nom)];
+      var spans = wordSpans(ownText, current.index, end);
+      if (siteFix.perWord && chars.length === spans.length && chars.length > 1) {
+        var cursor = current.index;
+        for (var k = 0; k < spans.length; k++) {
+          var gap = ownText.substring(cursor, spans[k].start);
+          if (gap) {
+            var gapNode = doc.createTextNode(gap);
+            fragment.appendChild(gapNode);
+            inserted.push(gapNode);
+          }
+          var wordRuby = createRuby(ownText.substring(spans[k].start, spans[k].end), chars[k], current.nom);
+          fragment.appendChild(wordRuby);
+          inserted.push(wordRuby);
+          cursor = spans[k].end;
+        }
+        if (cursor < end) {
+          var tailNode = doc.createTextNode(ownText.substring(cursor, end));
+          fragment.appendChild(tailNode);
+          inserted.push(tailNode);
+        }
+      } else {
+        var ruby = createRuby(ownText.substring(current.index, end), rubyText(current.nom), current.nom);
+        fragment.appendChild(ruby);
+        inserted.push(ruby);
+      }
       last = doc.createTextNode(ownText.substring(end, nextStart));
-      fragment.appendChild(ruby);
       fragment.appendChild(last);
-      inserted.push(ruby, last);
+      inserted.push(last);
     }
 
     textNode.nodeValue = ownText.substring(0, matches[0].index);

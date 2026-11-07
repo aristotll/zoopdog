@@ -209,8 +209,28 @@ function writeVersionedUserscript(targetPath, draft, now = new Date()) {
   return {version, changed};
 }
 
+// Site rules that must not live in this repository (private hosts) are read at build time, for the
+// -local userscripts only, from a file outside the repo: `$ZOOPDOG_LOCAL_SITE_RULES`, else
+// `../book-translator/zoopdog-site-rules.json` (a sibling checkout). Format:
+//   {"rules": [{"host": "<regex source>", "scripts": ["nom-ruby", "cjk-ruby"] (optional),
+//               "css": "...", "maxRun": 3, "perWord": true, "mode": "ruby|overlay"}]}
+// A missing file means no rules; a malformed one fails the build. The published build always gets [].
+function readLocalSiteRules(script, local, env = process.env) {
+  if (!local) return [];
+  const file = env.ZOOPDOG_LOCAL_SITE_RULES || path.resolve(__dirname, '../../../book-translator/zoopdog-site-rules.json');
+  if (!fs.existsSync(file)) return [];
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const rules = Array.isArray(data.rules) ? data.rules : [];
+  return rules.filter((rule) => {
+    if (!rule || typeof rule.host !== 'string') throw new Error(`${file}: every rule needs a host regex string`);
+    new RegExp(rule.host);
+    return !rule.scripts || rule.scripts.includes(script);
+  }).map(({scripts, ...rule}) => rule);
+}
+
 module.exports = {
   runtimeDir,
+  readLocalSiteRules,
   readRuntime,
   renderRuntime,
   jsonParseLiteral,

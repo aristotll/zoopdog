@@ -630,6 +630,13 @@
         }
     ];
 
+    // Rules injected at build time into the -local build only (scripts/lib/userscript.js, readLocalSiteRules);
+    // the published build gets an empty list. They never appear in this source.
+    var LOCAL_SITE_RULES = __ZOOPDOG_LOCAL_SITE_RULES__;
+    LOCAL_SITE_RULES.forEach(function (rule) {
+        SITE_FIXES.push({ host: new RegExp(rule.host), css: rule.css, maxRun: rule.maxRun });
+    });
+
     function pickSiteFix() {
         for (var i = 0; i < SITE_FIXES.length; i++) {
             if (SITE_FIXES[i].host.test(location.hostname)) return SITE_FIXES[i];
@@ -758,6 +765,9 @@ __ZOOPDOG_OVERLAY_LABELS__
     // WebKit line breaking) are listed here, or switched from the userscript menu (stored per host).
 
     var MODE_RULES = []; // e.g. { host: /(^|\.)example\.com$/, mode: 'overlay' }
+    LOCAL_SITE_RULES.forEach(function (rule) {
+        if (rule.mode) MODE_RULES.push({ host: new RegExp(rule.host), mode: rule.mode });
+    });
     var MODE_KEY = 'zoopdogCjkRubyMode';
 
     function isMobile() {
@@ -905,6 +915,12 @@ __ZOOPDOG_OVERLAY_LABELS__
             var ruby = child.parentNode;
             var count = Number(ruby.dataset.zdHoisted || 0);
             if (count >= HOIST_LIMIT || !ruby.parentNode) return;
+            // The first thing in the ruby is the word itself: a translator may wrap it in a <font>/<span>
+            // of its own, and moving that out would leave the reading in an empty ruby, away from its word.
+            var first = ruby.firstChild;
+            while (first && (first.nodeName === 'RT' || first.nodeName === 'WBR' ||
+                (first.nodeType === 3 && !first.nodeValue.trim()))) first = first.nextSibling;
+            if (first === child) return;
             ruby.dataset.zdHoisted = String(count + 1);
             var anchor = ruby.nextSibling;
             while (anchor && anchor.nodeName === 'WBR') anchor = anchor.nextSibling;
