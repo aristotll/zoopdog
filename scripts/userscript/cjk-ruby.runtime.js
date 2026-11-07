@@ -68,35 +68,58 @@
 
     // ----- transport -----------------------------------------------------------------------------
 
+    // GM_xmlhttpRequest first (it ignores the page's CSP); when it is missing or fails (a denied @connect, a
+    // manager that errors), fetch() is tried as well, so one broken transport does not silence the script.
     function request(url) {
+        function viaFetch() {
+            return new Promise(function (resolve, reject) {
+                var timer = setTimeout(function () { reject(new Error('timeout')); }, REQUEST_TIMEOUT_MS);
+                fetch(url).then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                }).then(function (text) { clearTimeout(timer); resolve(text); },
+                    function (error) { clearTimeout(timer); reject(error); });
+            });
+        }
         return new Promise(function (resolve, reject) {
             var gm = typeof GM_xmlhttpRequest === 'function' ? GM_xmlhttpRequest
                 : (typeof GM === 'object' && GM && typeof GM.xmlHttpRequest === 'function' ? GM.xmlHttpRequest : null);
-            if (gm) {
-                try {
-                    gm({
-                        method: 'GET',
-                        url: url,
-                        timeout: REQUEST_TIMEOUT_MS,
-                        onload: function (response) {
-                            if (response.status >= 200 && response.status < 300) resolve(response.responseText);
-                            else reject(new Error('HTTP ' + response.status));
-                        },
-                        onerror: function () { reject(new Error('network error')); },
-                        ontimeout: function () { reject(new Error('timeout')); }
-                    });
-                } catch (error) {
-                    reject(error);
-                }
-                return;
+            if (!gm) { viaFetch().then(resolve, reject); return; }
+            var failed = function (error) {
+                viaFetch().then(resolve, function (fetchError) {
+                    reject(new Error(String(error && error.message) + '; fetch: ' + String(fetchError && fetchError.message)));
+                });
+            };
+            try {
+                gm({
+                    method: 'GET',
+                    url: url,
+                    timeout: REQUEST_TIMEOUT_MS,
+                    onload: function (response) {
+                        if (response.status >= 200 && response.status < 300) resolve(response.responseText);
+                        else failed(new Error('HTTP ' + response.status));
+                    },
+                    onerror: function () { failed(new Error('network error')); },
+                    ontimeout: function () { failed(new Error('timeout')); }
+                });
+            } catch (error) {
+                failed(error);
             }
-            var timer = setTimeout(function () { reject(new Error('timeout')); }, REQUEST_TIMEOUT_MS);
-            fetch(url).then(function (response) {
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                return response.text();
-            }).then(function (text) { clearTimeout(timer); resolve(text); },
-                function (error) { clearTimeout(timer); reject(error); });
         });
+    }
+
+    // Last problems, readable from the page: <html data-zoopdog-cjk-error="stage: message (count)">.
+    var errorCount = 0;
+    function noteError(stage, error) {
+        try {
+            var message = String(error && error.message || error);
+            if (/backing off/.test(message)) return; // a consequence, not a cause: keep the real error visible
+            errorCount++;
+            doc.documentElement.dataset.zoopdogCjkError = stage + ': ' + message.slice(0, 160) + ' (' + errorCount + ')';
+            // One attribute per stage, so a later failure does not hide the first cause.
+            var key = 'zoopdogCjkError' + stage.replace(/[^a-z]/gi, '');
+            if (!(key in doc.documentElement.dataset)) doc.documentElement.dataset[key] = message.slice(0, 200);
+        } catch (ignored) { /* the beacon is best effort */ }
     }
 
     function buildQueryString(params) {
@@ -273,6 +296,36 @@
 
     // ----- Jyutping converter: Worker first, main thread second, retried with back-off -----------
 
+    // Pages that enforce Trusted Types (Gemini) refuse strings reaching Worker(url) and eval/Function. A policy of
+    // our own turns them into trusted values; if the page forbids creating one, the plain string is used as before.
+    var ttPolicy;
+    function trustedPolicy() {
+        if (ttPolicy !== undefined) return ttPolicy;
+        ttPolicy = null;
+        try {
+            if (window.trustedTypes && typeof window.trustedTypes.createPolicy === 'function') {
+                ttPolicy = window.trustedTypes.createPolicy('zoopdog-cjk-ruby', {
+                    createScript: function (value) { return value; },
+                    createScriptURL: function (value) { return value; }
+                });
+            }
+        } catch (error) {
+            noteError('trusted-types', error);
+        }
+        return ttPolicy;
+    }
+    function trustedScriptUrl(url) {
+        var policy = trustedPolicy();
+        return policy ? policy.createScriptURL(url) : url;
+    }
+    // Runs library source that defines `exports` / `module` / a global, returns the function wrapper's result.
+    function runLibrary(code, exported, holder) {
+        var body = '(function (exports, module) {' + code + '\n;return typeof ToJyutping !== "undefined" ? ToJyutping : undefined;})';
+        var policy = trustedPolicy();
+        var fn = (0, eval)(policy ? policy.createScript(body) : body);
+        return fn(exported, holder);
+    }
+
     function workerSource() {
       return '(' + function (urls) {
         var ready = false;
@@ -310,7 +363,7 @@
       return new Promise(function (resolve, reject) {
         var worker;
         try {
-          worker = new Worker(URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' })));
+          worker = new Worker(trustedScriptUrl(URL.createObjectURL(new Blob([workerSource()], { type: 'text/javascript' }))));
         } catch (error) {
           reject(error);
           return;
@@ -375,16 +428,24 @@
         if (index >= LIB_URLS.length) return Promise.reject(new Error('library unavailable'));
         return request(LIB_URLS[index++]).then(function (code) {
           var exported = {};
-          new Function('exports', 'module', code)(exported, { exports: exported });
-          if (typeof exported.getJyutpingList !== 'function') throw new Error('unexpected library shape');
+          var holder = { exports: exported };
+          var global = runLibrary(code, exported, holder);
+          var lib = [holder.exports, exported, global].filter(function (candidate) {
+            return candidate && typeof candidate.getJyutpingList === 'function';
+          })[0];
+          if (!lib) throw new Error('unexpected library shape');
           return function (text) {
-            return Promise.resolve(exported.getJyutpingList(text));
+            return Promise.resolve(lib.getJyutpingList(text));
           };
-        }).catch(attempt);
+        }).catch(function (error) {
+          noteError('library ' + LIB_URLS[index - 1].split('/')[2], error);
+          return attempt();
+        });
       }
       return attempt();
     }
 
+    var converterStage = 'idle'; // idle | worker | library | ready | failed (beacon only)
     var converter = null;        // Promise<function> while usable
     var converterFailures = 0;
     var retryNotBefore = 0;
@@ -392,14 +453,22 @@
     function getConverter() {
       if (converter) return converter;
       if (Date.now() < retryNotBefore) return null;
-      var started = startWorkerConverter().catch(function () { return startMainThreadConverter(); });
+      converterStage = 'worker';
+      var started = startWorkerConverter().catch(function (workerError) {
+        noteError('worker', workerError);
+        converterStage = 'library';
+        return startMainThreadConverter();
+      });
       converter = started.then(function (convert) {
+        converterStage = 'ready';
         converterFailures = 0;
         return convert;
       }, function (error) {
         converter = null;
         retryNotBefore = Date.now() + CONVERTER_RETRY_DELAYS_MS[Math.min(converterFailures, CONVERTER_RETRY_DELAYS_MS.length - 1)];
         converterFailures++;
+        converterStage = 'failed';
+        noteError('converter', error);
         console.warn('[Zoopdog CJK Ruby] converter unavailable, retrying later:', error && error.message);
         throw error;
       });
@@ -486,6 +555,12 @@
         return Promise.all(phrases.map(function (phrase) {
             return convertText(phrase).then(function (items) {
                 return items.map(function (item) { return item[1]; }).filter(Boolean).join(' ');
+            }, function (error) {
+                // One phrase the library chokes on must not fail its whole batch of 50: it gets no label.
+                // A converter that is missing, backing off or timed out still fails the batch (retried later).
+                if (/backing off|unavailable|library|worker|timed out/.test(String(error && error.message))) throw error;
+                noteError('phrase', error);
+                return '';
             });
         }));
     }
@@ -518,12 +593,17 @@
                     translateChunk(kind, phrases.slice(middle))
                 ]);
             }
+            noteError(kind, error);
             console.warn('Zoopdog CJK Ruby: ' + kind + ' request failed, will retry later:', error && error.message);
             phrases.forEach(function (phrase) { noteFailure(keyOf(kind, phrase)); });
         });
     }
 
     function translatePending() {
+        try {
+            doc.documentElement.dataset.zoopdogCjkStatus = 'build=diag2 converter=' + converterStage +
+                ' queued=' + queue.size + ' inflight=' + inflight.size + ' labels=' + labels.size;
+        } catch (ignored) { /* best effort */ }
         var now = Date.now();
         var pending = { english: [], reading: [], jyutping: [] };
 

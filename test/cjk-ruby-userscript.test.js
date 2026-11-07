@@ -33,6 +33,9 @@ test('the CJK Ruby runtime is one fault-tolerant pass that never touches other r
   assert.match(source, /ruby-align: space-around/, 'base characters spread to line up with their syllables');
   assert.match(source, /not\(wbr\):not\(ruby\)/, 'the nested reading ruby is ours, never hoisted');
   assert.match(source, /hoistForeign/, 'translations a translator appends inside a ruby are moved out');
+  assert.match(source, /zoopdogCjkError/, 'failures are readable from the page');
+  assert.match(source, /createScriptURL/, 'Trusted Types pages get a policy for the worker and the library');
+  assert.match(source, /viaFetch/, 'a failing userscript-manager request falls back to fetch');
   assert.match(source, /if \(first === child\) return;/, 'a translator wrapper around the word itself is never hoisted out');
   assert.match(source, /MODE_RULES/, 'the renderer is chosen per site');
   assert.match(source, /hupu\\\.com/, 'hupu uses the overlay renderer');
