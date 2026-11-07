@@ -1214,7 +1214,24 @@ __ZOOPDOG_RUNTIME_SOURCES__
       }
     }
 
+    // A page script or a translation extension may rebuild <body> (or clone the nodes in it)
+    // after this script ran. The popup then keeps drawing into elements that are no longer in the
+    // document -- every hover "works" and nothing is ever displayed. Re-attach them, and drop any
+    // look-alike left behind by a clone, so the popup always lives in the current page.
+    function ensureAttached() {
+      [highlighter.canvas, popup.container].forEach(function(element) {
+        if (!element.isConnected && document.body) {
+          Array.prototype.slice.call(document.querySelectorAll('#' + element.id)).forEach(function(other) {
+            if (other !== element) other.remove();
+          });
+          document.body.appendChild(element);
+          popup.container.dataset.reattached = String((Number(popup.container.dataset.reattached) || 0) + 1);
+        }
+      });
+    }
+
     function hoverLookup(event, clearOnMiss) {
+      ensureAttached();
       if (popup.locked || isExcludedTarget(event.target)) {
         noteHover(popup.locked ? 'locked' : 'excluded');
         return true;

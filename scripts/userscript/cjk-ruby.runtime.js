@@ -646,7 +646,11 @@
 
     var STYLE = [
         'rt.zd-cjk-rt::before { content: attr(data-rt); }',
-        'rt.zd-cjk-jp { font-size: 0.74em; font-variant: initial; text-transform: initial; letter-spacing: initial; }',
+        'rt.zd-cjk-jp { font-size: 0.7em; font-variant: initial; text-transform: initial; letter-spacing: initial; }',
+        // Annotations above AND below a word need room: a block that holds one gets a looser line
+        // height, otherwise one line's under-annotation runs into the next line's over-annotation.
+        '*:has(> ruby.zd-cjk-ruby) { line-height: 2.7 !important; }',
+        'ruby.zd-cjk-ruby { ruby-overhang: none; padding: 0 0.08em; }',
         'ruby.zd-cjk-stacked { ruby-position: under; }',
         'ruby.zd-cjk-stacked > ruby { ruby-position: over; }'
     ].join('\n');

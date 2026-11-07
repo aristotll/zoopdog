@@ -74,6 +74,8 @@ Each of these owns its subject; this file does not repeat them.
 - **Local mode is a two-repo feature**: when a change touches anything the local userscript calls
   or configures (endpoints, payloads, hotkeys, `/control/userscripts`), edit this repo *and*
   `~/mine/book-translator` (routes, tests, `AGENTS-book-server.md`) together, and update both docs.
+- Diagnosing the popup / CJK ruby userscripts on translated pages (detached popup, rubies fighting each
+  other, CDP techniques): [`docs/userscript-troubleshooting.md`](docs/userscript-troubleshooting.md)
 - The popup userscript's local mode (talking to the `book-translator` reader server to add
   Chữ Nôm entries / set rendering order from any page): [`docs/local-mode.md`](docs/local-mode.md)
 - chunom.org's standard characters (a generated, gitignored `chunom_standard.json` the builders fold in memory: words behind the dictionary's own forms,
