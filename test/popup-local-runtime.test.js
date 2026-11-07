@@ -881,3 +881,73 @@ test('Sogou redirect links take the host from the address shown in the result; Y
   assert.deepEqual(Array.from(context.zooAnchorKeys(redirect)), ['helpx.adobe.com']);
   assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.sogou.com/web?query=x'))), []);
 });
+
+test('Refresh all hands every cumulative reply to onRows while slower channels are still asked', async () => {
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['a', 'b']});
+    if (q.get('engine') === '0') return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]});
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'b', text: 'late'}]});
+  });
+  const seen = [];
+  await harness.context.zooFetchNotesAll('nom-notes', 'a', (rows) => seen.push(rows.map((row) => row.label).join('|')));
+  assert.deepEqual(seen, ['a|waiting: b', 'a|b']);
+});
+
+test('Refresh all reads every channel from one streamed request and falls back to per-channel ones without it', async () => {
+  const lines = [
+    {entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]},
+    {entry: {engine: 'b'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'b', text: 'late'}]},
+    {done: true}
+  ].map((line) => JSON.stringify(line) + '\n').join('');
+  const urls = [];
+  const harness = createHarness((options) => {
+    urls.push(options.url);
+    const cut = Math.floor(lines.length / 2);
+    options.onprogress({responseText: lines.slice(0, cut)}); // a line cut in half is not consumed yet
+    options.onload({status: 200, responseText: lines});
+  });
+  const seen = [];
+  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a', (r) => seen.push(r.map((row) => row.label).join('|')));
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /\/v1\/suggest\/stream\?kind=nom-notes/);
+  assert.deepEqual(seen, ['a|waiting: b', 'a|b']);
+  assert.equal(rows[1].text, 'late');
+
+  const fallback = [];
+  const old = createHarness((options) => {
+    const url = new URL(options.url);
+    fallback.push(url.pathname);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (url.pathname === '/v1/suggest/stream') return options.onload({status: 404, responseText: '{}'});
+    if (url.searchParams.get('engines')) return reply({engines: ['a']});
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}]});
+  });
+  const got = await old.context.zooFetchNotesAll('nom-notes', 'a');
+  assert.equal(got[0].text, 'ok');
+  assert.equal(fallback[0], '/v1/suggest/stream');
+});
+
+test('Refresh all redraws the list at most once per second while streamed replies arrive', async () => {
+  const lines = [1, 2, 3, 4, 5].map((n) => JSON.stringify({entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'v' + n}]}) + '\n')
+    .join('') + JSON.stringify({done: true}) + '\n';
+  const harness = createHarness((options) => {
+    let sent = 0;
+    for (const line of lines.split('\n').filter(Boolean)) {
+      sent += line.length + 1;
+      options.onprogress({responseText: lines.slice(0, sent)});
+    }
+    options.onload({status: 200, responseText: lines});
+  });
+  const button = harness.add('b');
+  const list = harness.add('l');
+  let appended = 0;
+  const append = list.appendChild;
+  list.appendChild = function(child) { appended += 1; return append.call(this, child); };
+  harness.context.zooWireNotesAll(button, list, 'nom-notes', () => 'a', 's').run();
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  // the "Asking..." line, the first reply at once and the final rows; the replies between are held back
+  assert.ok(appended <= 3, 'drew ' + appended + ' rows');
+  assert.equal(list.children[0].children[1].textContent, 'v5');
+});

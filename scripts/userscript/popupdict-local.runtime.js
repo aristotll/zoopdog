@@ -456,15 +456,69 @@
   // (ZOO_NOTES_ALL_RETRIES times, sleeping 1 s, 2 s, 4 s) and the channels that answered still show. The
   // server keeps the answers per `session` and returns the finished `rows` over all channels with every
   // reply; a channel that failed every retry is reported to the server (`error=1`) and becomes an "error"
-  // row of its own. The list is drawn once, from the final rows. If not even the channel list can be had,
+  // row of its own. `onRows(rows)`, if given, sees each reply, so the list shows answers as they arrive. If not even the channel list can be had,
   // one row says the server was unreachable.
   var ZOO_NOTES_ALL_RETRIES = 3;
   var ZOO_NOTES_ALL_BASE_DELAY_MS = 1000;
+  var ZOO_NOTES_ALL_CONCURRENCY = 5;
+  var ZOO_NOTES_ALL_REDRAW_MS = 2000;
   function zooNotesAllWaiting(rows) {
     return rows.reduce(function(n, row) { return n + (row.pending ? row.engines.length : 0); }, 0);
   }
-  function zooFetchNotesAll(kind, text) {
+  // One connection for every channel (`GET /v1/suggest/stream`, NDJSON: a line per finished channel, then
+  // `{"done": true}`; book-translator scripts/reader/notes_stream.py). Resolves true when the stream ended with `done`;
+  // false (no GM_xmlhttpRequest, HTTP error, cut connection) sends the caller to the per-channel requests below.
+  // `onprogress` shows lines as they arrive; `onload` carries the whole text, so a manager that never reports progress
+  // still gets every line, just at the end.
+  function zooStreamNotesAll(kind, text, take) {
+    return new Promise(function(resolve) {
+      if (typeof GM_xmlhttpRequest !== 'function') { resolve(false); return; }
+      var seen = 0;
+      var finished = false;
+      function consume(responseText) {
+        var end = responseText.lastIndexOf('\n');
+        if (end < seen) return;
+        responseText.slice(seen, end).split('\n').forEach(function(line) {
+          if (!line) return;
+          var data = JSON.parse(line);
+          if (data.done) finished = true; else take(data);
+        });
+        seen = end + 1;
+      }
+      try {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: ZOO_LOCAL_BASE + '/v1/suggest/stream?kind=' + encodeURIComponent(kind) + '&text=' + encodeURIComponent(text),
+          timeout: ZOO_NOTES_ALL_TIMEOUT,
+          onprogress: function(response) { try { consume(response.responseText || ''); } catch (e) { /* the final onload re-reads */ } },
+          onload: function(response) {
+            try {
+              if (response.status !== 200) { resolve(false); return; }
+              consume(response.responseText || '');
+              resolve(finished);
+            } catch (e) { resolve(false); }
+          },
+          onerror: function() { resolve(false); },
+          ontimeout: function() { resolve(false); }
+        });
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function zooFetchNotesAll(kind, text, onRows) {
     if (!text) return Promise.resolve([]);
+    var streamedRows = [];
+    function takeStreamed(reply) {
+      if (!reply || !reply.rows || (streamedRows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(streamedRows))) return;
+      streamedRows = reply.rows;
+      if (onRows) onRows(streamedRows);
+    }
+    return zooStreamNotesAll(kind, text, takeStreamed).then(function(done) {
+      return done ? streamedRows : zooFetchNotesAllPerChannel(kind, text, onRows);
+    });
+  }
+
+  function zooFetchNotesAllPerChannel(kind, text, onRows) {
     function withRetry(params, n) {
       return zooGetJSON('/v1/suggest', params, params.engine === undefined ? undefined : ZOO_NOTES_ALL_TIMEOUT).catch(function(error) {
         if (n >= ZOO_NOTES_ALL_RETRIES) throw error;
@@ -484,8 +538,14 @@
         // Replies can arrive out of order; each is cumulative, so the one with fewest channels waiting is newest.
         if (!reply || !reply.rows || (rows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(rows))) return;
         rows = reply.rows;
+        if (onRows) onRows(rows);
       }
-      return Promise.all(engines.map(function(name, index) {
+      // Fallback only (no stream): at most ZOO_NOTES_ALL_CONCURRENCY channels in flight: a browser keeps 6 connections per host, and all of
+      // them busy for 27 s (70 channels, measured 2026-11-07) made the quick fields of the modal show last.
+      var nextChannel = 0;
+      function askNext() {
+        if (nextChannel >= engines.length) return Promise.resolve();
+        var index = nextChannel++;
         var params = base();
         params.engine = String(index);
         params.session = session;
@@ -496,8 +556,11 @@
           report.error = '1';
           // the server is unreachable: this channel simply stays in the waiting row
           return zooGetJSON('/v1/suggest', report).then(take, function() {});
-        });
-      })).then(function() { return rows; });
+        }).then(askNext);
+      }
+      var workers = [];
+      for (var w = 0; w < Math.min(ZOO_NOTES_ALL_CONCURRENCY, engines.length); w++) workers.push(askNext());
+      return Promise.all(workers).then(function() { return rows; });
     }, function() {
       return [{ engines: [], text: '', message: '(server unreachable after 3 retries)' }];
     });
@@ -584,7 +647,20 @@
           list.appendChild(li);
         });
       }
-      zooFetchNotesAll(kind, text).then(renderRows, function() {
+      // Streamed replies can arrive dozens of times a second; redrawing on each one made the list flicker. Drawn at most once
+      // per ZOO_NOTES_ALL_REDRAW_MS (first reply at once, the latest rows after the pause); the final rows always replace it.
+      var lastDraw = 0;
+      var latest = null;
+      var timer = null;
+      function drawLatest() { timer = null; lastDraw = Date.now(); renderRows(latest); }
+      function onRows(shown) {
+        latest = shown;
+        var wait = lastDraw + ZOO_NOTES_ALL_REDRAW_MS - Date.now();
+        if (wait <= 0) drawLatest();
+        else if (timer === null) timer = setTimeout(drawLatest, wait);
+      }
+      zooFetchNotesAll(kind, text, onRows).then(function(finalRows) { clearTimeout(timer); renderRows(finalRows); }, function() {
+        clearTimeout(timer);
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {

@@ -329,5 +329,6 @@
   {"vi": "Hoàng", "nom": ["黄"], "caseSensitive": true},
   {"vi": "bao xa", "nom": ["包賒"]},
   {"vi": "tắc", "nom": ["塞"]},
-  {"vi": "ốc", "nom": ["𧎜"]}
+  {"vi": "ốc", "nom": ["𧎜"]},
+  {"vi": "mì", "nom": ["麵"]}
 ]
