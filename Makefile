@@ -8,7 +8,7 @@ TERM ?=
 .DEFAULT_GOAL := help
 
 .PHONY: help \
-	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-jyutping-userscript rebuild-katakana-terminator-userscript rebuild-userscripts release-userscripts minify-userscripts \
+	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
 	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types
@@ -16,8 +16,7 @@ TERM ?=
 help:
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
-	@echo "make rebuild-jyutping-userscript"
-	@echo "make rebuild-katakana-terminator-userscript"
+	@echo "make rebuild-cjk-ruby-userscript"
 	@echo "make rebuild-userscripts"
 	@echo "make minify-userscripts  # minified release builds into dist/ (esbuild)"
 	@echo "make release-userscripts  # publish dist/*.user.js as a GitHub Release (DRY_RUN=1 to preview)"
@@ -41,13 +40,10 @@ rebuild-nom-userscript:
 rebuild-popupdict-userscript:
 	$(NODE) scripts/build-popupdict-userscript.js
 
-rebuild-jyutping-userscript:
-	$(NODE) scripts/build-jyutping-userscript.js
+rebuild-cjk-ruby-userscript:
+	$(NODE) scripts/build-cjk-ruby-userscript.js
 
-rebuild-katakana-terminator-userscript:
-	$(NODE) scripts/build-katakana-terminator-userscript.js
-
-rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript rebuild-jyutping-userscript rebuild-katakana-terminator-userscript
+rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript
 
 # Minifies the readable root builds into dist/ (needs `npm install` once, for esbuild).
 minify-userscripts:
@@ -65,8 +61,7 @@ release-userscripts:
 rebuild-local-userscripts:
 	$(NODE) scripts/build-nom-userscript.js --local-only
 	$(NODE) scripts/build-popupdict-userscript.js --local-only
-	$(NODE) scripts/build-jyutping-userscript.js --local-only
-	$(NODE) scripts/build-katakana-terminator-userscript.js --local-only
+	$(NODE) scripts/build-cjk-ruby-userscript.js --local-only
 
 # Long-running: polls every 60s for a change under user_nom_entries/ or user_nom_order.jsonc
 # and rebuilds only the (Local) variants when one is found. Runs until interrupted (Ctrl+C).

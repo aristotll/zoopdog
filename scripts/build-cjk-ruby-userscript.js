@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-// Builds the Katakana Terminator userscript in its two variants, like the nom-ruby and popup
+// Builds the CJK Ruby userscript (Jyutping + katakana, replacing the separate Jyutping and Katakana Terminator scripts) in its two variants, like the nom-ruby and popup
 // builders: the github-hosted release build (updates from the latest GitHub Release) and the
 // never-committed (Local) build that updates from its own file on this machine
-// (`--local-only`, see docs/build.md). The source is scripts/userscript/katakana-terminator.runtime.js.
+// (`--local-only`, see docs/build.md). The source is scripts/userscript/cjk-ruby.runtime.js.
 
 'use strict';
 
@@ -16,8 +16,8 @@ const {
 } = require('./lib/userscript');
 
 const VARIANTS = [
-  {targetKey: 'katakanaUserscript', nameSuffix: '', localMode: false},
-  {targetKey: 'katakanaLocalUserscript', nameSuffix: ' (Local)', localMode: true}
+  {targetKey: 'cjkRubyUserscript', nameSuffix: '', localMode: false},
+  {targetKey: 'cjkRubyLocalUserscript', nameSuffix: ' (Local)', localMode: true}
 ];
 
 function buildUserscript(variant) {
@@ -26,7 +26,7 @@ function buildUserscript(variant) {
     : repoPaths.releaseUrl(variant.targetKey);
 
   // The suffix decorates every localized @name, so it legitimately occurs more than once.
-  const source = readRuntime('katakana-terminator.runtime.js')
+  const source = readRuntime('cjk-ruby.runtime.js')
     .split('__ZOOPDOG_NAME_SUFFIX__').join(variant.nameSuffix);
 
   return renderRuntime(source, {

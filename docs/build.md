@@ -213,19 +213,14 @@ Userscript changes:
 
 - Install the rebuilt userscript and verify word detection and popup lookup on a normal page.
 
-## Inject Jyutping userscript
+## CJK Ruby userscript (Jyutping + katakana)
 
-`scripts/userscript/jyutping.runtime.js` is the source (header + code). `make rebuild-jyutping-userscript`
-(also part of `rebuild-userscripts` / `rebuild-local-userscripts`) writes `zoopdog-jyutping.user.js`
-(release build, minified into `dist/` and published by `make release-userscripts`) and the
-gitignored `zoopdog-jyutping-local.user.js` (`@name … (Local)`, updates from its own `file://` URL).
-Both are gitignored; the code is identical, only the name and update URLs differ.
-
-## Katakana Terminator userscript
-
-`scripts/userscript/katakana-terminator.runtime.js` is the source; `make rebuild-katakana-terminator-userscript`
-writes `zoopdog-katakana-terminator.user.js` (release, minified into `dist/`) and the gitignored
-`zoopdog-katakana-terminator-local.user.js` (`… (Local)`, `file://` update URL), exactly like the
-Jyutping script. Katakana get English originals; kanji words on Japanese pages (page/element
-`lang="ja"` or text that already contains kana) get a katakana reading (converted from Google's romaji), both from Google Translate's
-public key-less `translate_a/single` endpoint (`dt=rm` for the reading).
+`scripts/userscript/cjk-ruby.runtime.js` is the source; `make rebuild-cjk-ruby-userscript` writes
+`zoopdog-cjk-ruby.user.js` (release, minified into `dist/`) and the gitignored
+`zoopdog-cjk-ruby-local.user.js` (`… (Local)`, `file://` update URL). It replaces the separate Inject
+Jyutping and Katakana Terminator scripts, which fought over the same text: one DOM pass, one `<ruby>`
+per word. Han words get Jyutping (to-jyutping); on Japanese text (`lang="ja"` or a text node with kana)
+a kanji word also gets a katakana reading above it (Google Translate's public key-less `rm`
+transliteration, converted from romaji) with the Jyutping under it (nested ruby); katakana words get
+their English original. Text inside any other `<ruby>`/`<rt>` (e.g. zoopdog-nom-ruby's Nom reading) is
+never touched, and an `data-last-hover`/`data-last-error` beacon on the popup helps diagnose hover problems.

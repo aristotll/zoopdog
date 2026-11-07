@@ -1265,7 +1265,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       oldWord = origin.word;
       var lookup = lookupContext(origin.context);
       if (!lookup) {
-        noteHover('nolookup');
+        noteHover('nolookup word=' + JSON.stringify(origin.word) + ' ctx=' + JSON.stringify(String(origin.context).slice(0, 60)) + ' keys=' + Object.keys(ZOO_DICTIONARY).length);
         window.setTimeout(function() {
           oldWord = null;
         }, ZOO_SETTINGS.oldWordResetMs);
