@@ -7,6 +7,7 @@
 // @exclude     http://127.0.0.1:8770/*
 // @exclude     http://localhost:8770/*
 // @grant       GM_addStyle
+// @grant       GM_registerMenuCommand
 // @version     __ZOOPDOG_VERSION__
 // @updateURL   __ZOOPDOG_UPDATE_URL__
 // @downloadURL __ZOOPDOG_DOWNLOAD_URL__
@@ -17,6 +18,9 @@
 
   // ===== zd-extension/js/zd-nom-match.js =====
   __ZOOPDOG_NOM_MATCH_ENGINE__
+
+  // ===== scripts/userscript/overlay-labels.js =====
+  __ZOOPDOG_OVERLAY_LABELS__
 
   // ===== zd-extension/js/zd-words.js =====
   __ZOOPDOG_WORDS__
@@ -78,6 +82,48 @@
     ].join('\n');
   }
 
+  // ===== per-site fixes and renderer choice ======================================================
+  // `ruby` (default): annotations are <ruby> elements in the page text. `overlay`: the page is never
+  // touched, labels are drawn in a layer above it (overlay-labels.js) -- for sites whose own scripts or CSS
+  // fight inline <ruby>. A fix only applies on the hosts it names.
+  var SITE_FIXES = [
+    {
+      host: /(^|\.)reddit\.com$/,
+      // Reddit's post previews reset every descendant with `all: revert; display: inline !important`, which
+      // flattens <ruby>/<rt> into inline text. Outrank it (it is (0,2,2)) with the same !important.
+      css: [
+        ':root:root ruby.zoopdog-nom-ruby { display: ruby !important; }',
+        ':root:root ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt { display: ruby-text !important; }'
+      ].join('\n')
+    }
+  ];
+  var MODE_RULES = [
+    { host: /(^|\.)zhihu\.com$/, mode: 'overlay' }
+  ];
+  var MODE_KEY = 'zoopdogNomMode';
+
+  function pickSiteFix() {
+    for (var i = 0; i < SITE_FIXES.length; i++) {
+      if (SITE_FIXES[i].host.test(window.location.hostname)) return SITE_FIXES[i];
+    }
+    return {};
+  }
+
+  function chooseMode() {
+    try {
+      var saved = window.localStorage.getItem(MODE_KEY + ':' + window.location.hostname);
+      if (saved === 'ruby' || saved === 'overlay') return saved;
+    } catch (error) { /* storage blocked: use the table */ }
+    for (var i = 0; i < MODE_RULES.length; i++) {
+      if (MODE_RULES[i].host.test(window.location.hostname)) return MODE_RULES[i].mode;
+    }
+    return 'ruby';
+  }
+
+  var siteFix = pickSiteFix();
+  var mode = chooseMode();
+  var overlay = null;
+
   var rubyCss = [
     'ruby.zoopdog-nom-ruby { ruby-position: over; }',
     'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt {',
@@ -88,7 +134,7 @@
     '  line-height: 1;',
     '  user-select: none;',
     '}'
-  ].join('\n');
+  ].join('\n') + '\n' + (siteFix.css || '');
 
   var fontFaceAdded = false;
 
@@ -491,7 +537,49 @@
     return !!lang && lang !== 'vi' && lang.indexOf('vi-') !== 0;
   }
 
+  // Overlay mode: the same matching as annotateTextNode, but nothing is inserted into the page. Each match
+  // becomes a record; a reading with one character per word gets one character over each word.
+  function overlayAnnotate(textNode) {
+    var normalized = textNode.nodeValue.normalize('NFC');
+    if (normalized !== textNode.nodeValue) textNode.nodeValue = normalized;
+    var known = overlay.known(textNode);
+    if (known && known.text === normalized) return;
+    var records = [];
+    if (ZD_NOM_WORD_CHAR_PATTERN.test(normalized)) {
+      var ahead = readAhead(textNode, normalized);
+      var nonVietnamese = isDeclaredNonVietnamese(textNode);
+      var offset = 0;
+      var match;
+      while ((match = nomMatcher.findNomMatch(ahead.text, offset)) && match.index < normalized.length) {
+        offset = match.index + match.length;
+        if (nonVietnamese && !ZD_NOM_NON_ASCII_PATTERN.test(ahead.text.substr(match.index, match.length))) continue;
+        if (match.index + match.length > normalized.length) break; // spans into the next node: not drawn
+        records.push(overlayRecord(normalized, match));
+      }
+    }
+    if (records.length) ensureFontFace();
+    overlay.set(textNode, normalized, records);
+  }
+
+  function overlayRecord(text, match) {
+    var chars = [...rubyText(match.nom)];
+    var spans = wordSpans(text, match.index, match.index + match.length);
+    var pieces = chars.length === spans.length && chars.length > 1
+      ? spans.map(function(span, index) { return {text: chars[index], from: span.start, to: span.end}; })
+      : [{text: chars.join('')}];
+    return {
+      start: match.index,
+      end: match.index + match.length,
+      layers: [{under: false, scale: 0.65, color: '#B6638F', family: "'Zoopdog Nom Na Tong', sans-serif",
+        weight: '600', pieces: pieces}]
+    };
+  }
+
   function annotateTextNode(textNode) {
+    if (mode === 'overlay') {
+      overlayAnnotate(textNode);
+      return;
+    }
     // A source segment already belongs to an active annotation. Its separate trailing node
     // is queued on insertion; rescanning the segment would replace its ownership record.
     if (injections.has(textNode)) return;
@@ -733,6 +821,17 @@
     root.appendChild(style);
   }
 
+  function registerModeMenu() {
+    if (typeof GM_registerMenuCommand !== 'function') return;
+    try {
+      var next = mode === 'ruby' ? 'overlay' : 'ruby';
+      GM_registerMenuCommand('Nom Ruby on ' + window.location.hostname + ': ' + mode + ' -> ' + next + ' (reloads)', function() {
+        try { window.localStorage.setItem(MODE_KEY + ':' + window.location.hostname, next); } catch (error) { /* ignore */ }
+        location.reload();
+      });
+    } catch (error) { /* no menu */ }
+  }
+
   function main() {
     if (!doc.body) {
       window.setTimeout(main, 50);
@@ -747,7 +846,20 @@
       return;
     }
 
-    try { addStyle(rubyCss); } catch (error) { doc.documentElement.dataset.zoopdogNomError = String(error); }
+    if (mode === 'overlay') {
+      overlay = zdCreateOverlay(doc, window, {
+        id: 'zoopdog-nom-overlay',
+        onStats: function(stats) { doc.documentElement.dataset.zoopdogNomOverlay = stats; }
+      });
+      if (typeof window.addEventListener === 'function') {
+        window.addEventListener('scroll', overlay.schedule, {capture: true, passive: true});
+        window.addEventListener('resize', overlay.schedule, {passive: true});
+      }
+    } else {
+      try { addStyle(rubyCss); } catch (error) { doc.documentElement.dataset.zoopdogNomError = String(error); }
+    }
+    try { doc.documentElement.dataset.zoopdogNomMode = mode; } catch (error) { /* beacon only */ }
+    registerModeMenu();
 
     newNodes.add(doc.body);
 
@@ -815,6 +927,7 @@
       // look: rescanning the parent of every ruby just inserted only re-verified text the pass
       // had already exhausted.
       observer.takeRecords();
+      if (overlay) overlay.schedule(); // page layout may have moved the words
     }
 
     rescanNow = rescanTextNodes;
@@ -830,6 +943,7 @@
 
   // Replaces every ruby this script made with its plain base text.
   function removeAnnotations() {
+    if (overlay) overlay.clear();
     var roots = [doc].concat(shadowRootList);
     roots.forEach(function(root) {
       var rubies = root.querySelectorAll('ruby.zoopdog-nom-ruby');
@@ -863,6 +977,7 @@
   var removalTimer = null;
 
   function hideAnnotations() {
+    if (overlay) overlay.setHidden(true);
     [doc.documentElement].concat(shadowRootList).forEach(function(root) {
       var style = doc.createElement('style');
       style.textContent = 'ruby.zoopdog-nom-ruby > rt.zoopdog-nom-rt { display: none !important; }';
@@ -872,6 +987,7 @@
   }
 
   function showAnnotations() {
+    if (overlay) overlay.setHidden(false);
     hideStyles.forEach(function(style) { style.remove(); });
     hideStyles = [];
   }

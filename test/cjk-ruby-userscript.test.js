@@ -29,9 +29,16 @@ test('release and (Local) CJK Ruby builds differ only in name and update locatio
 test('the CJK Ruby runtime is one fault-tolerant pass that never touches other rubies', () => {
   const source = buildUserscript(VARIANTS[0]);
   assert.match(source, /EXCLUDED_SELECTOR/, 'skips text inside other <ruby>/<rt>, at any depth');
-  assert.match(source, /zd-cjk-stacked/, 'katakana reading and Jyutping share one rt');
+  assert.match(source, /zd-cjk-stacked/, 'katakana reading over, Jyutping under');
   assert.match(source, /ruby-align: space-around/, 'base characters spread to line up with their syllables');
+  assert.match(source, /not\(wbr\):not\(ruby\)/, 'the nested reading ruby is ours, never hoisted');
   assert.match(source, /hoistForeign/, 'translations a translator appends inside a ruby are moved out');
+  assert.match(source, /MODE_RULES/, 'the renderer is chosen per site');
+  assert.match(source, /hupu\\\.com/, 'hupu uses the overlay renderer');
+  assert.match(source, /SITE_FIXES/, 'per-site css and run limits live in one table');
+  assert.doesNotMatch(source, /installTapHandlers/, 'the tap mode was removed');
+  assert.match(source, /overlayNewRecord/, 'overlay records close over their own record');
+  assert.match(source, /GM_registerMenuCommand/, 'the mode can be switched from the userscript menu');
   assert.match(source, /new Worker\(/, 'Jyutping converter runs in a worker');
   assert.match(source, /startMainThreadConverter/, '... with a main-thread fallback');
   assert.match(source, /ENDPOINT_COOLDOWN_MS/, 'a failing endpoint cools down');

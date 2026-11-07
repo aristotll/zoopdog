@@ -42,7 +42,8 @@ nom-ruby and the popup (see `docs/build.md`).
 
 - One DOM pass, one `<ruby>` per word. Han words get Jyutping (to-jyutping, Worker with a main-thread
   fallback); on Japanese text (`lang="ja"` or a text node already holding kana) the kanji word also gets
-  a katakana reading above it and the Jyutping under it (nested ruby); katakana words get English.
+  a katakana reading above it and the Jyutping under it (nested ruby; a single two-line `<rt>` was tried and
+  reverted: too tall on phones); katakana words get English.
 - Readings and English: Google Translate's public key-less `translate_a/single`. The reading is the
   `dt=rm` (romanization) block; several words are sent joined by ` | ` because Google returns ONE
   romanization block per request. Romaji is converted to katakana locally (long vowels become `ー`).
@@ -85,3 +86,64 @@ nom-ruby and the popup (see `docs/build.md`).
   translator ran.
 - A userscript manager only picks up a rebuilt Local file when it re-checks it; always tell the user to
   update the script and reload before testing a change, and confirm the new build is the one running.
+
+## 6. Two renderers: `ruby` (default) and `overlay`
+
+Every ruby problem above came from one fact: the script inserts `<ruby>` into the page's own text, so it
+shares that text with page CSS, the engine's ruby layout, translators and other scripts. The script is
+therefore split into a shared core and two renderers; a site picks one.
+
+- **Core (shared):** `findMatch` (what is annotatable, and which kinds of label), the label queue
+  (`queue` / `labels` / `translatePending`: Google, to-jyutping, retries), the mutation observer.
+  A label destination is a *sink*: an `<rt>` element, or an overlay sink object with `setLabel`.
+- **`ruby`:** wraps each word in `<ruby>` (plus `hoistForeign`, which moves translator output out of it).
+- **`overlay`:** never touches the DOM. Words are tracked as `{node, start, text}` records; labels are drawn
+  in a fixed, click-through, closed-shadow layer (`#zoopdog-cjk-overlay`) from `Range.getClientRects()`.
+  One syllable is placed over each hanzi; a label that would collide is lifted by a line (up to two)
+  and then dropped; labels are clamped inside the viewport. Layout runs on scroll/resize, on every scan
+  and from a timer (hidden tabs pause animation frames). The layer is re-appended if a page removes it.
+- **Choice:** ruby everywhere. `MODE_RULES` (empty now) can force `overlay` for a host; the userscript menu command
+  switches the current host between `ruby` and `overlay` (stored in `localStorage` as
+  `zoopdogCjkRubyMode:<host>`, then reload). `<html data-zoopdog-cjk-ruby-mode>` shows the active renderer and
+  `data-zoopdog-cjk-overlay` shows `labels= records= dropped= pending=`.
+- **Per-site fixes (`SITE_FIXES`):** a fix names its hosts and only applies there: `css` (extra rules) and
+  `maxRun` (split long Han runs into words of at most N characters so a wide label cannot push a line past its
+  container). hupu.com: un-clamps the 48px title box (a fixed height + `-webkit-line-clamp` clipped the second
+  line once the ruby line-height grew) and `maxRun: 3`. Reddit needed no fix once the `<wbr>` and nested-ruby
+  fixes were in (measured: no overflow, no overlapping labels in ruby mode).
+- **A "tap/long-press to reveal" mode was tried and removed:** it hid the problem instead of fixing it.
+- **Measuring overlap without screenshots:** take every `rt` fragment (`getClientRects`, a ruby that wraps has
+  several; the union rect lies), shrink each to font-size*1.15 around its centre (the `rt` box includes
+  half-leading), and intersect with the text-node line rects of text outside that ruby. Sticky headers
+  produce false positives when scrolled.
+- **Trade-offs of overlay:** labels are not selectable or searchable text; a line with no room above it gets
+  lifted labels that can sit over the previous line; many records cost a layout pass per scroll frame.
+- **Bug worth remembering:** callbacks created in a `while` loop closed over a `var rec`, so every label
+  landed on the LAST word of a text node. Create per-item state in a function of its own.
+- **Do not "fix" `ruby-align`:** `space-around` spreads the base characters so each syllable sits over its
+  hanzi; `center` broke exactly that on v2ex.
+
+## 7. Shared overlay engine, nom overlay on Zhihu, and Reddit's flat ruby
+
+- **`scripts/userscript/overlay-labels.js`** is the one overlay engine (`zdCreateOverlay`). Both builders inline it
+  (`__ZOOPDOG_OVERLAY_LABELS__`) into `cjk-ruby.runtime.js` and `nom-ruby.runtime.js`. A record is a word of a text
+  node plus drawing layers (`over`/`under`, per-syllable pieces, colour/font); the engine owns the fixed
+  click-through layer, culling, collision lifting, re-attaching the layer, and scroll/resize relayout.
+- **Nom ruby has the same two renderers.** `ruby` (default) wraps words; `overlay` matches exactly as before
+  (`nomMatcher`), but each match becomes a record: a reading with one character per word puts one character over each
+  word (`wordSpans`), any other shape sits over the whole match. Matches that span two text nodes are not drawn in
+  overlay mode. `MODE_RULES` in `nom-ruby.runtime.js` puts zhihu.com on `overlay`; the menu command switches a host
+  (`localStorage` key `zoopdogNomMode:<host>`); `<html data-zoopdog-nom-mode>` and `data-zoopdog-nom-overlay` are
+  the beacons. Verified live on vi.wikipedia.org: 17k records tracked, ~400-500 labels drawn, no `<ruby>` inserted,
+  labels follow scrolling.
+- **Reddit's "flat" ruby (some previews only).** `shreddit-post .feed-card-text-preview :not(ol,ul,li,h1) {
+  all: revert; display: inline !important; ... }` flattens every descendant, `<ruby>`/`<rt>` included, so the reading
+  is drawn inline after the word. Found by disabling the page's stylesheets one at a time until the ruby's computed
+  `display` changed (only one sheet did), then fetching that sheet's text and grepping for the class seen in the
+  element's ancestor chain (cross-origin sheets cannot be read through `cssRules`). Fix, per site in `SITE_FIXES` of
+  both scripts: `:root:root ruby.<ours> { display: ruby !important }` and the same for the `rt`
+  (`display: ruby-text`); `:root:root` raises specificity above Reddit's (0,2,2) without touching other sites.
+  The nested reading ruby of cjk-ruby got a class (`zd-cjk-inner`) for the same reason.
+- **Debug recipe for "my CSS has no effect":** `getComputedStyle(el).display` before/after
+  `styleSheet.disabled = true` per sheet names the culprit sheet; `!important` in a page rule means yours needs
+  `!important` plus higher specificity.

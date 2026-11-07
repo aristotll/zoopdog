@@ -246,6 +246,7 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
     '__ZOOPDOG_NOM_MATCH_ENGINE__': fs.readFileSync(nomMatchEnginePath, 'utf8'),
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
+    '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
     '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
     '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
@@ -792,6 +793,19 @@ test('Vietnamese inside another script\'s ruby base is annotated, its rt is not'
   dom.tick();
   assert.equal(rubyAnnotations(base).length, 1);
   assert.deepEqual(rubyAnnotations(inRt), []);
+});
+
+test('on an overlay site the page text is left exactly as it is', () => {
+  const dom = runRuntime(NOM_MAP, {}, {hostname: 'www.zhihu.com'});
+  const p = dom.document.createElement('p');
+  const text = dom.document.createTextNode('foo bạn bar');
+  p.appendChild(text);
+  dom.body.appendChild(p);
+  dom.tick();
+  dom.tick();
+  assert.deepEqual(rubyAnnotations(p), [], 'no <ruby> is inserted in overlay mode');
+  assert.equal(p.childNodes.length, 1, 'the text node is not split');
+  assert.equal(text.nodeValue, 'foo bạn bar');
 });
 
 test('rewriting a later segment retires the entire cross-node annotation', () => {

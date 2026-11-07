@@ -30,6 +30,7 @@ function buildUserscript(variant) {
     .split('__ZOOPDOG_NAME_SUFFIX__').join(variant.nameSuffix);
 
   return renderRuntime(source, {
+    '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
     '__ZOOPDOG_UPDATE_URL__': updateUrl,
     '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,
     '__ZOOPDOG_VERSION__': PENDING_VERSION

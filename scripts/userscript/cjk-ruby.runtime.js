@@ -12,6 +12,7 @@
 // @grant       GM.xmlHttpRequest
 // @grant       GM_xmlhttpRequest
 // @grant       GM_addStyle
+// @grant       GM_registerMenuCommand
 // @connect     translate.google.cn
 // @connect     translate.google.com
 // @connect     translate.googleapis.com
@@ -433,6 +434,7 @@
     }
 
     function applyLabel(rt, text) {
+        if (typeof rt.setLabel === 'function') { rt.setLabel(text); return; } // overlay sink
         rt.dataset.rt = text;
         if (textMode) rt.textContent = text;
     }
@@ -576,18 +578,16 @@
             ruby.appendChild(makeRt(kinds[0], text, kinds[0] === 'english' ? 'zd-cjk-en' : 'zd-cjk-jp'));
             return ruby;
         }
-        // Two labels share ONE <rt> (two lines over the base). Nested rubies with the second label
-        // under the base looked right in Chrome, but WebKit ignores the width of an under label, so
-        // neighbouring Jyutping overlapped on iOS Safari.
+        // Katakana reading above the word, Jyutping under it (nested rubies).
         ruby.classList.add('zd-cjk-stacked');
-        ruby.appendChild(doc.createTextNode(text));
-        var rt = doc.createElement('rt');
-        rt.classList.add('zd-cjk-stack');
-        var reading = makeRt('reading', text, 'zd-cjk-kana', 'span');
-        var jyutping = makeRt('jyutping', text, 'zd-cjk-jp', 'span');
-        rt.appendChild(reading);
-        rt.appendChild(jyutping);
-        ruby.appendChild(rt);
+        var inner = doc.createElement('ruby');
+        inner.classList.add('zd-cjk-inner');
+        inner.appendChild(doc.createTextNode(text));
+        inner.appendChild(makeRt('reading', text, 'zd-cjk-kana'));
+        ruby.appendChild(inner);
+        var jyutping = makeRt('jyutping', text, 'zd-cjk-jp');
+        jyutping.classList.add('zd-cjk-under');
+        ruby.appendChild(jyutping);
         return ruby;
     }
 
@@ -602,11 +602,44 @@
         return after;
     }
 
-    function addRuby(node) {
-        var text = node.nodeValue;
-        if (!text || !node.parentNode) return null;
+    // ===== per-site fixes ===========================================================================
+    // A fix only applies on the hosts it names, so the generic rendering stays untouched:
+    //   css:    extra rules appended to the stylesheet (un-clamp a title box, ...);
+    //   maxRun: split Han runs into words of at most this many characters, so a long run's wide label
+    //           cannot push the line past its container.
+    var SITE_FIXES = [
+        {
+            host: /(^|\.)reddit\.com$/,
+            // Reddit's post previews reset every descendant with `all: revert; display: inline !important`,
+            // which flattens <ruby>/<rt> into inline text; outrank it (it is (0,2,2)) with !important.
+            css: [
+                ':root:root ruby.zd-cjk-ruby, :root:root ruby.zd-cjk-inner { display: ruby !important; }',
+                ':root:root ruby.zd-cjk-ruby rt, :root:root ruby.zd-cjk-inner > rt { display: ruby-text !important; }'
+            ].join('\n')
+        },
+        {
+            host: /(^|\.)hupu\.com$/,
+            maxRun: 3,
+            css: [
+                // The feed clamps titles to a fixed 48px box; the ruby line-height needs the room.
+                '.news-item-info-title { height: auto !important; max-height: none !important;' +
+                    ' -webkit-line-clamp: unset !important; display: block !important; overflow: visible !important;' +
+                    ' overflow-wrap: anywhere; }',
+                '.news-item, .news-item-info { height: auto !important; min-height: 98px; }'
+            ].join('\n')
+        }
+    ];
 
-        var ja = inJapaneseContext(node);
+    function pickSiteFix() {
+        for (var i = 0; i < SITE_FIXES.length; i++) {
+            if (SITE_FIXES[i].host.test(location.hostname)) return SITE_FIXES[i];
+        }
+        return {};
+    }
+    var siteFix = pickSiteFix();
+
+    // First annotatable word in `text`: {index, text, kinds} or null. Shared by every renderer.
+    function findMatch(text, ja) {
         var katakana = KATAKANA.exec(text);
         var han = (ja ? HAN_WORD_JA : HAN_WORD).exec(text);
         var hanText = han && han[0];
@@ -616,13 +649,146 @@
                 return PARTICLE_START.test(tail) ? head : whole;
             });
         }
+        if (hanText && siteFix.maxRun) {
+            var chars = Array.from(hanText);
+            if (chars.length > siteFix.maxRun) hanText = chars.slice(0, siteFix.maxRun).join('');
+        }
         if (katakana && (!han || katakana.index < han.index)) {
-            return wrapMatch(node, katakana[0], katakana.index, ['english']);
+            return { index: katakana.index, text: katakana[0], kinds: ['english'] };
         }
         if (han) {
-            return wrapMatch(node, hanText, han.index, ja ? ['reading', 'jyutping'] : ['jyutping']);
+            return { index: han.index, text: hanText, kinds: ja ? ['reading', 'jyutping'] : ['jyutping'] };
         }
         return null;
+    }
+
+    // ===== renderer "ruby": wraps each word in a <ruby> (the default) ===============================
+
+    function addRuby(node) {
+        var text = node.nodeValue;
+        if (!text || !node.parentNode) return null;
+        var match = findMatch(text, inJapaneseContext(node));
+        return match ? wrapMatch(node, match.text, match.index, match.kinds) : null;
+    }
+
+    // ===== renderer "overlay": the page's DOM is never touched (engine: overlay-labels.js) ==========
+
+__ZOOPDOG_OVERLAY_LABELS__
+
+    var overlay = zdCreateOverlay(doc, window, {
+        id: 'zoopdog-cjk-overlay',
+        onStats: function (stats) { root.dataset.zoopdogCjkOverlay = stats + ' pending=' + queue.size; }
+    });
+    var HAN_CHAR = /[\p{Unified_Ideograph}々〆]/u;
+
+    // Layers of a record from the labels that have arrived: Jyutping nearest the word (one syllable over
+    // each hanzi when the counts agree), the reading / English above it. With a katakana reading the
+    // Jyutping goes under the word, as in ruby mode.
+    function overlayLayers(rec) {
+        var layers = [];
+        var jyutping = rec.labels.jyutping;
+        if (jyutping) {
+            var syllables = jyutping.split(' ');
+            var han = [];
+            for (var i = 0; i < rec.text.length;) {
+                var cp = String.fromCodePoint(rec.text.codePointAt(i));
+                if (HAN_CHAR.test(cp)) han.push([i, cp.length]);
+                i += cp.length;
+            }
+            var pieces = han.length === syllables.length && han.length > 0
+                ? han.map(function (position, index) {
+                    return { text: syllables[index], from: rec.start + position[0], to: rec.start + position[0] + position[1] };
+                })
+                : [{ text: jyutping }];
+            layers.push({ under: !!rec.labels.reading, scale: 0.55, pieces: pieces });
+        }
+        var word = rec.labels.reading || rec.labels.english;
+        if (word) layers.push({ under: false, scale: 0.55, pieces: [{ text: word }] });
+        return layers;
+    }
+
+    // A function of its own: the sinks below close over `rec`, which must be this record and not
+    // whatever a loop variable holds when the label finally arrives.
+    function overlayNewRecord(start, match) {
+        var rec = { start: start, end: start + match.text.length, text: match.text, kinds: match.kinds, labels: {}, layers: [], sinks: [] };
+        rec.onRemove = function () {
+            rec.sinks.forEach(function (item) {
+                var entry = queue.get(item.key);
+                if (entry) entry.rts.delete(item.sink);
+            });
+        };
+        match.kinds.forEach(function (kind) {
+            var key = keyOf(kind, match.text);
+            var sink = {
+                setLabel: function (label) {
+                    rec.labels[kind] = label;
+                    rec.layers = overlayLayers(rec);
+                    overlay.schedule();
+                }
+            };
+            if (!queue.has(key)) queue.set(key, { kind: kind, phrase: match.text, rts: new Set() });
+            queue.get(key).rts.add(sink);
+            rec.sinks.push({ key: key, sink: sink });
+        });
+        return rec;
+    }
+
+    function overlayScanText(node) {
+        var text = node.nodeValue;
+        var known = overlay.known(node);
+        if (known && known.text === text) return;
+        var records = [];
+        if (text) {
+            var ja = inJapaneseContext(node);
+            var pos = 0;
+            var guard = 0;
+            while (pos < text.length && guard++ < 5000) {
+                var match = findMatch(text.slice(pos), ja);
+                if (!match) break;
+                var start = pos + match.index;
+                records.push(overlayNewRecord(start, match));
+                pos = start + match.text.length;
+            }
+        }
+        overlay.set(node, text, records);
+    }
+
+    // ===== choosing the renderer per site ===========================================================
+    // Default is "ruby". Sites where inline <ruby> breaks (translators rewrite it, clamped boxes,
+    // WebKit line breaking) are listed here, or switched from the userscript menu (stored per host).
+
+    var MODE_RULES = []; // e.g. { host: /(^|\.)example\.com$/, mode: 'overlay' }
+    var MODE_KEY = 'zoopdogCjkRubyMode';
+
+    function isMobile() {
+        return /Mobi|iPhone|iPad|Android/i.test(navigator.userAgent || '') ||
+            (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    }
+
+    function chooseMode() {
+        try {
+            var saved = window.localStorage.getItem(MODE_KEY + ':' + location.hostname);
+            if (saved === 'ruby' || saved === 'overlay') return saved;
+        } catch (error) { /* storage blocked: use the table */ }
+        for (var i = 0; i < MODE_RULES.length; i++) {
+            var rule = MODE_RULES[i];
+            if (rule.host.test(location.hostname) && (!rule.mobileOnly || isMobile())) return rule.mode;
+        }
+        return 'ruby';
+    }
+
+    var mode = chooseMode();
+    root.dataset.zoopdogCjkRubyMode = mode;
+
+    function registerModeMenu() {
+        if (typeof GM_registerMenuCommand !== 'function') return;
+        try {
+            var next = mode === 'ruby' ? 'overlay' : 'ruby';
+            GM_registerMenuCommand('CJK Ruby on ' + location.hostname + ': ' + mode + ' -> ' + next + ' (reloads)', function () {
+                try { window.localStorage.setItem(MODE_KEY + ':' + location.hostname, next); } catch (error) { /* ignore */ }
+                location.reload();
+            });
+        } catch (error) { /* no menu */ }
     }
 
     function scanTextNodes(node) {
@@ -638,9 +804,13 @@
                 if (node.shadowRoot) watchShadow(node.shadowRoot);
                 Array.from(node.childNodes).forEach(scanTextNodes);
             } else if (node.nodeType === Node.TEXT_NODE) {
-                var next = node;
-                var guard = 0;
-                while ((next = addRuby(next)) && guard++ < 10000) { /* keep splitting */ }
+                if (mode !== 'ruby') {
+                    overlayScanText(node);
+                } else {
+                    var next = node;
+                    var guard = 0;
+                    while ((next = addRuby(next)) && guard++ < 10000) { /* keep splitting */ }
+                }
             } else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
                 Array.from(node.childNodes).forEach(scanTextNodes);
             }
@@ -658,16 +828,16 @@
         // Annotations above AND below a word need room: a block that holds one gets a looser line
         // height, otherwise one line's under-annotation runs into the next line's over-annotation.
         '*:has(> ruby.zd-cjk-ruby) { line-height: 2.1 !important; }',
-        '*:has(> ruby.zd-cjk-stacked) { line-height: 2.9 !important; }',
-        'rt.zd-cjk-stack { font-size: 0.7em; white-space: nowrap; text-align: center; }',
-        'rt.zd-cjk-stack > .zd-cjk-rt { display: block; font-size: 1em; line-height: 1.15; }',
-        'rt.zd-cjk-stack > .zd-cjk-kana { font-size: 0.85em; }',
+        '*:has(> ruby.zd-cjk-stacked) { line-height: 2.7 !important; }',
         // iOS Safari inflates the text of a block that overflows its width; never let that happen here.
         '*:has(> ruby.zd-cjk-ruby) { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }',
         // space-around spreads the base characters over a longer label, which is what keeps each
         // syllable above its own hanzi; `center` bunched them and broke that alignment.
         'ruby.zd-cjk-ruby { ruby-align: space-around; white-space: normal; }',
+        'ruby.zd-cjk-stacked { ruby-position: under; }',
+        'ruby.zd-cjk-stacked > ruby { ruby-position: over; }',
         'ruby.zd-cjk-ruby { ruby-overhang: none; padding: 0 0.08em; }',
+        siteFix.css || ''
     ].join('\n');
 
     function installStyle() {
@@ -686,7 +856,7 @@
 
     var verifyTimer = 0;
     function scheduleVerify() {
-        if (verifyTimer || textMode) return;
+        if (verifyTimer || textMode || mode !== 'ruby') return;
         verifyTimer = setTimeout(function () {
             verifyTimer = 0;
             var rt = doc.querySelector('[data-rt].zd-cjk-rt');
@@ -731,7 +901,7 @@
     // ruby, right behind it. Bounded per ruby so a translator that moves it back cannot loop forever.
     var HOIST_LIMIT = 6;
     function hoistForeign() {
-        doc.querySelectorAll('ruby.zd-cjk-ruby > :not(rt):not(wbr)').forEach(function (child) {
+        doc.querySelectorAll('ruby.zd-cjk-ruby > :not(rt):not(wbr):not(ruby)').forEach(function (child) {
             var ruby = child.parentNode;
             var count = Number(ruby.dataset.zdHoisted || 0);
             if (count >= HOIST_LIMIT || !ruby.parentNode) return;
@@ -745,20 +915,26 @@
     function rescan() {
         try {
             record(observer.takeRecords());
-            hoistForeign();
+            if (mode === 'ruby') hoistForeign();
             if (newNodes.length) {
                 var nodes = newNodes;
                 newNodes = [];
                 nodes.forEach(scanTextNodes);
             }
             translatePending();
+            if (mode !== 'ruby') overlay.schedule();
         } catch (error) {
             console.warn('Zoopdog CJK Ruby: scan failed:', error && error.message);
         }
     }
 
     function main() {
-        installStyle();
+        if (mode === 'ruby') installStyle();
+        else {
+            window.addEventListener('scroll', overlay.schedule, { capture: true, passive: true });
+            window.addEventListener('resize', overlay.schedule, { passive: true });
+        }
+        registerModeMenu();
         observer = new MutationObserver(record);
         observer.observe(doc.documentElement, { childList: true, subtree: true, characterData: true });
         newNodes.push(doc.body || doc.documentElement);
