@@ -951,3 +951,115 @@ test('Refresh all redraws the list at most once per second while streamed replie
   assert.ok(appended <= 3, 'drew ' + appended + ' rows');
   assert.equal(list.children[0].children[1].textContent, 'v5');
 });
+
+test('new regional and AI result pages are recognised without matching unrelated sites', () => {
+  const {context} = createHarness(() => {});
+  const pages = [
+    ['tw.search.yahoo.com', '/search'], ['hk.search.yahoo.com', '/search'], ['www.so.com', '/s'],
+    ['search.daum.net', '/search'], ['so.toutiao.com', '/search'], ['coccoc.com', '/search'],
+    ['www.mojeek.com', '/search'], ['swisscows.com', '/en/web'], ['marginalia-search.com', '/search'],
+    ['www.bing.com', '/copilotsearch'], ['ai.so.com', '/search/'], ['felo.ai', '/search/abc'],
+    ['metaso.cn', '/search/123'], ['www.kimi.com', '/chat/123'], ['wenxin.baidu.com', '/search'],
+    ['chat.qwen.ai', '/c/abc'], ['yuanbao.tencent.com', '/chat/abc'], ['grok.com', '/c/abc'],
+    ['ai-hay.vn', '/question-id'], ['wiby.me', '/'], ['gerdoo.me', '/search/'],
+  ];
+  for (const [hostname, pathname] of pages) assert.ok(context.zooSearchEngineFor({hostname, pathname}), `${hostname}${pathname}`);
+  assert.equal(context.zooSearchEngineFor({hostname: 'random.example', pathname: '/search'}), null);
+});
+
+test('360 search redirect links use data-mdurl and never blacklist the redirect host', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.so.com', '/s');
+  const result = link('https://www.so.com/link?m=opaque', {getAttribute: (name) => name === 'data-mdurl' ? 'https://vdict.com/word' : null});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(result)), ['vdict.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.so.com/link?m=opaque'))), []);
+});
+
+test('new search page references exclude navigation and site-owned links', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'metaso.cn', '/search/123');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://vdict.com/hello'))), ['vdict.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://metaso.cn/settings'))), []);
+  const nav = link('https://facebook.com/foo', {closest: (selector) => /header/.test(selector) ? {} : null});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(nav)), []);
+});
+
+test('Yahoo redirect URLs reveal the original result host', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'hk.search.yahoo.com', '/search');
+  const result = link('https://r.search.yahoo.com/_ylt=abc/RU=https%3a%2f%2fvdict.com%2fword/RK=2/RS=abc');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(result)), ['vdict.com']);
+});
+
+test('AI citation tools remain available after the citation is coloured', async () => {
+  const harness = createHarness((options) => options.onload({status: 200, responseText: '{"version":"v1","matches":{}}'}));
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let options;
+  harness.context.zooExploredToolsCreate = (deps) => { options = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  const anchor = link('https://vdict.com/entry');
+  anchor.dataset.zooExplored = '1';
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => []}, {hostname: 'metaso.cn', pathname: '/search/id'});
+  assert.equal(options.eligible(anchor), true);
+});
+
+test('all built-in reader search URLs are recognised by the local highlighter', {skip: !fs.existsSync('/Users/cheng/mine/book-translator/scripts/web_search.py')}, () => {
+  const child = require('node:child_process');
+  const lines = child.execFileSync('/Users/cheng/mine/book-translator/.venv/bin/python', ['-c',
+    'from scripts.web_search import ENGINES; import json; print(json.dumps([(e.id,e.url) for e in ENGINES]))'],
+    {cwd: '/Users/cheng/mine/book-translator', encoding: 'utf8'});
+  const {context} = createHarness(() => {});
+  for (const [id, template] of JSON.parse(lines)) {
+    const url = new URL(template.replace('{q}', 'hello'));
+    assert.ok(context.zooSearchEngineFor({hostname: url.hostname, pathname: url.pathname}), `${id}: ${url.href}`);
+  }
+});
+
+test('new AI channel refreshes the actual source and opens blacklist with its host', async () => {
+  const requests = [];
+  const harness = createHarness((options) => {
+    const keys = JSON.parse(new URL(options.url).searchParams.get('keys'));
+    requests.push(keys);
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', matches: {}})});
+  });
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let tools, blacklisted;
+  harness.context.zooExploredToolsCreate = (deps) => { tools = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  harness.context.zooBuildModals = () => {};
+  harness.context.zooShowToast = () => {};
+  harness.context.zooOpenBlacklistModal = (host) => { blacklisted = host; };
+  const anchor = link('https://vdict.com/article');
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => [anchor]}, {hostname: 'metaso.cn', pathname: '/search/id'});
+  await tools.refresh(anchor);
+  tools.blacklist(anchor);
+  assert.equal(blacklisted, 'vdict.com');
+  assert.ok(requests.some((keys) => keys.includes('vdict.com')));
+});
+
+test('AI mode ignores provider navigation links on sibling domains', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'ai.so.com', '/search/');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.so.com/s?q=x'))), []);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://vdict.com/entry'))), ['vdict.com']);
+});
+
+test('MetaSo chat URLs remain recognised after the search redirects', () => {
+  const {context} = createHarness(() => {});
+  assert.equal(context.zooSearchEngineFor({hostname: 'metaso.cn', pathname: '/chat/2119411307674038273'})?.id, 'metaso');
+});
+
+test('MetaSo source cards expose the real source host for colouring and blacklist', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'metaso.cn', '/chat/123');
+  const card = link('', {getAttribute: name => name === 'data-zoo-result-url' ? 'https://www.youdao.com/' : null});
+  assert.match(context.ZOO_ENGINE.scope, /search-origin-box/);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(card)), ['www.youdao.com']);
+  assert.equal(context.zooExploredBlock(card), card);
+});
+
+test('Bing Copilot response iframe has a citation-aware layout', () => {
+  const {context} = createHarness(() => {});
+  const frame = context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/search', search: '?cpltsrchif=1'});
+  assert.equal(frame?.id, 'bing-copilot-frame');
+  assert.equal(frame.scope, 'a[href]');
+  assert.equal(context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/search', search: '?q=abc'}).id, 'bing');
+});

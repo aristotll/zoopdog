@@ -190,7 +190,8 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `next_order`. The ↻ button sends the previous reply's `next_order`, so one click gives the
   zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
-- `POST /v1/web-search/open?q=<term>&from=<this page's URL>` → `{urls: [{id, name, url}], opened}`; the search icon opens one tab per search engine enabled on the server's `/control` page (Google, Bing, DuckDuckGo, Yahoo, Yandex, Baidu, ... and custom `{q}` URLs). **The server opens the tabs through CDP** (`Target.createTarget` with the `browserContextId` of the tab at `from`), so they appear in the same Chrome profile as the page and no popup blocker applies. The userscript calls `window.open` on the finished `urls` only when `opened` is 0 (no debug port / tab not found). `GET /v1/web-search` returns the settings (`{lang, langs, enabled, engines, custom}`), `POST /v1/web-search?lang=&engines=a,b&custom=<json>` saves them; `/v1/google-search` is the same pair, kept for older clients. Language is each engine's own parameter (`hl=`, `setlang=`, `kl=`), set on `/control`. Mirror: book-translator `scripts/web_search.py`.
+- `POST /v1/web-search/open?q=<term>&from=<this page's URL>` → `{urls: [{id, name, url}], opened}`; the search icon opens one tab per search engine enabled on the server's `/control` page (Google, Bing, DuckDuckGo, Yahoo, Yandex, Baidu, ... and custom `{q}` URLs). **The server opens the tabs through CDP** (`Target.createTarget` with the `browserContextId` of the tab at `from`), so they appear in the same Chrome profile as the page and no popup blocker applies. The userscript calls `window.open` on the finished `urls` only when `opened` is 0 (no debug port / tab not found). `GET /v1/web-search` returns the settings (`{lang, langs, region, regions, enabled, engines, custom}`), `POST /v1/web-search?lang=&region=&engines=a,b&custom=<json>` saves them; Google is one engine and `region` selects its `gl` parameter; `/v1/google-search` is the same pair, kept for older clients. Language is each engine's own parameter (`hl=`, `setlang=`, `kl=`), set on `/control`. Mirror: book-translator `scripts/web_search.py`.
+- Qwen and Tencent Yuanbao receive `#zoopdog_search=<encoded term>` in the finished URL from book-translator. The local popup userscript runs on the destination, inserts the term into the empty chat editor and clicks Send once; it removes the marker before submitting, leaves existing drafts and unmarked tabs alone, and lets the site present any login or age prompts. It also works when search is initiated from the reader, provided this local userscript is installed and enabled on the target site. See book-translator `docs/research/search_engines_explored/README.md`.
 - **Redraw at most once every 2 s (2026-11-07):** streamed replies arrive many times a second and redrawing on each made the Notes list flicker; `zooWireNotesAll` draws the first reply at once, then at most once per `ZOO_NOTES_ALL_REDRAW_MS` (2000) with the latest rows, and the final rows always replace the list. Mirrors `NOTES_ALL_REDRAW_MS` in book-translator's `shared/suggest.js`.
 - **One connection for Refresh all (2026-11-07):** `zooFetchNotesAll` reads `GET /v1/suggest/stream?kind=&text=` (NDJSON, a `{entry, rows}` line per finished channel, then `{"done": true}`; book-translator `scripts/reader/notes_stream.py`) with one `GM_xmlhttpRequest` (`onprogress` for live lines, `onload` for the full text). Only if that fails does it use the per-channel requests, capped at 5 (`ZOO_NOTES_ALL_CONCURRENCY`): a browser keeps 6 connections per host and 70 channel requests made a 3 ms reading request wait 27 s.
 - **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is redrawn with every reply (2026-11-07; `onRows`), so the quick engines' answers show while slow ones (7-30 s) are still a `waiting` row; the final draw has the channels that answered and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator. A channel that failed 5 times in a row (2026-10-31) comes back as a server-made `failing: <id>` row whose `actions` (a list of `label`, `path`, `params`: "Disable globally", "Disable for this process") the runtime draws as buttons and sends as GETs (`GET /v1/suggest?channel=<id>&disabled=1|0|global`: off for the server process, on again, or off for good in book-translator's `provider-lists.toml`); the runtime decides nothing.
@@ -336,3 +337,62 @@ Yahoo! JAPAN, Baidu, Brave, Ecosia, Startpage, Qwant, Naver and Seznam. `ZOO_SEA
 `block` (one result; none = paint the link itself), `own` hosts (never keys) and how a redirect link yields its target
 (Bing `ck/a?u=a1<base64url>`; Baidu the container's `mu`). Yandex and Sogou (bot check) and Kagi (login) also work in a profile that passed the check / is logged in; Sogou's redirect
 links read the host from the address shown in the result. Evidence and per-engine verdicts: book-translator `docs/research/search_engines_explored/`.
+
+### Additional web and AI search pages (2026-11-08)
+
+The local highlighter recognises all built-in reader search URLs, including Yahoo
+Hong Kong and Taiwan, 360 Search, new regional engines and AI answer pages.
+For 360's opaque result links it reads the original address from `data-mdurl`;
+Yahoo redirect `RU` targets are decoded. Other newly added layouts use external
+links on the recognised page and exclude header, navigation and footer links.
+Citations without result headings use the hover refresh/blacklist controls,
+including after colouring; dynamic links are picked up by the existing observer.
+Recognition is not proof that a site renders link anchors: sign-in, captchas,
+region restrictions, opaque targets and layouts without links can prevent
+colouring. Result matching and blacklist storage remain on book-translator.
+See `docs/research/search_engines_explored/README.md` there for live checks.
+
+### Adding a search engine
+
+Whenever book-translator gains a built-in web or AI search engine, add its
+result-link support to `scripts/userscript/popupdict-local.runtime.js` in the
+same change. Cover the engine's observed hosts, search paths, redirects and
+regional or AI variants; inspect result and citation layouts, including
+dynamically added content. Restrict matching to result links where feasible,
+exclude provider/navigation links and recover the destination host from opaque
+redirects when evidence permits. Never blacklist the search engine's own
+redirect host as if it were a result.
+
+Use the existing `/v1/explored-sites/match` server colours and blacklist route;
+the userscript handles page layout and draws refresh and blacklist controls.
+Both controls must remain reachable on coloured links and on AI citations
+without headings. Cover host/path recognition, redirects, colouring, refresh,
+blacklist and dynamic layouts with meaningful tests; the cross-repository test
+in `test/popup-local-runtime.test.js` also checks the reader's built-in
+catalog. Run the relevant tests and `make rebuild-local-userscripts`.
+In addition, run the real-page audit from book-translator:
+`.venv/bin/python scripts/audit_search_coloring.py --page-id <target-id>`.
+Use a real search that returns at least one known explored or blacklisted site,
+opened in the user's Zoopdog Chrome profile, and let results finish. The audit
+queries the actual server and fails for any matched result without its colour,
+or for a page with zero matched results. Mocks and synthetic colours are not
+substitutes. Save repeatable URLs and observed counts in the book-translator
+search research note; record unavailable or blocked pages.
+
+Bing Copilot renders citations in its `cpltsrchif=1` search iframe. MetaSo chat
+uses clickable source cards rather than anchors; its page-world bridge exposes
+the HTTP(S) destination from the card's React props for matching and controls.
+The live regression suite is opt-in in book-translator:
+`SEARCH_COLOR_E2E=1 .venv/bin/python -m pytest -n0 tests/test_search_coloring_e2e.py -q`.
+It requires the current local userscript installed and the documented real tabs
+open. On 2026-11-08, version 2026.11.08.37 passed live colour and control checks
+on Bing Copilot and a MetaSo chat containing explored sources; the research note
+records the counts and the source-free greeting skipped by the suite.
+
+Document the URL, selectors, redirects and real verification in this file and
+`~/mine/book-translator/docs/research/search_engines_explored/README.md`.
+Inspect via direct HTTP first, then the authorized project CDP bridge where
+needed. Record authentication, captcha, regional denial, unavailable sites,
+opaque or non-anchor citations and any unverified behavior; recognition of a
+URL alone does not prove its results were coloured. Custom user-defined search
+URLs need their own layout investigation when requested.

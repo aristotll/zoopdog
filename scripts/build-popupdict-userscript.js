@@ -129,6 +129,14 @@ function readRuntimeSources(localMode) {
       readRuntime('local-explored-tools.js')
     ].join('\n'));
     parts.push([
+      '// ===== scripts/userscript/local-metaso-sources.js =====',
+      readRuntime('local-metaso-sources.js')
+    ].join('\n'));
+    parts.push([
+      '// ===== scripts/userscript/local-ai-search.js =====',
+      readRuntime('local-ai-search.js')
+    ].join('\n'));
+    parts.push([
       '// ===== scripts/userscript/popupdict-local.runtime.js =====',
       readRuntime('popupdict-local.runtime.js')
     ].join('\n'));

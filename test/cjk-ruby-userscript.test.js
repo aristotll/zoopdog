@@ -35,6 +35,8 @@ test('the CJK Ruby runtime is one fault-tolerant pass that never touches other r
   assert.match(source, /hoistForeign/, 'translations a translator appends inside a ruby are moved out');
   assert.match(source, /zoopdogCjkError/, 'failures are readable from the page');
   assert.match(source, /createScriptURL/, 'Trusted Types pages get a policy for the worker and the library');
+  assert.match(source, /@require\s+https:\/\/cdn\.jsdelivr\.net\/npm\/to-jyutping@3\.1\.1/, 'the library is loaded by the manager, outside the page CSP');
+  assert.match(source, /requiredLibrary\(\)/, 'the required library is preferred over a worker or eval');
   assert.match(source, /viaFetch/, 'a failing userscript-manager request falls back to fetch');
   assert.match(source, /if \(first === child\) return;/, 'a translator wrapper around the word itself is never hoisted out');
   assert.match(source, /MODE_RULES/, 'the renderer is chosen per site');
@@ -50,4 +52,22 @@ test('the CJK Ruby runtime is one fault-tolerant pass that never touches other r
   assert.match(source, /textMode/, 'text fallback when ::before cannot be used');
   assert.match(source, /characterData: true/);
   assert.match(source, /shadowRoot/);
+});
+
+test('the CJK Ruby runtime caches network labels between pages and falls back when English fails', () => {
+  const source = buildUserscript(VARIANTS[0]);
+  assert.match(source, /@grant\s+GM_getValue/);
+  assert.match(source, /@grant\s+GM_setValue/);
+  assert.match(source, /zoopdogCjkLabels:v1/, 'readings and English persist across pages');
+  assert.match(source, /function remember\(/, 'only non-empty network labels are stored');
+  assert.match(source, /function showFallback\(/, 'local romaji shows while English is unavailable');
+  assert.match(source, /solo\.has\(key\)/, 'an empty English batch answer is retried one by one');
+
+  const start = source.indexOf('    var KANA_ROWS');
+  const end = source.indexOf('    var GTX_HOSTS');
+  const toRomaji = new Function(source.slice(start, end) + ';return katakanaToRomaji;')();
+  assert.equal(toRomaji('アップル'), 'Appuru');
+  assert.equal(toRomaji('コーヒー'), 'Kōhī');
+  assert.equal(toRomaji('チェック'), 'Chekku');
+  assert.equal(toRomaji('abc'), '');
 });

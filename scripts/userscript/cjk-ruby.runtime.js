@@ -13,6 +13,9 @@
 // @grant       GM_xmlhttpRequest
 // @grant       GM_addStyle
 // @grant       GM_registerMenuCommand
+// @grant       GM_getValue
+// @grant       GM_setValue
+// @require     https://cdn.jsdelivr.net/npm/to-jyutping@3.1.1/dist/index.js
 // @connect     translate.google.cn
 // @connect     translate.google.com
 // @connect     translate.googleapis.com
@@ -50,6 +53,7 @@
     root.dataset[FLAG] = '1';
 
     var CHUNK_SIZE = 100;
+    var CHUNK_SIZES = { english: 30, reading: CHUNK_SIZE, jyutping: 50 }; // short URLs align more reliably
     var REQUEST_TIMEOUT_MS = 15000;
     var ENDPOINT_COOLDOWN_MS = 60000;
     var RETRY_DELAYS_MS = [3000, 10000, 30000, 120000];
@@ -202,6 +206,52 @@
             if (!matched) return '';
         }
         return out;
+    }
+
+    // ----- katakana -> romaji (local, offline: the label shown while English is unavailable) ------------
+
+    var ROMAJI_OF = {};
+    (function buildRomajiTable() {
+        // Later keys win, so the Hepburn spellings (shi, chi, tsu, fu, ji) replace si, ti, tu, hu, zi.
+        Object.keys(KANA_TABLE).forEach(function (romaji) { ROMAJI_OF[KANA_TABLE[romaji]] = romaji; });
+        ROMAJI_OF['ヲ'] = 'o';
+    })();
+    var SMALL_KANA = 'ャュョァィゥェォ';
+    var MACRON = { a: 'ā', i: 'ī', u: 'ū', e: 'ē', o: 'ō' };
+
+    // Returns '' when nothing could be spelled. Half-width katakana is not handled (no label).
+    function katakanaToRomaji(text) {
+        var chars = Array.from(String(text));
+        var out = '';
+        var doubleNext = false;
+        for (var i = 0; i < chars.length; i++) {
+            var c = chars[i];
+            if (c === 'ッ') { doubleNext = true; continue; }
+            if (c === 'ー') {
+                var last = out.charAt(out.length - 1);
+                if (MACRON[last]) out = out.slice(0, -1) + MACRON[last];
+                continue;
+            }
+            var piece = '';
+            if (i + 1 < chars.length && SMALL_KANA.indexOf(chars[i + 1]) >= 0 &&
+                Object.prototype.hasOwnProperty.call(ROMAJI_OF, c + chars[i + 1])) {
+                piece = ROMAJI_OF[c + chars[i + 1]];
+                i++;
+            } else if (Object.prototype.hasOwnProperty.call(ROMAJI_OF, c)) {
+                piece = ROMAJI_OF[c];
+            } else if (c === '・') {
+                piece = ' ';
+            } else {
+                return '';
+            }
+            if (doubleNext && /^[a-z]/.test(piece) && VOWELS.indexOf(piece.charAt(0)) < 0) {
+                piece = (piece.indexOf('ch') === 0 ? 't' : piece.charAt(0)) + piece;
+            }
+            doubleNext = false;
+            out += piece;
+        }
+        out = out.replace(/\s+/g, ' ').trim();
+        return out ? out.charAt(0).toUpperCase() + out.slice(1) : '';
     }
 
     var GTX_HOSTS = ['translate.googleapis.com', 'translate.google.com', 'translate.google.cn'];
@@ -450,8 +500,23 @@
     var converterFailures = 0;
     var retryNotBefore = 0;
 
+    // The library pulled in by `@require` lives in the userscript manager's own scope: no page CSP, Trusted Types,
+    // worker or network is involved, so it works where a Worker / eval of downloaded code is refused (X, Gemini).
+    function requiredLibrary() {
+      var lib = null;
+      try { lib = typeof ToJyutping !== 'undefined' ? ToJyutping : null; } catch (ignored) { /* not defined */ }
+      if (!lib) lib = (typeof globalThis !== 'undefined' && globalThis.ToJyutping) || null;
+      return lib && typeof lib.getJyutpingList === 'function' ? lib : null;
+    }
+
     function getConverter() {
       if (converter) return converter;
+      var required = requiredLibrary();
+      if (required) {
+        converterStage = 'ready';
+        converter = Promise.resolve(function (text) { return Promise.resolve(required.getJyutpingList(text)); });
+        return converter;
+      }
       if (Date.now() < retryNotBefore) return null;
       converterStage = 'worker';
       var started = startWorkerConverter().catch(function (workerError) {
@@ -496,7 +561,77 @@
     var labels = new Map();       // "kind:phrase" -> label text
     var retryState = new Map();   // "kind:phrase" -> {attempts, notBefore}
     var inflight = new Set();     // "kind:phrase"
+    var solo = new Set();         // english keys whose batch answer was empty: asked again one by one
     var textMode = false;         // CSS ::before unusable: write the label as real text
+
+    // ----- persistent cache ----------------------------------------------------------------------
+    // Readings and English come from the network and never change for a phrase, so they are kept between
+    // page loads (and shared by every site): labels appear at once and Google is asked far less often.
+    // Jyutping is computed locally and not stored. Empty and fallback labels are never stored.
+
+    var CACHE_KEY = 'zoopdogCjkLabels:v1';
+    var CACHE_MAX = 5000;
+    var CACHE_SAVE_DELAY_MS = 3000;
+    var persisted = new Map(); // key -> label, oldest first
+    var cacheDirty = false;
+    var cacheTimer = 0;
+
+    function storageRead() {
+        try {
+            if (typeof GM_getValue === 'function') {
+                var value = GM_getValue(CACHE_KEY, '');
+                if (value) return String(value);
+            }
+        } catch (ignored) { /* try the page storage */ }
+        try { return window.localStorage.getItem(CACHE_KEY) || ''; } catch (ignored) { return ''; }
+    }
+
+    function storageWrite(text) {
+        try {
+            if (typeof GM_setValue === 'function') { GM_setValue(CACHE_KEY, text); return; }
+        } catch (ignored) { /* try the page storage */ }
+        try { window.localStorage.setItem(CACHE_KEY, text); } catch (ignored) { /* full or blocked: no cache */ }
+    }
+
+    function cacheable(key) {
+        return key.indexOf('english:') === 0 || key.indexOf('reading:') === 0;
+    }
+
+    function loadCache() {
+        try {
+            var entries = JSON.parse(storageRead() || '[]');
+            if (!Array.isArray(entries)) return;
+            entries.forEach(function (entry) {
+                if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string' &&
+                    entry[1] && cacheable(entry[0])) {
+                    persisted.set(entry[0], entry[1]);
+                    labels.set(entry[0], entry[1]);
+                }
+            });
+        } catch (error) {
+            noteError('cache-load', error);
+        }
+    }
+
+    function saveCache() {
+        cacheTimer = 0;
+        if (!cacheDirty) return;
+        cacheDirty = false;
+        try {
+            while (persisted.size > CACHE_MAX) persisted.delete(persisted.keys().next().value);
+            storageWrite(JSON.stringify(Array.from(persisted)));
+        } catch (error) {
+            noteError('cache-save', error);
+        }
+    }
+
+    function remember(key, label) {
+        if (!label || !cacheable(key)) return;
+        persisted.delete(key);
+        persisted.set(key, label);
+        cacheDirty = true;
+        if (!cacheTimer) cacheTimer = setTimeout(saveCache, CACHE_SAVE_DELAY_MS);
+    }
 
     function keyOf(kind, phrase) {
         return kind + ':' + phrase;
@@ -565,6 +700,16 @@
         }));
     }
 
+    // English could not be fetched: show the local romaji of the katakana meanwhile. The queue entry and the
+    // retry stay, so the real English replaces it as soon as a request succeeds.
+    function showFallback(key, phrase) {
+        var entry = queue.get(key);
+        var text = katakanaToRomaji(phrase);
+        if (!entry || !text || labels.has(key)) return;
+        entry.rts.forEach(function (rt) { applyLabel(rt, text); });
+        scheduleVerify();
+    }
+
     function noteFailure(key) {
         var state = retryState.get(key) || { attempts: 0, notBefore: 0 };
         state.notBefore = Date.now() + RETRY_DELAYS_MS[Math.min(state.attempts, RETRY_DELAYS_MS.length - 1)];
@@ -578,9 +723,19 @@
         return work.then(function (labelsForPhrases) {
             phrases.forEach(function (phrase, index) {
                 var key = keyOf(kind, phrase);
+                var label = labelsForPhrases[index] || '';
                 inflight.delete(key);
+                // English that is empty, or just the katakana again, is asked once more on its own before
+                // the word is given up on: a batch answer is the least reliable one.
+                if (kind === 'english' && (!label || label === phrase) && !solo.has(key)) {
+                    solo.add(key);
+                    retryState.delete(key);
+                    return;
+                }
                 retryState.delete(key);
-                labels.set(key, labelsForPhrases[index] || ''); // '' = nothing to say; never ask again
+                if (kind === 'english' && label === phrase) label = '';
+                labels.set(key, label); // '' = nothing to say; never ask again
+                remember(key, label);
                 flushEntry(key);
             });
         }, function (error) {
@@ -595,7 +750,11 @@
             }
             noteError(kind, error);
             console.warn('Zoopdog CJK Ruby: ' + kind + ' request failed, will retry later:', error && error.message);
-            phrases.forEach(function (phrase) { noteFailure(keyOf(kind, phrase)); });
+            phrases.forEach(function (phrase) {
+                var key = keyOf(kind, phrase);
+                noteFailure(key);
+                if (kind === 'english') showFallback(key, phrase);
+            });
         });
     }
 
@@ -619,9 +778,15 @@
         });
 
         Object.keys(pending).forEach(function (kind) {
-            var size = kind === 'jyutping' ? 50 : CHUNK_SIZE;
-            for (var i = 0; i < pending[kind].length; i += size) {
-                translateChunk(kind, pending[kind].slice(i, i + size));
+            var size = CHUNK_SIZES[kind];
+            var phrases = pending[kind];
+            if (kind === 'english') {
+                var alone = phrases.filter(function (phrase) { return solo.has(keyOf(kind, phrase)); });
+                phrases = phrases.filter(function (phrase) { return !solo.has(keyOf(kind, phrase)); });
+                alone.forEach(function (phrase) { translateChunk(kind, [phrase]); });
+            }
+            for (var i = 0; i < phrases.length; i += size) {
+                translateChunk(kind, phrases.slice(i, i + size));
             }
         });
     }
@@ -1025,6 +1190,8 @@ __ZOOPDOG_OVERLAY_LABELS__
     }
 
     function main() {
+        loadCache();
+        window.addEventListener('pagehide', saveCache);
         if (mode === 'ruby') installStyle();
         else {
             window.addEventListener('scroll', overlay.schedule, { capture: true, passive: true });

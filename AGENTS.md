@@ -74,6 +74,7 @@ Each of these owns its subject; this file does not repeat them.
 - **Local mode is a two-repo feature**: when a change touches anything the local userscript calls
   or configures (endpoints, payloads, hotkeys, `/control/userscripts`), edit this repo *and*
   `~/mine/book-translator` (routes, tests, `AGENTS-book-server.md`) together, and update both docs.
+- **Every new built-in web or AI search engine also needs result-link colouring, refresh, and blacklist support** in the local popup userscript, with tests and documentation in both repositories. Follow [`docs/local-mode.md`](docs/local-mode.md) and the reader runbook; record access or layout blockers rather than claiming unverified coverage.
 - Diagnosing the popup / CJK ruby userscripts on translated pages (detached popup, rubies fighting each
   other, CDP techniques): [`docs/userscript-troubleshooting.md`](docs/userscript-troubleshooting.md)
 - The popup userscript's local mode (talking to the `book-translator` reader server to add

@@ -53,6 +53,8 @@
   // server is up rather than asking first. A real request that fails still
   // reports its own error normally (zooHttpRequest's onerror/ontimeout).
   function zooProbeLocalMode() {
+    zooStartAiSearchHandoff();
+    zooInstallMetaSoSourceBridge();
     ZOO_LOCAL_AVAILABLE = true;
     zooStartExploredHighlight();
   }
@@ -80,7 +82,7 @@
       scope: '#b_results a[href]', block: 'li.b_algo, li.b_ans'},
     {id: 'duckduckgo', host: /(^|\.)duckduckgo\.com$/, path: /^\/$/, own: /(^|\.)duckduckgo\.com$/,
       scope: '#web_content_wrapper a[href]', block: '[data-testid="result"]'},
-    {id: 'yahoo', host: /^search\.yahoo\.com$/, path: /^\/search/, own: /(^|\.)yahoo\.com$/,
+    {id: 'yahoo', host: /^(?:(?:tw|hk)\.)?search\.yahoo\.com$/, path: /^\/search/, own: /(^|\.)yahoo\.com$/,
       scope: '#web a[href]', block: '#web ol > li'},
     {id: 'yahoo-jp', host: /^search\.yahoo\.co\.jp$/, path: /^\/search/, own: /(^|\.)yahoo\.co\.jp$/,
       scope: '.Contents__inner a[href]', block: '.sw-Card.Algo'},
@@ -104,12 +106,57 @@
     {id: 'naver', host: /^search\.naver\.com$/, path: /^\/search\.naver$/, own: /(^|\.)naver\.(com|net)$/,
       scope: '#main_pack a[href]', block: null},
     {id: 'seznam', host: /^search\.seznam\.cz$/, path: /^\/$/, own: /(^|\.)(seznam\.cz|zbozi\.cz|mapy\.com|firmy\.cz)$/,
-      scope: '[data-e-b-z="main"] a[href]', block: null}
+      scope: '[data-e-b-z="main"] a[href]', block: null},
+    {id: 'so360', host: /^www\.so\.com$/, path: /^\/s$/, own: /(^|\.)(so\.com|360\.cn|360\.com)$/,
+      scope: '#main .res-list a[href]', block: 'li.res-list', linkTarget: 'data-mdurl'}
   ];
+  // Additional search and answer pages: keep the match local to known hosts and paths.
+  // Generic layouts paint citations individually; exclude navigation/footer links in zooAnchorKeys.
+  [
+    ['daum', 'search.daum.net', /^\/(search|nate)/], ['nate', 'search.nate.com', /^\/search/],
+    ['toutiao', 'so.toutiao.com', /^\/search/], ['coccoc', 'coccoc.com', /^\/search/],
+    ['onet', 'szukaj.onet.pl', /^\/wyniki/], ['mojeek', 'www.mojeek.com', /^\/search/],
+    ['swisscows', 'swisscows.com', /^\/(?:[a-z]{2}\/)?web/], ['lilo', 'search.lilo.org', /^\/$/],
+    ['metager', 'metager.org', /^\/(?:meta|$)/], ['searxng', 'searx.rhscz.eu', /^\/search/],
+    ['marginalia', 'marginalia-search.com', /^\/search/], ['marginalia-old', 'search.marginalia.nu', /^\/search/],
+    ['oceanhero', 'oceanhero.today', /^\/web/], ['searchch', 'search.ch', /^\/$/],
+    ['najdi', 'www.najdi.si', /^\/(?:search|$)/], ['wiby', 'wiby.me', /^\/$/],
+    ['yep', 'yep.com', /^\/web/], ['you', 'you.com', /^\/search/], ['presearch', 'presearch.com', /^\/search/],
+    ['metacrawler', 'www.metacrawler.com', /^\/search/], ['gibiru', 'gibiru.com', /^\/results/],
+    ['privacywall', 'www.privacywall.org', /^\/search/], ['sapo', 'pesquisa.sapo.pt', /^\//],
+    ['rambler', 'nova.rambler.ru', /^\/search/], ['mailru', 'go.mail.ru', /^\/search/],
+    ['gerdoo', 'gerdoo.me', /^\/search/], ['zum', 'search.zum.com', /^\/search/],
+    ['uol', 'busca.uol.com.br', /^\/web/], ['terra-br', 'buscador.terra.com.br', /^\//],
+    ['terra-cl', 'buscador.terra.cl', /^\//], ['tiscali', 'search.tiscali.it', /^\//],
+    ['bing-ai', 'www.bing.com', /^\/copilotsearch/], ['so360-ai', 'ai.so.com', /^\/search/],
+    ['brave-ai', 'search.brave.com', /^\/ask/], ['duck-ai', 'duck.ai', /^\/chat/],
+    ['felo', 'felo.ai', /^\/search/], ['perplexity', 'www.perplexity.ai', /^\/search/],
+    ['grok', 'grok.com', /^\//], ['aihay', 'ai-hay.vn', /^\//], ['phind', 'www.phind.com', /^\/search/],
+    ['doubao', 'www.doubao.com', /^\/chat/], ['metaso', 'metaso.cn', /^\/(?:search|chat|$)/],
+    ['kimi', 'kimi.moonshot.cn', /^\//], ['kimi-current', 'www.kimi.com', /^\//],
+    ['baidu-ai', 'chat.baidu.com', /^\/search/], ['wenxin', 'wenxin.baidu.com', /^\/search/],
+    ['zhida', 'zhida.zhihu.com', /^\//], ['deepseek', 'chat.deepseek.com', /^\//],
+    ['qwen', 'chat.qwen.ai', /^\//], ['yuanbao', 'yuanbao.tencent.com', /^\/chat/]
+  ].forEach(function(row) {
+    var host = row[1].replace(/^www\./, '');
+    var escaped = host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var related = {'so360-ai': /(^|\.)(so\.com|360\.cn|360\.com)$/,
+      'bing-ai': /(^|\.)(bing\.com|microsoft\.com)$/,
+      'brave-ai': /(^|\.)brave\.com$/, 'baidu-ai': /(^|\.)baidu\.com$/,
+      wenxin: /(^|\.)baidu\.com$/, zhida: /(^|\.)zhihu\.com$/};
+    ZOO_SEARCH_ENGINES.push({id: row[0], host: new RegExp('^(?:www\\.)?' + escaped + '$'), path: row[2],
+      own: related[row[0]] || new RegExp('(^|\\.)' + escaped + '$'),
+      scope: row[0] === 'metaso' ? 'a[href], .search-origin-box[data-zoo-result-url]' : 'a[href]', block: null, generic: true});
+  });
   // The engine of the page shown (null = not a search page we colour); tests and the Google-only helpers default to Google.
   var ZOO_ENGINE = ZOO_SEARCH_ENGINES[0];
 
+  var ZOO_BING_COPILOT_FRAME = {id: 'bing-copilot-frame', own: /(^|\.)(bing\.com|microsoft\.com)$/,
+    scope: 'a[href]', block: null, generic: true};
+
   function zooSearchEngineFor(loc) {
+    if (/(^|\.)bing\.com$/.test(loc.hostname) && loc.pathname === '/search' &&
+        /(?:^|[?&])cpltsrchif=1(?:&|$)/.test(loc.search || '')) return ZOO_BING_COPILOT_FRAME;
     for (var i = 0; i < ZOO_SEARCH_ENGINES.length; i++) {
       var engine = ZOO_SEARCH_ENGINES[i];
       if (engine.host.test(loc.hostname) && engine.path.test(loc.pathname)) return engine;
@@ -139,6 +186,10 @@
       var url = new URL(href);
       if (/(^|\.)google\./.test(url.hostname) && url.pathname === '/url') url = new URL(url.searchParams.get('q') || url.searchParams.get('url'));
       if (/(^|\.)bing\.com$/.test(url.hostname)) { var target = zooBingTarget(url); if (target) url = new URL(target); }
+      if (/(^|\.)search\.yahoo\.com$/.test(url.hostname)) {
+        var match = url.pathname.match(/\/RU=([^/]+)/i);
+        if (match) url = new URL(decodeURIComponent(match[1]));
+      }
       return url.hostname;
     } catch (error) {
       return '';
@@ -169,8 +220,13 @@
   // The keys of one link, most specific first: its direct host (not Google's own), then, for an opaque /goto link,
   // the hints read off the page.
   function zooAnchorKeys(anchor) {
-    var href = anchor.href || anchor.getAttribute('href') || '';
+    if (ZOO_ENGINE.generic && anchor.closest && anchor.closest('header, nav, footer, [role="navigation"]')) return [];
+    var href = anchor.getAttribute('data-zoo-result-url') || anchor.href || anchor.getAttribute('href') || '';
     var host = zooResultHost(href);
+    if (ZOO_ENGINE.linkTarget && anchor.getAttribute) {
+      var linkTarget = zooResultHost(anchor.getAttribute(ZOO_ENGINE.linkTarget) || '');
+      if (linkTarget) host = linkTarget;
+    }
     // Baidu links are opaque /link?url= redirects; the result container's `mu` attribute holds the real target.
     if (ZOO_ENGINE.target && anchor.closest) {
       var holder = anchor.closest('[' + ZOO_ENGINE.target + ']');
@@ -273,7 +329,7 @@
   function zooStartExploredHighlight(doc, loc) {
     doc = doc || document;
     loc = loc || (typeof location === 'undefined' ? null : location);
-    var engine = loc ? zooSearchEngineFor({hostname: loc.hostname, pathname: loc.pathname || '/search'}) || (/(^|\.)google\.[a-z.]+$/.test(loc.hostname) ? ZOO_SEARCH_ENGINES[0] : null) : null;
+    var engine = loc ? zooSearchEngineFor({hostname: loc.hostname, pathname: loc.pathname || '/search', search: loc.search || ''}) || (/(^|\.)google\.[a-z.]+$/.test(loc.hostname) ? ZOO_SEARCH_ENGINES[0] : null) : null;
     if (!engine) return Promise.resolve(false);
     ZOO_ENGINE = engine;
     var cached = zooExploredCacheRead();
@@ -316,7 +372,7 @@
         return ZOO_ENGINE.id === 'google' || !anchor.closest ? null : anchor.closest('h1, h2, h3, h4, [role="heading"]');
       },
       eligible: function(anchor) {
-        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && !zooExploredBlock(anchor).dataset.zooExplored;
+        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && (ZOO_ENGINE.generic || !zooExploredBlock(anchor).dataset.zooExplored);
       },
       // Refresh is a manual retry for the whole page: every link still without colour is asked again, not only the one clicked.
       refresh: function(anchor) {

@@ -72,7 +72,7 @@
     }
 
     function onOver(event) {
-      var anchor = event.target && event.target.closest && event.target.closest('a[href]');
+      var anchor = event.target && event.target.closest && event.target.closest('a[href], .search-origin-box[data-zoo-result-url]');
       if (!anchor) { if (current) scheduleHide(); return; }
       cancelHide();
       if (anchor === current) return;
