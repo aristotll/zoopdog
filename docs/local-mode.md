@@ -388,6 +388,24 @@ It requires the current local userscript installed and the documented real tabs
 open. On 2026-11-08, version 2026.11.08.37 passed live colour and control checks
 on Bing Copilot and a MetaSo chat containing explored sources; the research note
 records the counts and the source-free greeting skipped by the suite.
+The suite also derives a live colour, refresh and blacklist check from every
+built-in search engine in the book-translator catalog. It opens real search tabs
+beside the reader; no matching explored source or an inaccessible engine is a
+failure requiring investigation, not a passing result. Per-engine query and tab
+overrides are documented in `docs/instructions/server-reader.md` there.
+Yahoo! JAPAN Agent i uses `search.yahoo.co.jp/chat` and may redirect to a chat
+subpath; external answer citations are handled as generic AI sources and Yahoo
+navigation is excluded. A live test of the newly built userscript is pending.
+Ecosia's result-report links are excluded as navigation. Gibiru and Brave AI
+use higher-priority colouring to resist their page CSS, and coloured results
+without headings retain hover controls. These fixes passed live checks with
+local userscript 2026.11.09.2. The following build also handles Brave's
+ordinary result CSS and excludes Cốc Cốc's search navigation.
+Brave's ordinary results and controls passed the subsequent live check. Cốc
+Cốc result cards expose a destination URL next to opaque `/composer/goto`
+links; the userscript now uses that host for colouring and blacklist. Version
+2026.11.09.4 passed the real-page colour, refresh and blacklist checks on a
+`youdao` search with 18 explored result links.
 
 Document the URL, selectors, redirects and real verification in this file and
 `~/mine/book-translator/docs/research/search_engines_explored/README.md`.

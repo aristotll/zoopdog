@@ -825,6 +825,55 @@ function onEngine(context, hostname, pathname) {
   assert.ok(context.ZOO_ENGINE, hostname);
 }
 
+test('Yahoo Japan Agent i chat recognises external citations and excludes Yahoo navigation', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'search.yahoo.co.jp', '/chat/s/n');
+  assert.equal(context.ZOO_ENGINE.id, 'yahoo-jp-ai');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.youdao.com/'))), ['www.youdao.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://login.yahoo.co.jp/'))), []);
+});
+
+test('Ecosia result feedback is not a search result', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.ecosia.org', '/search');
+  const feedback = link('https://support.google.com/legal/troubleshooter/1114905', {
+    closest: (selector) => selector === '.organic-result-feedback__content__links' ? {} : null
+  });
+  assert.deepEqual(Array.from(context.zooAnchorKeys(feedback)), []);
+});
+
+test('Coc Coc search navigation is not a result', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'coccoc.com', '/search');
+  const navigation = link('https://www.google.com.vn/search?q=youdao', {
+    closest: (selector) => selector === '[class*="topNavigationBar-"], [class*="OtherSearchEngines-"]' ? {} : null
+  });
+  assert.deepEqual(Array.from(context.zooAnchorKeys(navigation)), []);
+});
+
+test('Coc Coc opaque result gets its destination host from its result card', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'coccoc.com', '/search');
+  const card = {querySelectorAll: () => [{textContent: 'https://www.youdao.com'}]};
+  const a = link('https://coccoc.com/composer/goto?url=opaque', {
+    closest: (selector) => selector === '[class*="card_type_"]' ? card : null
+  });
+  assert.equal(context.zooAnchorKeys(a)[0], 'www.youdao.com');
+});
+
+test('Gibiru and Brave colours override site CSS on results', () => {
+  const {context} = createHarness(() => {});
+  for (const [host, path] of [['gibiru.com', '/results.html'], ['search.brave.com', '/ask'], ['search.brave.com', '/search']]) {
+    onEngine(context, host, path);
+    const applied = [];
+    const style = {setProperty: (...args) => applied.push(args)};
+    const block = {style, dataset: {}};
+    const a = link('https://www.youdao.com/', {style, closest: (selector) => selector === '#mixed-main .snippet' ? block : null});
+    context.zooPaintExplored({querySelectorAll: () => [a]}, {'www.youdao.com': {color: '#c8f7c5', label: 'Explored'}});
+    assert.ok(applied.some(([name, , priority]) => name === 'background' && priority === 'important'));
+  }
+});
+
 test('every listed search engine is recognised by host and path, and unlisted pages are not', () => {
   const {context} = createHarness(() => {});
   const pages = {google: ['www.google.com', '/search'], bing: ['www.bing.com', '/search'], duckduckgo: ['duckduckgo.com', '/'],
@@ -999,6 +1048,17 @@ test('AI citation tools remain available after the citation is coloured', async 
   const anchor = link('https://vdict.com/entry');
   anchor.dataset.zooExplored = '1';
   await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => []}, {hostname: 'metaso.cn', pathname: '/search/id'});
+  assert.equal(options.eligible(anchor), true);
+});
+
+test('coloured Brave results without headings still offer hover controls', async () => {
+  const harness = createHarness((options) => options.onload({status: 200, responseText: '{"version":"v1","matches":{}}'}));
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let options;
+  harness.context.zooExploredToolsCreate = (deps) => { options = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  const block = {dataset: {zooExplored: '1'}};
+  const anchor = link('https://vdict.com/entry', {closest: () => block});
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => []}, {hostname: 'search.brave.com', pathname: '/search'});
   assert.equal(options.eligible(anchor), true);
 });
 

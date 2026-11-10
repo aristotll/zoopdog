@@ -129,6 +129,7 @@
     ['uol', 'busca.uol.com.br', /^\/web/], ['terra-br', 'buscador.terra.com.br', /^\//],
     ['terra-cl', 'buscador.terra.cl', /^\//], ['tiscali', 'search.tiscali.it', /^\//],
     ['bing-ai', 'www.bing.com', /^\/copilotsearch/], ['so360-ai', 'ai.so.com', /^\/search/],
+    ['yahoo-jp-ai', 'search.yahoo.co.jp', /^\/chat(?:\/|$)/],
     ['brave-ai', 'search.brave.com', /^\/ask/], ['duck-ai', 'duck.ai', /^\/chat/],
     ['felo', 'felo.ai', /^\/search/], ['perplexity', 'www.perplexity.ai', /^\/search/],
     ['grok', 'grok.com', /^\//], ['aihay', 'ai-hay.vn', /^\//], ['phind', 'www.phind.com', /^\/search/],
@@ -143,6 +144,7 @@
     var related = {'so360-ai': /(^|\.)(so\.com|360\.cn|360\.com)$/,
       'bing-ai': /(^|\.)(bing\.com|microsoft\.com)$/,
       'brave-ai': /(^|\.)brave\.com$/, 'baidu-ai': /(^|\.)baidu\.com$/,
+      'yahoo-jp-ai': /(^|\.)yahoo\.co\.jp$/,
       wenxin: /(^|\.)baidu\.com$/, zhida: /(^|\.)zhihu\.com$/};
     ZOO_SEARCH_ENGINES.push({id: row[0], host: new RegExp('^(?:www\\.)?' + escaped + '$'), path: row[2],
       own: related[row[0]] || new RegExp('(^|\\.)' + escaped + '$'),
@@ -220,9 +222,20 @@
   // The keys of one link, most specific first: its direct host (not Google's own), then, for an opaque /goto link,
   // the hints read off the page.
   function zooAnchorKeys(anchor) {
+    if (ZOO_ENGINE.id === 'ecosia' && anchor.closest && anchor.closest('.organic-result-feedback__content__links')) return [];
+    if (ZOO_ENGINE.id === 'coccoc' && anchor.closest && anchor.closest('[class*="topNavigationBar-"], [class*="OtherSearchEngines-"]')) return [];
     if (ZOO_ENGINE.generic && anchor.closest && anchor.closest('header, nav, footer, [role="navigation"]')) return [];
     var href = anchor.getAttribute('data-zoo-result-url') || anchor.href || anchor.getAttribute('href') || '';
     var host = zooResultHost(href);
+    if (ZOO_ENGINE.id === 'coccoc' && host && ZOO_ENGINE.own.test(host) && anchor.closest) {
+      var card = anchor.closest('[class*="card_type_"]');
+      var addresses = card && card.querySelectorAll ? card.querySelectorAll('a[class*="url-"] span') : [];
+      for (var c = 0; c < addresses.length; c++) {
+        var destination = String(addresses[c].textContent || '').trim();
+        var resolved = /^https?:\/\//i.test(destination) ? zooResultHost(destination) : '';
+        if (resolved && !ZOO_ENGINE.own.test(resolved)) { host = resolved; break; }
+      }
+    }
     if (ZOO_ENGINE.linkTarget && anchor.getAttribute) {
       var linkTarget = zooResultHost(anchor.getAttribute(ZOO_ENGINE.linkTarget) || '');
       if (linkTarget) host = linkTarget;
@@ -302,6 +315,11 @@
         // `multiply` tints what lies under the overlay instead of covering it, so chip text stays readable.
         if (ai) { block.style.background = entry.color; block.style.mixBlendMode = 'multiply'; block.style.outline = '2px solid ' + entry.color; block.style.outlineOffset = '-1px'; block.style.borderRadius = '6px'; }
         else block.style.background = entry.color;
+        // These sites force citation backgrounds and outlines with !important.
+        if ((ZOO_ENGINE.id === 'gibiru' || ZOO_ENGINE.id === 'brave-ai' || ZOO_ENGINE.id === 'brave') && block.style.setProperty) {
+          block.style.setProperty('background', entry.color, 'important');
+          block.style.setProperty('outline', '2px solid ' + entry.color, 'important');
+        }
         block.title = entry.label;
         block.dataset.zooExplored = '1';
         painted++;
@@ -372,7 +390,7 @@
         return ZOO_ENGINE.id === 'google' || !anchor.closest ? null : anchor.closest('h1, h2, h3, h4, [role="heading"]');
       },
       eligible: function(anchor) {
-        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0 && (ZOO_ENGINE.generic || !zooExploredBlock(anchor).dataset.zooExplored);
+        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0;
       },
       // Refresh is a manual retry for the whole page: every link still without colour is asked again, not only the one clicked.
       refresh: function(anchor) {

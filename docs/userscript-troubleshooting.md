@@ -56,6 +56,11 @@ nom-ruby and the popup (see `docs/build.md`).
 
 ## 4. Diagnosis techniques that paid off
 
+- **CDP bridge:** use `~/mine/book-translator/.claude/tools/cdp-bridge-common.md` for the
+  current bridge API and CLI. The CLI is at `~/mine/book-translator/.claude/tools/cdp_session_tool.py`;
+  attach to an existing tab by URL using the CLI `ensure` command with `--session-name` and
+  `--url-substring`. Follow the bridge documentation before operating the user's tab.
+
 - **Leave evidence in the DOM.** A userscript's console lives in an isolated world the CDP bridge
   cannot see; a `data-*` attribute on a page element can be read from anywhere. The popup writes
   `data-last-hover` (why the last hover stopped: `locked`, `excluded`, `nopoint`, `noword`,
