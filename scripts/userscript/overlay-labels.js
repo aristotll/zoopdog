@@ -18,6 +18,7 @@ function zdCreateOverlay(doc, win, options) {
   var layer = null;
   var pool = [];
   var scheduled = false;
+  var scheduleId = 0;
   var hidden = false;
   var lastStats = '';
   var HAN_LIFT_LEVELS = 3;
@@ -48,9 +49,11 @@ function zdCreateOverlay(doc, win, options) {
   function schedule() {
     if (scheduled) return;
     scheduled = true;
+    var id = ++scheduleId;
+    var run = function() { if (id === scheduleId) layout(); };
     // A hidden tab pauses animation frames; the timer keeps the labels current there too.
-    if (win.requestAnimationFrame) win.requestAnimationFrame(layout);
-    win.setTimeout(layout, 250);
+    if (win.requestAnimationFrame) win.requestAnimationFrame(run);
+    win.setTimeout(run, 250);
   }
 
   function set(node, text, recs) {
@@ -110,7 +113,7 @@ function zdCreateOverlay(doc, win, options) {
           pool.push(el);
         }
         used++;
-        el.textContent = text;
+        if (el.textContent !== text) el.textContent = text;
         el.style.display = '';
         el.style.fontSize = size + 'px';
         el.style.color = style.color;
