@@ -34,8 +34,10 @@ function zdCreateOverlay(doc, win, options) {
       host = doc.createElement('div');
       host.id = options.id || 'zoopdog-overlay';
       host.setAttribute('aria-hidden', 'true');
-      host.style.cssText = 'all:initial;position:fixed;top:0;right:0;bottom:0;left:0;overflow:hidden;' +
-        'pointer-events:none;z-index:2147483646;contain:strict;';
+      host.style.cssText = options.documentAnchored
+        ? 'all:initial;position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:2147483646;'
+        : 'all:initial;position:fixed;top:0;right:0;bottom:0;left:0;overflow:hidden;' +
+          'pointer-events:none;z-index:2147483646;contain:strict;';
       layer = host.attachShadow({mode: 'closed'});
       var style = doc.createElement('style');
       style.textContent = '.l{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.15;' +
@@ -119,7 +121,9 @@ function zdCreateOverlay(doc, win, options) {
         el.style.color = style.color;
         el.style.fontFamily = style.family || '';
         el.style.fontWeight = style.weight || '';
-        el.style.transform = 'translate(' + Math.round(cx) + 'px,' + Math.round(bottom) + 'px) translate(-50%,-100%)';
+        var x = cx + (options.documentAnchored ? (win.scrollX || 0) : 0);
+        var y = bottom + (options.documentAnchored ? (win.scrollY || 0) : 0);
+        el.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px) translate(-50%,-100%)';
       };
 
       records.forEach(function(rec) {

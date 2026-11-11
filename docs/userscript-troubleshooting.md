@@ -142,6 +142,8 @@ therefore split into a shared core and two renderers; a site picks one.
   (`localStorage` key `zoopdogNomMode:<host>`); `<html data-zoopdog-nom-mode>` and `data-zoopdog-nom-overlay` are
   the beacons. Verified live on vi.wikipedia.org: 17k records tracked, ~400-500 labels drawn, no `<ruby>` inserted,
   labels follow scrolling.
+- On Zhihu the Nom overlay is anchored to document coordinates, so the browser scrolls labels with ordinary
+  page text even before the next layout pass. Nested scrollers and fixed elements still need scroll relayout.
 - **Reddit's "flat" ruby (some previews only).** `shreddit-post .feed-card-text-preview :not(ol,ul,li,h1) {
   all: revert; display: inline !important; ... }` flattens every descendant, `<ruby>`/`<rt>` included, so the reading
   is drawn inline after the word. Found by disabling the page's stylesheets one at a time until the ruby's computed

@@ -221,7 +221,16 @@
 
   // The keys of one link, most specific first: its direct host (not Google's own), then, for an opaque /goto link,
   // the hints read off the page.
+  // Within one paint pass (zooKeysPass set) each anchor's keys are worked out once: paint, decorate and pending-keys all ask.
+  var zooKeysPass = null;
   function zooAnchorKeys(anchor) {
+    if (!zooKeysPass) return zooAnchorKeysCompute(anchor);
+    var kept = zooKeysPass.get(anchor);
+    if (!kept) { kept = zooAnchorKeysCompute(anchor); zooKeysPass.set(anchor, kept); }
+    return kept.slice();
+  }
+
+  function zooAnchorKeysCompute(anchor) {
     if (ZOO_ENGINE.id === 'ecosia' && anchor.closest && anchor.closest('.organic-result-feedback__content__links')) return [];
     if (ZOO_ENGINE.id === 'coccoc' && anchor.closest && anchor.closest('[class*="topNavigationBar-"], [class*="OtherSearchEngines-"]')) return [];
     if (ZOO_ENGINE.generic && anchor.closest && anchor.closest('header, nav, footer, [role="navigation"]')) return [];
@@ -365,12 +374,14 @@
       }, function() {});
     };
     var paintNow = function() {
+      if (doc.hidden) return; // a background tab repaints when it is shown again (visibilitychange)
+      zooKeysPass = typeof WeakMap === 'function' ? new WeakMap() : null;
       try {
         if (!zooIsSearchPage(loc)) return;
         zooPaintExplored(doc, state.matches);
         decorateAll();
         ask();
-      } catch (error) { /* retry on next tick */ }
+      } catch (error) { /* retry on next tick */ } finally { zooKeysPass = null; }
     };
     var paint = zooDebounce(paintNow, 150);
     // Ask again for these keys only, ignoring what was asked or answered before (the refresh button, and after a blacklist).

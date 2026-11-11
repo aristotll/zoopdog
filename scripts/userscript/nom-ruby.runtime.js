@@ -883,6 +883,7 @@
     if (mode === 'overlay') {
       overlay = zdCreateOverlay(doc, window, {
         id: 'zoopdog-nom-overlay',
+        documentAnchored: /(^|\.)zhihu\.com$/.test(window.location.hostname),
         onStats: function(stats) { doc.documentElement.dataset.zoopdogNomOverlay = stats; }
       });
       if (typeof window.addEventListener === 'function') {
