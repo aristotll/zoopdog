@@ -60,7 +60,7 @@ nom-ruby and the popup (see `docs/build.md`).
   current bridge API and CLI. The CLI is at `~/mine/book-translator/.claude/tools/cdp_session_tool.py`;
   attach to an existing tab by URL using the CLI `ensure` command with `--session-name` and
   `--url-substring`. Follow the bridge documentation before operating the user's tab.
-  `cdp_session_tool.py help <command>` prints one command's flags and an example; a result too long to print is stored and read back with `show <handle>`. `run` executes several commands in one call, `probe-control <url> --click <selector>` performs the browser check that must precede a "blocked" verdict, and `recall <host>` prints what an earlier session recorded about a site.
+  `cdp_session_tool.py help <command>` prints one command's flags and an example; a result too long to print is stored and read back with `show <handle>`. `run` executes several commands in one call, `probe-control <url> --click <selector>` performs the browser check that must precede a "blocked" verdict, and `recall <host>` prints what an earlier session recorded about a site. After `make install-cdp` in book-translator, the same CLI is `cdp <command>` from this repository too.
 
 - **Leave evidence in the DOM.** A userscript's console lives in an isolated world the CDP bridge
   cannot see; a `data-*` attribute on a page element can be read from anywhere. The popup writes
