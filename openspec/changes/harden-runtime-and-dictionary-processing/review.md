@@ -139,6 +139,25 @@ console.log(r.stdout);process.exitCode=r.status;
 
 ```
 
+## Đối chiếu triển khai ngày 2026-10-29
+
+Các ví dụ ở trên ghi lại trạng thái lúc review, không phải kết quả chạy hiện tại. Bằng chứng
+triển khai và giới hạn còn lại nằm trong [kế hoạch](../../../docs/maintainability-review-and-improvement-plan.en.md).
+
+| Phát hiện | Kiểm chứng hiện tại |
+| --- | --- |
+| R1 | `test/dictionary-identity.test.js` kiểm tra bundle giao một phần, POS, headword và validator; `test/popup-runtime.test.js` so sánh cả hai consumer. Diff và digest dữ liệu thật có trong kế hoạch. |
+| R2 | `test/nom-ruby-runtime.test.js` kiểm tra rewrite từng segment, removal, tail, shadow và nhiều match; smoke trình duyệt kiểm tra ba segment. |
+| R3 | `test/user-nom-entries-shards.test.js` kiểm tra quote, số cột, Unicode và không ghi khi shard sau lỗi. |
+| R4 | `test/release-make-order.test.js` chạy Make thật với mock dưới `-j1` và `-j4`, các trạng thái artifact và failure. |
+| R5–R6 | DOM fixture kiểm tra mọi nhóm exclusion, contenteditable, di chuyển trước flush, giới hạn vùng nối và counter feed nhiều kích thước. |
+| R7 | `test/popup-runtime.test.js` kiểm tra key kế thừa và key thực có cùng tên. |
+| R8–R9 | `test/zd-pron-core.test.js` và `test/zd-pron-adapter.test.js` kiểm tra rỗng, số, dấu câu, khôi phục và 4.000 token; đã smoke trên trang thật ở localhost. |
+
+Node 24 `make verify`: 432 bài đạt, hai bài tùy chọn bỏ qua; kiểm tra OpenSpec strict và
+`make check-openspec` đạt. Kiểm tra userscript manager thực tế thuộc phạm vi kế hoạch tổng thể
+và chưa được thực hiện.
+
 ## Liên kết triển khai
 
-[Proposal](proposal.md), [design](design.md), [tasks](tasks.md). Các task vẫn để unchecked vì lượt này chỉ review và tạo đề xuất.
+[Proposal](proposal.md), [design](design.md), [tasks](tasks.md).

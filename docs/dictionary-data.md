@@ -13,10 +13,9 @@ with:
 make rebuild-extension-dict
 ```
 
-The website instead reads the actively maintained `zd-extension/db_src/vnedict2.json`
-through generated runtime files. Rebuild those after any merge or hand-maintained Chu Nom edit
-that changes `vnedict2.json` (the merge script), the same way you would
-rerun `make rebuild-userscripts`:
+The website reads the actively maintained `zd-extension/db_src/vnedict2.json` through generated
+runtime files. Rebuild after changing the base dictionary, Chu Nom shards, display order or
+optional chunom layer, just as you would rerun `make rebuild-userscripts`:
 
 ```sh
 make rebuild-extension-vnedict-json
@@ -32,11 +31,13 @@ Hoisting from `user_nom_order.jsonc` preserves whole source rows. When a preferr
 exists only inside a grouped cell (`巴|芭|𠀧|爸`), the build emits a separate exact row ahead of
 that untouched group. This guarantees that every surface shows the local preference first.
 
-The target writes compact `zd-extension/js/vnedict.json`, `zd-extension/js/vnedict.meta.json`,
-and `zd-extension/js/vnedict.collisions.json`. The metadata sidecar records the exact JSON byte
-hash, schema version, and entry count used to refresh browser IndexedDB safely. All three files
-are generated (gitignored, built on demand and published alongside the userscripts); never copy
-any of them by hand.
+The target writes compact `zd-extension/js/vnedict.json`, the immutable
+`zd-extension/js/vnedict.<sha256>.json`, `zd-extension/js/vnedict.meta.json`, and
+`zd-extension/js/vnedict.collisions.json`. The sidecar records the exact JSON byte hash, schema
+version, entry count and immutable payload name used to refresh browser IndexedDB. All are
+gitignored build output. Releases include the legacy dictionary, sidecar and current immutable
+payload, but not the diagnostic collisions report. Retain previously deployed immutable payloads
+as described in [build.md](build.md#rebuilding-the-browser-runtime-dictionary).
 
 ### Entry identity and normalized-key collisions
 
@@ -60,10 +61,11 @@ collision like `Ba Lê` (Paris) / `ba lê` (ballet) exactly the same way. A row 
   lookup; it is never displayed.
 - `headwords` is every distinct display form that normalized to `key`, in first-source-occurrence
   order. `headwords[0]` is the primary display form.
-- `en` is every distinct `(def, pos)` sense, in first-source-occurrence order, losslessly
-  preserving every source definition. A sense carries a `headword` field only when it originated
-  from a display form other than `headwords[0]` -- a single-headword group (the common case)
-  carries no `headword` field on any sense at all.
+- `en` is the ordered set of retained senses. Exact duplicates and supported spelling or
+  inflection variants may fold together, while distinct meaning tokens, nonempty parts of
+  speech and their display-headword associations must remain represented. A sense carries a
+  `headword` field only when it originated from a display form other than `headwords[0]` -- a
+  single-headword group (the common case) carries no `headword` field on any sense at all.
 
 `zd-extension/js/vnedict.collisions.json` is a compact, versioned report of every normalized key
 with more than one headword (`{schemaVersion, totalKeys, collisionCount, collisions: [{key,
@@ -86,33 +88,32 @@ node scripts/build-nom-userscript.js
 ```
 
 `zoopdog-popupdict.user.js` embeds dictionary data from `zd-extension/db_src/vnedict2.json`,
-user Chu Nom entries from `zd-extension/db_src/user_nom_entries.jsonc`, the shared word
-primitives from `zd-extension/js/zd-words.js`, and pronunciation rendering code from
-`zd-extension/js/zd-pron-*.js`.
+the `user_nom_entries/` CSV shards, the optional chunom layer and display order, plus shared
+word primitives from `zd-extension/js/zd-words.js`. It does not embed pronunciation code.
 
-`zoopdog-nom-ruby.user.js` embeds a compact lookup table from `vnedict2.json` plus
-`mdx_nom.json` and `user_nom_entries.jsonc` when those supplemental files exist.
+`zoopdog-nom-ruby.user.js` embeds a compact lookup table built from `vnedict2.json`, the
+optional `mdx_nom.json` and chunom layer, and the `user_nom_entries/` shards and order.
 
-Edit the generator or the source JSON/JSONC, never the embedded map by hand. The browser
+Edit the generator or the source data, never the embedded map by hand. The browser
 runtime lives in `scripts/userscript/` as real source files — edit it there, not inside
 `scripts/build-*.js`, then rebuild.
 
 ### Version stamps and auto-update
 
-Both headers carry `@updateURL` and `@downloadURL` pointing at the file's `master` raw URL on
-GitHub, so an installed copy updates itself once the rebuilt file is pushed. Tampermonkey only
-downloads an update when the served `@version` is greater, so the builders stamp the version
-themselves:
+The public headers carry `@updateURL` and `@downloadURL` pointing at the latest GitHub Release
+assets. Userscript managers update only when the published `@version` is greater. Local builds
+use a development stamp, while release preflight obtains both previously published versions
+from one release and stamps a version newer than either:
 
-- The stamp is the build date, `YYYY.MM.DD`; a second content change on the same date appends a
-  counter (`2026.09.05.1`).
-- The stamp moves only when the rest of the file changes. A rebuild against unchanged data
-  rewrites the same bytes, so the committed userscripts stay out of `git status`.
+- The development stamp uses the build date, `YYYY.MM.DD`; another content change on the same
+  date appends a counter (`2026.09.05.1`). The release stamp must exceed published versions.
+- A development stamp moves only when the rest of its local file changes. Generated userscripts
+  are gitignored; a clean checkout's local stamp is not the authority for release versions.
 - Do not edit `@version` by hand in `scripts/userscript/*.runtime.js`; the header holds the
   `__ZOOPDOG_VERSION__` placeholder and the builder fills it in.
 
-A rebuilt userscript only reaches installed copies after it is pushed to `master`. To pull it
-immediately instead of waiting for Tampermonkey's update interval, use its dashboard:
+A rebuilt public userscript reaches installed copies after it is published as a GitHub Release
+asset. To pull it immediately instead of waiting for Tampermonkey's update interval, use its dashboard:
 **Utilities → Check for userscript updates**.
 
 ## Supplemental MDX data

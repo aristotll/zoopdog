@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const path = require('node:path');
 const {atomicWrite} = require('./lib/fsutil');
 const {absolute} = require('./lib/paths');
 const {normalizeTerm} = require('./lib/text');
@@ -48,7 +49,7 @@ function validateEntry(entry, index) {
 // Chu Nom renderings are definitions like any other -- so the display order the reader
 // chose is applied here, to `en`, rather than to a candidate list the extension never
 // builds. Every entry sharing a normalized headword is reordered; a headword with no
-// entry at all is skipped, since adding terms is `user_nom_entries.jsonc`'s job.
+// entry at all is skipped, since adding terms is the `user_nom_entries/` shard store's job.
 function applyUserNomOrderToEntries(entries, orderEntries) {
   const index = buildNomOrderIndex(orderEntries);
   if (!index.size) {
@@ -72,7 +73,7 @@ function applyUserNomOrderToEntries(entries, orderEntries) {
   return reordered;
 }
 
-// `user_nom_entries.jsonc` is the sole authority on whether a term already has a hand-made
+// `user_nom_entries/` is the sole authority on whether a term already has a hand-made
 // Chu Nom rendering, and both userscript builders already fold it into their embedded data.
 // The extension reads this generated dictionary instead, so the same fold has to happen here
 // or a hand-maintained entry is simply invisible in the extension popup.
@@ -150,19 +151,32 @@ function buildMetadata(dictionaryBytes) {
   if (!Array.isArray(entries)) {
     throw new TypeError('Runtime dictionary bytes must encode an array');
   }
+  const revision = crypto.createHash('sha256').update(dictionaryBytes).digest('hex');
   return {
     schemaVersion: METADATA_SCHEMA_VERSION,
-    revision: crypto.createHash('sha256').update(dictionaryBytes).digest('hex'),
-    entryCount: entries.length
+    revision,
+    entryCount: entries.length,
+    payload: `vnedict.${revision}.json`
   };
 }
 
-// The dictionary and its metadata sidecar are read together by every consumer (the runtime
-// coordinator, the shipped-identity verification), so a rebuild must publish them as one unit:
-// if the metadata write fails after the dictionary write already landed, the dictionary is
-// rolled back to whatever it held before this run, so the pair on disk is always either the
-// previous complete pair or the new complete pair -- never a mix of the two.
+// Write immutable revision-addressed bytes before switching metadata. New readers follow that
+// pointer; the legacy mutable dictionary remains for old clients, with rollback on metadata
+// write failure. Old clients can still observe the mutable file between the two renames.
 function publishDictionaryAndMetadata(dictionaryPath, dictionaryBytes, metadataPath, metadataBytes, {write = atomicWrite} = {}) {
+  const metadata = JSON.parse(metadataBytes);
+  if (metadata.payload !== undefined) {
+    const revision = crypto.createHash('sha256').update(dictionaryBytes).digest('hex');
+    if (metadata.revision !== revision || metadata.payload !== `vnedict.${revision}.json`) {
+      throw new Error('Invalid revision-specific dictionary payload');
+    }
+    const immutablePath = path.join(path.dirname(metadataPath), metadata.payload);
+    if (fs.existsSync(immutablePath)) {
+      if (!fs.readFileSync(immutablePath).equals(Buffer.from(dictionaryBytes))) {
+        throw new Error(`Existing immutable payload differs: ${immutablePath}`);
+      }
+    } else write(immutablePath, dictionaryBytes);
+  }
   const previousDictionary = fs.existsSync(dictionaryPath) ? fs.readFileSync(dictionaryPath) : null;
   write(dictionaryPath, dictionaryBytes);
   try {

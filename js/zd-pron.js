@@ -38,7 +38,7 @@ Array.from(document.getElementsByClassName("button")).forEach((button) => {
 
 const pronounceMe = () => {
   var input = document.getElementById("input")
-  if (!input.value) {
+  if (!input.value.trim()) {
     Array.from(document.getElementsByClassName("pron")).forEach(p => p.innerHTML = "&nbsp;")
     return true
   }
@@ -46,7 +46,7 @@ const pronounceMe = () => {
   var pronunciations = pronunciationGuide(input.value)
   dialects.forEach(dialect => {
 
-    var zdParagraphs = pronunciations[dialect].zd.match(/.*?([\.\?!\n:;](?=(\s\1){0,10}))|.{1,}$/g)
+    var zdParagraphs = pronunciations[dialect].zd.match(/.*?([\.\?!\n:;](?=(\s\1){0,10}))|.{1,}$/g) || []
       , zdParentDiv  = document.querySelector(`.block[dialect=${dialect}] .pron`)
     while (zdParentDiv.firstChild) zdParentDiv.removeChild(zdParentDiv.firstChild)
     zdParagraphs.forEach(paragraph => {
@@ -61,7 +61,7 @@ const pronounceMe = () => {
 
 const homophoneMe = () => {
   var input = document.getElementById("input")
-  if (!input.value) {
+  if (!input.value.trim()) {
     Array.from(document.getElementsByClassName("pron")).forEach(p => p.innerHTML = "&nbsp;")
     return true
   }

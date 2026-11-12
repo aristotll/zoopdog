@@ -18,6 +18,9 @@
 //   }
 const GROUPED_SCHEMA_VERSION = 1;
 
+/** @typedef {{def: string, pos: string, headword?: string}} GroupedSense */
+/** @typedef {{key: string, headwords: string[], en: GroupedSense[]}} GroupedEntry */
+
 const {cleanText, normalizeTerm} = require('./text');
 const {definitionKey} = require('./sources');
 
@@ -438,6 +441,9 @@ function isRedundantVariant(a, b) {
   }
   const tokensA = synonymTokens(a);
   const tokensB = synonymTokens(b);
+  if (tokensA.length > 1 && tokensB.length > 1) {
+    return isFullyCoveredBundle(tokensA, tokensB) || isFullyCoveredBundle(tokensB, tokensA);
+  }
   if (tokensA.some((tokenA) => tokensB.some((tokenB) => isSynonymMatch(tokenA, tokenB)))) {
     return true;
   }
@@ -448,6 +454,15 @@ function isRedundantVariant(a, b) {
   const normB = tokensB.map(normalizeForEdge);
   return normA.some((word) => isEdgeWordOf(word, normB))
     || normB.some((word) => isEdgeWordOf(word, normA));
+}
+
+function coversDefinition(host, candidate) {
+  const tokens = synonymTokens(candidate);
+  if (host === candidate) return true;
+  if (!isAsciiText(host) || !isAsciiText(candidate)) return false;
+  const hostTokens = synonymTokens(host);
+  return tokens.every(token => isTokenCoveredByBundle(token, hostTokens) ||
+    isEdgeWordOf(normalizeForEdge(token), hostTokens.map(normalizeForEdge)));
 }
 
 // Two senses are eligible to fold together when their pos tags agree, or either side simply
@@ -520,7 +535,7 @@ function groupEntries(sourceEntries) {
     for (const definition of entry.en) {
       const def = cleanText(definition.def);
       const pos = cleanText(definition.pos);
-      const senseKey = definitionKey(def, pos);
+      const senseKey = `${headword}\0${definitionKey(def, pos)}`;
       if (group.senseSeen.has(senseKey)) {
         continue;
       }
@@ -533,7 +548,7 @@ function groupEntries(sourceEntries) {
       // one behind as an orphaned duplicate.
       const matchIndices = [];
       group.senseOrder.forEach((sense, index) => {
-        if (posCompatible(sense.pos, pos) && isRedundantVariant(sense.def, def)) {
+        if (sense.headword === headword && posCompatible(sense.pos, pos) && isRedundantVariant(sense.def, def)) {
           matchIndices.push(index);
         }
       });
@@ -561,6 +576,10 @@ function groupEntries(sourceEntries) {
             winnerPos = existing.pos;
           }
         }
+        if (!coversDefinition(winnerDef, def)) {
+          group.senseOrder.push({def, pos, headword});
+          continue;
+        }
         // The winner is only guaranteed redundant with whichever sense(s) it came from -- two
         // existing senses can each independently match the CANDIDATE (e.g. "không phải"'s "not"
         // matches both "there is not, there are not" and, separately, "not correct") without
@@ -569,9 +588,15 @@ function groupEntries(sourceEntries) {
         // candidate happened to touch both. Only an index the final winner still covers is safe
         // to remove; the rest are left exactly as they were, and only the candidate is dropped.
         const removableIndices = matchIndices.filter((index) => {
-          const existingDef = group.senseOrder[index].def;
-          return existingDef === winnerDef || isRedundantVariant(winnerDef, existingDef);
+          const existing = group.senseOrder[index];
+          // An untagged candidate can independently match two tagged senses. It cannot
+          // bridge and erase distinct parts of speech when only one tag fits the winner.
+          return posCompatible(winnerPos, existing.pos) && coversDefinition(winnerDef, existing.def);
         });
+        if (!removableIndices.length) {
+          group.senseOrder.push({def, pos, headword});
+          continue;
+        }
         const firstIndex = removableIndices[0];
         const keptHeadword = group.senseOrder[firstIndex].headword;
         group.senseOrder[firstIndex] = {def: winnerDef, pos: winnerPos, headword: keptHeadword};
@@ -616,24 +641,33 @@ function verifyLossless(sourceEntries, groups) {
     if (!key) continue;
     const list = expected.get(key) || [];
     for (const definition of entry.en) {
-      list.push({def: cleanText(definition.def), pos: cleanText(definition.pos)});
+      list.push({def: cleanText(definition.def), pos: cleanText(definition.pos), headword: cleanText(entry.vn)});
     }
     expected.set(key, list);
   }
 
-  const actualByKey = new Map(groups.map((group) => [group.key, group.en]));
+  const actualByKey = new Map(groups.map((group) => [group.key, group]));
 
   for (const [key, expectedList] of expected) {
-    const actualList = actualByKey.get(key) || [];
-    for (const {def, pos} of expectedList) {
+    const group = actualByKey.get(key);
+    const actualList = group ? group.en : [];
+    for (const {def, pos, headword} of expectedList) {
       const senseKey = definitionKey(def, pos);
-      const reachable = actualList.some((sense) =>
-        definitionKey(sense.def, sense.pos) === senseKey
-          || (posCompatible(sense.pos, pos) && isRedundantVariant(sense.def, def))
-      );
+      const suitable = actualList.filter((sense) =>
+        (sense.headword || group.headwords[0]) === headword && (!pos || sense.pos === pos));
+      const reachable = suitable.some(sense => definitionKey(sense.def, sense.pos) === senseKey) ||
+        (isAsciiText(def) && synonymTokens(def).every(token => suitable.some((sense) => {
+          if (!isAsciiText(sense.def)) return false;
+          const host = synonymTokens(sense.def);
+          return isTokenCoveredByBundle(token, host) ||
+            isEdgeWordOf(normalizeForEdge(token), host.map(normalizeForEdge));
+        })));
       if (!reachable) {
         throw new Error(`Lossy grouping detected for key "${key}": missing sense ${senseKey}`);
       }
+    }
+    if (expectedList.some(({headword}) => !group || !group.headwords.includes(headword))) {
+      throw new Error(`Lossy grouping detected for key "${key}": missing headword`);
     }
   }
 }
@@ -697,6 +731,7 @@ function formatCollisionDiagnostics(report) {
 module.exports = {
   GROUPED_SCHEMA_VERSION,
   groupEntries,
+  verifyLossless,
   validateGroupedEntry,
   validateGroupedEntries,
   buildCollisionReport,

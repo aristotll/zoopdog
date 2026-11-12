@@ -1,1 +1,1427 @@
-[]
+[
+  {
+    "key": "bia đá",
+    "defA": "tombstone, stone slab, stele",
+    "defB": "Stone stele"
+  },
+  {
+    "key": "buốt",
+    "defA": "feeling a sharp pain, feeling a biting cold",
+    "defB": "sharp, biting, cutting"
+  },
+  {
+    "key": "bài viết",
+    "defA": "newspaper article",
+    "defB": "Article"
+  },
+  {
+    "key": "bèo nhật bản",
+    "defA": "water hyacinth",
+    "defB": "water hyacinth"
+  },
+  {
+    "key": "bình lặng",
+    "defA": "peaceful, quiet",
+    "defB": "Quiet and peaceful"
+  },
+  {
+    "key": "bước vào",
+    "defA": "to come in, go in, enter, step into",
+    "defB": "Enter"
+  },
+  {
+    "key": "bạch huyết",
+    "defA": "lymph, leukemia",
+    "defB": "lymph/lymphatic/lympheresis/leukemia/leukocyte/lymphoid/lymphocyte/lymphemia"
+  },
+  {
+    "key": "bạn thân thiết",
+    "defA": "intimate, dear friend",
+    "defB": "crony/intimate"
+  },
+  {
+    "key": "bạo động",
+    "defA": "to commit violence",
+    "defB": "violence, force"
+  },
+  {
+    "key": "bản chất",
+    "defA": "by nature, in essence",
+    "defB": "essence, substance, nature"
+  },
+  {
+    "key": "bản xứ",
+    "defA": "indigenous country, native country",
+    "defB": "local, indigenous, native"
+  },
+  {
+    "key": "bấm vào",
+    "defA": "to press (sth)",
+    "defB": "Press it"
+  },
+  {
+    "key": "bất cứ ai",
+    "defA": "anybody, anyone (at all)",
+    "defB": "Anyone who"
+  },
+  {
+    "key": "bầu",
+    "defA": "friend, pal",
+    "defB": "to become friendly"
+  },
+  {
+    "key": "bắt buộc phải",
+    "defA": "must, be forced to",
+    "defB": "Must have"
+  },
+  {
+    "key": "bị thương nặng",
+    "defA": "to be seriously wounded, injured",
+    "defB": "Severely/badly injured"
+  },
+  {
+    "key": "bị đau",
+    "defA": "to hurt, be painful, be injured",
+    "defB": "pain/hurt/painful/aching"
+  },
+  {
+    "key": "bỏ phiếu",
+    "defA": "to vote, cast a vote",
+    "defB": "vote, ballot"
+  },
+  {
+    "key": "bồi thường thiệt hại",
+    "defA": "to compensate for loss, damage",
+    "defB": "compensation/compensate/claims for damages/losses"
+  },
+  {
+    "key": "bộ nông nghiệp",
+    "defA": "Ministry of Agriculture",
+    "defB": "ministry of agriculture"
+  },
+  {
+    "key": "bộ tài chính",
+    "defA": "Ministry of Finance",
+    "defB": "Ministry of Finance"
+  },
+  {
+    "key": "cha bề trên",
+    "defA": "Father Superior",
+    "defB": "Father superior"
+  },
+  {
+    "key": "chuyển khoản",
+    "defA": "transfer (of money)",
+    "defB": "bank transfer"
+  },
+  {
+    "key": "chuyện gì",
+    "defA": "what (thing, issue)",
+    "defB": "what's going on"
+  },
+  {
+    "key": "chuyện ấy",
+    "defA": "that (thing, issue)",
+    "defB": "that story"
+  },
+  {
+    "key": "chân lông",
+    "defA": "root (of hair)",
+    "defB": "Hair Roots"
+  },
+  {
+    "key": "chính hiệu",
+    "defA": "genuine, real, authentic",
+    "defB": "authentic/indeed/officially/authenticity"
+  },
+  {
+    "key": "chính quyền địa phương",
+    "defA": "local, regional government",
+    "defB": "Local Government"
+  },
+  {
+    "key": "chạy đua",
+    "defA": "to compete, race",
+    "defB": "To run a race"
+  },
+  {
+    "key": "chỉ có",
+    "defA": "alone, only, none but ~, nothing but",
+    "defB": "only have just"
+  },
+  {
+    "key": "chống gậy",
+    "defA": "to lean on, use a stick, cane",
+    "defB": "cane/crutch"
+  },
+  {
+    "key": "chỗ nào",
+    "defA": "where",
+    "defB": "where/whereabouts/place/someplace/anywhere"
+  },
+  {
+    "key": "chữ hán",
+    "defA": "Chinese character, word",
+    "defB": "Chinese characters"
+  },
+  {
+    "key": "coi là",
+    "defA": "to consider, look at, regard",
+    "defB": "Consider that"
+  },
+  {
+    "key": "cành lá",
+    "defA": "branches and leaves, foliage",
+    "defB": "foliage/branch/leaves/twig/leaf"
+  },
+  {
+    "key": "cá nhân tôi",
+    "defA": "personally (I feel, think, etc)",
+    "defB": "I personally"
+  },
+  {
+    "key": "cái giá",
+    "defA": "cost, price",
+    "defB": "The price"
+  },
+  {
+    "key": "cái nào",
+    "defA": "which (thing)",
+    "defB": "Which one"
+  },
+  {
+    "key": "cáng",
+    "defA": "roofed hammock, palanquin, stretcher",
+    "defB": "to carry on a stretcher"
+  },
+  {
+    "key": "câu trả lời",
+    "defA": "answer, reply",
+    "defB": "Answer"
+  },
+  {
+    "key": "có dịp",
+    "defA": "to have the opportunity, occasion (to do something)",
+    "defB": "Have an occasion"
+  },
+  {
+    "key": "có lý",
+    "defA": "logical, rational, reasonable",
+    "defB": "it's reasonable to"
+  },
+  {
+    "key": "có quyền",
+    "defA": "to have authority, right, power (to do something)",
+    "defB": "have rights"
+  },
+  {
+    "key": "có thói quen",
+    "defA": "to have, be in the habit (of doing something)",
+    "defB": "Have a habit"
+  },
+  {
+    "key": "có tên là",
+    "defA": "to be called, named",
+    "defB": "named as"
+  },
+  {
+    "key": "công an",
+    "defA": "public security, police",
+    "defB": "Police"
+  },
+  {
+    "key": "công chúng",
+    "defA": "the public",
+    "defB": "(in) public"
+  },
+  {
+    "key": "công ty",
+    "defA": "company, firm",
+    "defB": "Company"
+  },
+  {
+    "key": "cùng lúc đó",
+    "defA": "at the same time",
+    "defB": "At the same time"
+  },
+  {
+    "key": "căng thẳng",
+    "defA": "tense, tight, strained, stressed",
+    "defB": "to become tense, strained"
+  },
+  {
+    "key": "cơ quan nhà nước",
+    "defA": "government organization, agency",
+    "defB": "government/state agency"
+  },
+  {
+    "key": "cười ha hả",
+    "defA": "laugh (loud or boisterously), shout with laughter",
+    "defB": "laugh haha."
+  },
+  {
+    "key": "cố vấn an ninh",
+    "defA": "security council, advisor",
+    "defB": "Security Advisor"
+  },
+  {
+    "key": "cờ vàng",
+    "defA": "Yellow Flag (rebels)",
+    "defB": "yellow flag"
+  },
+  {
+    "key": "cởi mở",
+    "defA": "relaxed, easy, open, frank, friendly, open-minded",
+    "defB": "open/openness/exuberant"
+  },
+  {
+    "key": "cởi mở",
+    "defA": "to open, start, liberalize, loosen, ease, relax",
+    "defB": "open/openness/exuberant"
+  },
+  {
+    "key": "cỡ lớn",
+    "defA": "big, large",
+    "defB": "Large size"
+  },
+  {
+    "key": "cựu ước",
+    "defA": "Old Testament",
+    "defB": "old testament"
+  },
+  {
+    "key": "da trắng",
+    "defA": "Caucasian, white (skinned)",
+    "defB": "White skin"
+  },
+  {
+    "key": "da đỏ",
+    "defA": "red-skinned, (American) Indian",
+    "defB": "Indian skin"
+  },
+  {
+    "key": "dàn xếp",
+    "defA": "to make arrangements, settle, arrange",
+    "defB": "arrange settle coordinate/schedule"
+  },
+  {
+    "key": "dàn xếp",
+    "defA": "to make arrangements, settle, arrange",
+    "defB": "settle/settlement/mediation/arrangement/fixed/orchestrated/order"
+  },
+  {
+    "key": "dã ngoại",
+    "defA": "in the open air, outdoor",
+    "defB": "outdoor/outing"
+  },
+  {
+    "key": "dính dáng",
+    "defA": "involvement, connected, concerned, implicated, involved",
+    "defB": "to concern, get involved with"
+  },
+  {
+    "key": "dòng người",
+    "defA": "stream, flow, river of people",
+    "defB": "Flow of people"
+  },
+  {
+    "key": "dùng sức",
+    "defA": "to resort to force, strength",
+    "defB": "Use force/strength"
+  },
+  {
+    "key": "gan dạ",
+    "defA": "brave, dauntless",
+    "defB": "brave/stomach/intrepid/courage/pluckily/gutsy/courageous/bold/bravery"
+  },
+  {
+    "key": "gieo rắc",
+    "defA": "to scatter, disseminate",
+    "defB": "scatter/spread seeds evenly in the field"
+  },
+  {
+    "key": "giả tạo",
+    "defA": "to falsify, fake, forge",
+    "defB": "artificial/fake/phony/false/falsification/fabricate/artificially/counterfeit/Hypocritical/insincere"
+  },
+  {
+    "key": "giải lao",
+    "defA": "break, interval, rest",
+    "defB": "to take a rest"
+  },
+  {
+    "key": "giết người",
+    "defA": "homicide, murder",
+    "defB": "Murder"
+  },
+  {
+    "key": "giờ nghỉ",
+    "defA": "break, interval",
+    "defB": "break time"
+  },
+  {
+    "key": "hai phe",
+    "defA": "both sides, camps, parties",
+    "defB": "two factions/teams/camps"
+  },
+  {
+    "key": "hay lắm",
+    "defA": "very good",
+    "defB": "Very good"
+  },
+  {
+    "key": "hiếm hoi",
+    "defA": "rare, scarce",
+    "defB": "Rare moments"
+  },
+  {
+    "key": "hiểu lầm",
+    "defA": "to misunderstand",
+    "defB": "misunderstanding/misread/miscommunication/misunderstood"
+  },
+  {
+    "key": "hiện có",
+    "defA": "current (at present), existing",
+    "defB": "currently available"
+  },
+  {
+    "key": "hoa",
+    "defA": "flower, blossom",
+    "defB": "flower, blossom, bloom"
+  },
+  {
+    "key": "hoang mang",
+    "defA": "confused, puzzled",
+    "defB": "worried/bewildered/confused/shocked/pantyhose/confusion/anxiety/anxious/puzzled/panic/wilderness/panicked/bewilderment"
+  },
+  {
+    "key": "huê kỳ",
+    "defA": "United States of America",
+    "defB": "America, United States"
+  },
+  {
+    "key": "hàng chữ",
+    "defA": "line of letters, text",
+    "defB": "Text Row"
+  },
+  {
+    "key": "hình lập phương",
+    "defA": "cube",
+    "defB": "cube/cubic shape"
+  },
+  {
+    "key": "hình lập phương",
+    "defA": "cube",
+    "defB": "cube/cubic/cuboid"
+  },
+  {
+    "key": "hòa thuận",
+    "defA": "harmony, agreement, accord",
+    "defB": "to live in peace or in harmony"
+  },
+  {
+    "key": "học",
+    "defA": "to study, learn (how to)",
+    "defB": "field of study"
+  },
+  {
+    "key": "hồ chứa",
+    "defA": "reservoir",
+    "defB": "Reservoir"
+  },
+  {
+    "key": "hồng thập tự",
+    "defA": "Red Cross",
+    "defB": "red cross"
+  },
+  {
+    "key": "hội nghị thượng đỉnh",
+    "defA": "summit conference, meeting",
+    "defB": "Summit"
+  },
+  {
+    "key": "hội thương",
+    "defA": "confer (with), take counsel (with), conference",
+    "defB": "association/home/synagogue/confer/fair/guild"
+  },
+  {
+    "key": "im lìm",
+    "defA": "quiet, dormant, silent",
+    "defB": "to keep quiet"
+  },
+  {
+    "key": "khoa học và kỹ thuật",
+    "defA": "Science and Technology",
+    "defB": "science and technology"
+  },
+  {
+    "key": "kiến văn",
+    "defA": "knowledge, learning",
+    "defB": "literary knowledge"
+  },
+  {
+    "key": "kiểu mẫu",
+    "defA": "model, example, sample, pattern",
+    "defB": "Pattern Type"
+  },
+  {
+    "key": "kế đó",
+    "defA": "the next, the following, then",
+    "defB": "Next"
+  },
+  {
+    "key": "kết quả",
+    "defA": "result, outcome",
+    "defB": "as a result"
+  },
+  {
+    "key": "kỳ thật",
+    "defA": "actually, in reality, in actuality",
+    "defB": "really/strange/bizarre/actually/uncanny/actual/indeed/truly/honestly/truthfully/verhaal/real"
+  },
+  {
+    "key": "kỷ",
+    "defA": "cycle, era",
+    "defB": "6th cycle of the twelve years of the Chinese zodiac"
+  },
+  {
+    "key": "liên bang nga",
+    "defA": "the Russian Union, Federation",
+    "defB": "Russian Federation"
+  },
+  {
+    "key": "loại hình",
+    "defA": "type, form, genre",
+    "defB": "Type of business"
+  },
+  {
+    "key": "làm hết",
+    "defA": "to finish",
+    "defB": "do/finish it all"
+  },
+  {
+    "key": "làm nghề",
+    "defA": "to do a job, work",
+    "defB": "To work as"
+  },
+  {
+    "key": "làm đổ",
+    "defA": "spill, bring down",
+    "defB": "\"spill\" or \"knock over\" The choice between \"spill\" and \"knock over\" depends on the context. \"Spill\" is typically used when referring to liquids"
+  },
+  {
+    "key": "lãi",
+    "defA": "profit, interest, dividend",
+    "defB": "to earn a profit"
+  },
+  {
+    "key": "lúa",
+    "defA": "rice (as a cereal)",
+    "defB": "rice paddy"
+  },
+  {
+    "key": "lúm đồng tiền",
+    "defA": "dimple",
+    "defB": "a/dimple/lotus coin"
+  },
+  {
+    "key": "lý lẽ",
+    "defA": "argument, reason",
+    "defB": "reasoning/argument/logic/rationale/inference"
+  },
+  {
+    "key": "lưỡi dao",
+    "defA": "knife, razor blade",
+    "defB": "knife blade"
+  },
+  {
+    "key": "lấy",
+    "defA": "to take adopt, charge a price",
+    "defB": "to pick up, take, charge (a price)"
+  },
+  {
+    "key": "lần đầu tiên",
+    "defA": "the first time",
+    "defB": "For the first time"
+  },
+  {
+    "key": "lặng yên",
+    "defA": "calm, quiet",
+    "defB": "to keep quiet"
+  },
+  {
+    "key": "lễ tạ ơn",
+    "defA": "Thanksgiving (American holiday)",
+    "defB": "Thanksgiving (U.S. holiday)"
+  },
+  {
+    "key": "lớp đất",
+    "defA": "layer, stratum",
+    "defB": "Ground layers"
+  },
+  {
+    "key": "lời chào",
+    "defA": "words of greeting",
+    "defB": "Greeting"
+  },
+  {
+    "key": "lời cầu",
+    "defA": "request, wish",
+    "defB": "pray/plea/supplication/request"
+  },
+  {
+    "key": "lợi ích",
+    "defA": "to use, make advantage of",
+    "defB": "use, advantage, benefit, interest, profit"
+  },
+  {
+    "key": "mai sau",
+    "defA": "future, next",
+    "defB": "in the future"
+  },
+  {
+    "key": "may mặc",
+    "defA": "garment, clothing",
+    "defB": "garment/clothing/apparel/dressing/wearable/blouse"
+  },
+  {
+    "key": "minh thệ",
+    "defA": "vow, oath",
+    "defB": "to make or take an oath"
+  },
+  {
+    "key": "mào gà",
+    "defA": "crest, cockscomb",
+    "defB": "Chicken crest"
+  },
+  {
+    "key": "mây đen",
+    "defA": "dark, black clouds",
+    "defB": "Dark Cloud"
+  },
+  {
+    "key": "mấy thằng",
+    "defA": "guys, young men",
+    "defB": "the/some/those/several guys"
+  },
+  {
+    "key": "mặt khuất",
+    "defA": "hidden, dark side (of the moon)",
+    "defB": "Hidden face"
+  },
+  {
+    "key": "mỗi ngày",
+    "defA": "each day, everyday",
+    "defB": "Everyday"
+  },
+  {
+    "key": "một chuyên viên",
+    "defA": "expert, specialist",
+    "defB": "an/one expert"
+  },
+  {
+    "key": "một cách lịch sự",
+    "defA": "politely",
+    "defB": "politely/courteously/polite"
+  },
+  {
+    "key": "một câu",
+    "defA": "phrase, sentence",
+    "defB": "One Sentence"
+  },
+  {
+    "key": "một câu chuyện",
+    "defA": "story, tale",
+    "defB": "a story"
+  },
+  {
+    "key": "một thằng",
+    "defA": "guy, fellow",
+    "defB": "a guy a lad/fellow"
+  },
+  {
+    "key": "một thời",
+    "defA": "at one time, previously, once",
+    "defB": "Once upon a time"
+  },
+  {
+    "key": "một trong",
+    "defA": "one of",
+    "defB": "One of the"
+  },
+  {
+    "key": "mục từ",
+    "defA": "entry (in a dictionary)",
+    "defB": "entry/item/word/index/keyword/dictionary/topic"
+  },
+  {
+    "key": "nam cực",
+    "defA": "South Pole",
+    "defB": "antarctic pile, south pole"
+  },
+  {
+    "key": "nga",
+    "defA": "Russia(n)",
+    "defB": "Russia"
+  },
+  {
+    "key": "ngay sau đó",
+    "defA": "immediately thereafter, afterwards",
+    "defB": "Shortly afterwards"
+  },
+  {
+    "key": "nghe xong",
+    "defA": "to finish listening",
+    "defB": "Finished listening"
+  },
+  {
+    "key": "ngoài ra",
+    "defA": "besides, beyond, furthermore, in addition",
+    "defB": "Besides"
+  },
+  {
+    "key": "ngày hôm sau",
+    "defA": "the next day",
+    "defB": "The next day"
+  },
+  {
+    "key": "ngân hàng trung ương",
+    "defA": "Central Bank",
+    "defB": "central bank"
+  },
+  {
+    "key": "ngũ giác đài",
+    "defA": "(the) Pentagon",
+    "defB": "the pentagon"
+  },
+  {
+    "key": "người bán hàng",
+    "defA": "salesman, salesperson, seller",
+    "defB": "sellers/salesperson/shopkeeper"
+  },
+  {
+    "key": "người bảo vệ",
+    "defA": "guard, security person",
+    "defB": "Security guard"
+  },
+  {
+    "key": "người cho",
+    "defA": "giver, person giving sth",
+    "defB": "Giver/sponsor"
+  },
+  {
+    "key": "người nhận",
+    "defA": "recipient (of a letter)",
+    "defB": "recipient/consignee/ecipient/transferees/taker"
+  },
+  {
+    "key": "người ưu tú",
+    "defA": "person, talented person",
+    "defB": "Elite person"
+  },
+  {
+    "key": "ngổn ngang",
+    "defA": "in disorder",
+    "defB": "confusion, disorder, disarray"
+  },
+  {
+    "key": "nhiều lúc",
+    "defA": "many times, often, frequently",
+    "defB": "often/sometimes"
+  },
+  {
+    "key": "nhà nho",
+    "defA": "Confucian scholar",
+    "defB": "Confucian scholar"
+  },
+  {
+    "key": "nhà quý tộc",
+    "defA": "aristocrat, noble",
+    "defB": "Noble family"
+  },
+  {
+    "key": "nhà quý tộc",
+    "defA": "aristocrat, noble",
+    "defB": "aristocrat/nobleman/aristocracy/noblemen"
+  },
+  {
+    "key": "nhào nặn",
+    "defA": "knead (clay) carefully and model (a statue), mould",
+    "defB": "mould/kneading/squeeze/molding/shape/sculpt/sculping"
+  },
+  {
+    "key": "nhân tài",
+    "defA": "skill, talent",
+    "defB": "talented man"
+  },
+  {
+    "key": "nhân viên bán hàng",
+    "defA": "salesperson",
+    "defB": "salesman/salesperson"
+  },
+  {
+    "key": "nhóm họp",
+    "defA": "to meet, gather, collect, assemble, convene",
+    "defB": "Meeting Teams"
+  },
+  {
+    "key": "nhưng họ",
+    "defA": "they, who",
+    "defB": "But they"
+  },
+  {
+    "key": "nhưng vì",
+    "defA": "but, because",
+    "defB": "but because"
+  },
+  {
+    "key": "nhất định phải",
+    "defA": "must, have to",
+    "defB": "must be"
+  },
+  {
+    "key": "nhật",
+    "defA": "Japan, Japanese",
+    "defB": "Japan, Japanese"
+  },
+  {
+    "key": "nhật ký",
+    "defA": "diary, journal",
+    "defB": "Journal"
+  },
+  {
+    "key": "nhắm mắt làm ngơ",
+    "defA": "to ignore, look the other way, pretend not to see, turn a blind eye to",
+    "defB": "close your eyes and ignore/pretend"
+  },
+  {
+    "key": "nhằm mục đích",
+    "defA": "to intend, have as a goal or purpose",
+    "defB": "aim/purpose/purposefully/intended"
+  },
+  {
+    "key": "nhỏ xíu",
+    "defA": "tiny, very small, diminutive",
+    "defB": "a/little/tiny little"
+  },
+  {
+    "key": "nhờ đó",
+    "defA": "thanks to which, that, because of that",
+    "defB": "Thanks to that"
+  },
+  {
+    "key": "nuôi sống",
+    "defA": "to nourish, feed, keep alive, support",
+    "defB": "nutriment/sustaining/nourish/survive/raising/livestock"
+  },
+  {
+    "key": "náo động",
+    "defA": "to cause a stir",
+    "defB": "stir, commotion, fuss, tumult"
+  },
+  {
+    "key": "nơi góc",
+    "defA": "corner (area, place)",
+    "defB": "In the corner"
+  },
+  {
+    "key": "nước da",
+    "defA": "complexion",
+    "defB": "skin water/tone/complexion/moisture"
+  },
+  {
+    "key": "nước uống",
+    "defA": "drink, beverage",
+    "defB": "drinking water"
+  },
+  {
+    "key": "nắm quyền",
+    "defA": "to take, seize power",
+    "defB": "Take power"
+  },
+  {
+    "key": "phát biểu ý kiến",
+    "defA": "to express, voice an opinion",
+    "defB": "Expressing your opinion"
+  },
+  {
+    "key": "phía tây",
+    "defA": "western side, west",
+    "defB": "West"
+  },
+  {
+    "key": "phó chủ nhiệm",
+    "defA": "deputy chairman, vice-chairman, deputy",
+    "defB": "Deputy Chairman"
+  },
+  {
+    "key": "phạn",
+    "defA": "cooked rice",
+    "defB": "pot for cooked rice"
+  },
+  {
+    "key": "qua đó",
+    "defA": "through, by this, based on this",
+    "defB": "through there"
+  },
+  {
+    "key": "quan hệ ngoại giao",
+    "defA": "diplomatic, foreign relations",
+    "defB": "Diplomatic relations"
+  },
+  {
+    "key": "quan thoại",
+    "defA": "Mandarin Chinese (language)",
+    "defB": "pekinese, mandarin"
+  },
+  {
+    "key": "rẻ tiền",
+    "defA": "cheap, inexpensive",
+    "defB": "cheap/inexpensive/inexpensively/cheaply/affordable"
+  },
+  {
+    "key": "rối bù",
+    "defA": "disheveled, ruffed (of hair)",
+    "defB": "tangled/unkempt/compenstate/balance/confused/compensation/disturbed/disorder/messy/disheveled/chaotic/confusion/disorderly/tousled/troubled/chaos"
+  },
+  {
+    "key": "sau khi",
+    "defA": "after (something happens)",
+    "defB": "after"
+  },
+  {
+    "key": "sum họp",
+    "defA": "to unite, come together",
+    "defB": "together, united (family)"
+  },
+  {
+    "key": "suy nghĩ kỹ",
+    "defA": "to think, consider carefully",
+    "defB": "thinking twice/again"
+  },
+  {
+    "key": "sáng chế ra",
+    "defA": "to invent, create",
+    "defB": "invented it/out"
+  },
+  {
+    "key": "sát",
+    "defA": "to stay close to",
+    "defB": "close, tight"
+  },
+  {
+    "key": "sạch bóng",
+    "defA": "very clean, spotless, impeccably clean, shining clean",
+    "defB": "\"spotless\" or \"immaculate\""
+  },
+  {
+    "key": "sạch bóng",
+    "defA": "very clean, spotless, impeccably clean, shining clean",
+    "defB": "sparkling/shiny/spotlessly clean"
+  },
+  {
+    "key": "sản xuất ra",
+    "defA": "to produce",
+    "defB": "produce/manufactured out"
+  },
+  {
+    "key": "số vốn",
+    "defA": "capital (money)",
+    "defB": "amount/number of capital/funds"
+  },
+  {
+    "key": "số vốn",
+    "defA": "capital (money)",
+    "defB": "capital/equity"
+  },
+  {
+    "key": "số điểm",
+    "defA": "number, count, score",
+    "defB": "The number of points."
+  },
+  {
+    "key": "số điểm",
+    "defA": "number, count, score",
+    "defB": "grade/score/mark/points"
+  },
+  {
+    "key": "sự cô đơn",
+    "defA": "solitude, lonliness",
+    "defB": "lonely/solitude"
+  },
+  {
+    "key": "sự tỉnh táo",
+    "defA": "vigilance, alertness",
+    "defB": "sober/sanity/awakening/sobriety/vigilance/consciousness/wakefulness"
+  },
+  {
+    "key": "theo học",
+    "defA": "to study, follow a course of study",
+    "defB": "study at / attend (school"
+  },
+  {
+    "key": "theo học",
+    "defA": "to study, follow a course of study",
+    "defB": "studying/attendance"
+  },
+  {
+    "key": "theo đạo",
+    "defA": "to follow, be a member of a religion",
+    "defB": "Follow the religion"
+  },
+  {
+    "key": "thiên hoàng",
+    "defA": "Mikado",
+    "defB": "mikado"
+  },
+  {
+    "key": "thiên vương tinh",
+    "defA": "Uranus",
+    "defB": "Uranus"
+  },
+  {
+    "key": "thoát ra",
+    "defA": "escape",
+    "defB": "exit/released/out/escape/emerge/quit"
+  },
+  {
+    "key": "thì lại",
+    "defA": "then, on the other hand, in contrast",
+    "defB": "then again"
+  },
+  {
+    "key": "thông thường",
+    "defA": "common, normal, general, popular, universal, usual, conventional",
+    "defB": "in general"
+  },
+  {
+    "key": "thúc ép",
+    "defA": "to force, goad, push, urge",
+    "defB": "push/spewing/urge/pressing/squeeze/exertion/wallpaper/coercion/hustle/persuasion/enforce"
+  },
+  {
+    "key": "thơm phức",
+    "defA": "sweet-smelling, delicious",
+    "defB": "delicious/fragrant/sweet/aromatic"
+  },
+  {
+    "key": "thương nặng",
+    "defA": "to be wounded, injured",
+    "defB": "seriously injured"
+  },
+  {
+    "key": "thả dù",
+    "defA": "to drop by parachute, parachute",
+    "defB": "parachute drop/release/jump"
+  },
+  {
+    "key": "thế vận hội",
+    "defA": "the (World) Olympic Games",
+    "defB": "Olympic games"
+  },
+  {
+    "key": "thời lượng pin",
+    "defA": "battery life",
+    "defB": "Battery life"
+  },
+  {
+    "key": "thực tập",
+    "defA": "to practice, drill",
+    "defB": "practice/internship/intern/exercise"
+  },
+  {
+    "key": "thực tập sinh",
+    "defA": "on-the-job trainee, apprentice",
+    "defB": "apprentice/intern/trainee/internship"
+  },
+  {
+    "key": "tiến hóa",
+    "defA": "to evolve, develop",
+    "defB": "evolution/development/evolve"
+  },
+  {
+    "key": "tiếng cười",
+    "defA": "(sound of a) laugh, laughter",
+    "defB": "Laughter"
+  },
+  {
+    "key": "tiếng nói",
+    "defA": "language, voice",
+    "defB": "spoken language"
+  },
+  {
+    "key": "tiếng đàn",
+    "defA": "sound (of a musical instrument)",
+    "defB": "the sound of a guitar"
+  },
+  {
+    "key": "toàn vẹn",
+    "defA": "integrity",
+    "defB": "intact/integrity/intactly/complete/whole/integrally/entire"
+  },
+  {
+    "key": "trong nội bộ",
+    "defA": "inside, internal",
+    "defB": "in the internal/interior"
+  },
+  {
+    "key": "trong nội bộ",
+    "defA": "inside, internal",
+    "defB": "internal/internally/inside/within"
+  },
+  {
+    "key": "trung bình",
+    "defA": "average, mean",
+    "defB": "on average"
+  },
+  {
+    "key": "trước khi",
+    "defA": "before, formerly",
+    "defB": "Before"
+  },
+  {
+    "key": "trước ngày",
+    "defA": "before (the day something happens)",
+    "defB": "before the date"
+  },
+  {
+    "key": "trước thềm",
+    "defA": "before, in front of, on the verge, threshold of",
+    "defB": "Before the"
+  },
+  {
+    "key": "trường cao đẳng",
+    "defA": "advanced school, college, university",
+    "defB": "Community college"
+  },
+  {
+    "key": "trợ giúp",
+    "defA": "to help",
+    "defB": "Help"
+  },
+  {
+    "key": "tài chính",
+    "defA": "finances, financial",
+    "defB": "Finance"
+  },
+  {
+    "key": "tài khoản",
+    "defA": "account, sum, amount of money",
+    "defB": "Account"
+  },
+  {
+    "key": "tính năng",
+    "defA": "feature",
+    "defB": "feature/competence"
+  },
+  {
+    "key": "tóc bạc",
+    "defA": "gray, silver, white hair",
+    "defB": "gray hair"
+  },
+  {
+    "key": "túi tiền",
+    "defA": "pocket, pocketbook, money bag",
+    "defB": "pocket/wallet/pocketless/money/purse/pocketbook"
+  },
+  {
+    "key": "tỉnh ủy",
+    "defA": "provincial delegate, committee, commissioner",
+    "defB": "Provincial Party Committee"
+  },
+  {
+    "key": "tị",
+    "defA": "tiny bit",
+    "defB": "small, tiny, little"
+  },
+  {
+    "key": "tổ",
+    "defA": "group",
+    "defB": "group, team"
+  },
+  {
+    "key": "tổng đài",
+    "defA": "switchboard",
+    "defB": "switchboard/operators/home/helpline/hotline/headquarters"
+  },
+  {
+    "key": "tới đây",
+    "defA": "to come here, to here",
+    "defB": "Go Here"
+  },
+  {
+    "key": "tờ giấy",
+    "defA": "sheet, piece (of paper)",
+    "defB": "Sheet of paper"
+  },
+  {
+    "key": "tụi nó",
+    "defA": "they (derrogatory), that group",
+    "defB": "they/them/we"
+  },
+  {
+    "key": "tức giận",
+    "defA": "angry, upset, irritated, furious",
+    "defB": "to be angry, get angry"
+  },
+  {
+    "key": "tự kỷ",
+    "defA": "autism",
+    "defB": "autism/selfishness/autistic/selfish"
+  },
+  {
+    "key": "vi xi",
+    "defA": "VC, Viet Cong",
+    "defB": "VC, Viet Cong, Communist Vietnamese"
+  },
+  {
+    "key": "viếng thăm",
+    "defA": "to visit",
+    "defB": "a visit"
+  },
+  {
+    "key": "việc quan trọng",
+    "defA": "important (thing, issue, etc.)",
+    "defB": "Important Things"
+  },
+  {
+    "key": "việt cộng",
+    "defA": "Communist Vietnamese, Vietnamese Communists",
+    "defB": "Communist Vietnamese, Vietnamese Communists"
+  },
+  {
+    "key": "vô căn cứ",
+    "defA": "unfounded",
+    "defB": "unfounded/be utterly groundless/whereas/baseless/unsubstantiated/unsound/without basis"
+  },
+  {
+    "key": "vũ trang",
+    "defA": "to arm, armed (weapons)",
+    "defB": "arm, weapon"
+  },
+  {
+    "key": "vương gia",
+    "defA": "royal, imperial family",
+    "defB": "Royal Family"
+  },
+  {
+    "key": "vấn đề chính",
+    "defA": "main, primary problem, issue",
+    "defB": "Main Issues"
+  },
+  {
+    "key": "vốn là",
+    "defA": "originally",
+    "defB": "Originally"
+  },
+  {
+    "key": "vỡ đê",
+    "defA": "to break (a dike, e.g.)",
+    "defB": "break the dyke"
+  },
+  {
+    "key": "xoay quanh",
+    "defA": "around, surrounding",
+    "defB": "To turn around"
+  },
+  {
+    "key": "xoay quanh",
+    "defA": "to turn around",
+    "defB": "To turn around"
+  },
+  {
+    "key": "xoay quanh",
+    "defA": "around, surrounding",
+    "defB": "revolving/rotate/centred/spin/centered around"
+  },
+  {
+    "key": "xoay quanh",
+    "defA": "to turn around",
+    "defB": "around, surrounding"
+  },
+  {
+    "key": "xô viết",
+    "defA": "Soviet",
+    "defB": "soviet"
+  },
+  {
+    "key": "yêu mến",
+    "defA": "to love",
+    "defB": "like/affectionate/lovely/dear/affection/beloved/fondly"
+  },
+  {
+    "key": "yêu thương",
+    "defA": "love and compassion",
+    "defB": "to love, cherish, be attached to"
+  },
+  {
+    "key": "ái ân",
+    "defA": "love, lovemaking",
+    "defB": "to love each other"
+  },
+  {
+    "key": "ánh trăng",
+    "defA": "moonlight",
+    "defB": "Moonlight"
+  },
+  {
+    "key": "áp thấp",
+    "defA": "(atmospheric) depression, low pressure",
+    "defB": "Low pressure"
+  },
+  {
+    "key": "âm thầm",
+    "defA": "deep, profound, quiet, latent, secret",
+    "defB": "to keep quiet, secret"
+  },
+  {
+    "key": "ân xá",
+    "defA": "amnesty, pardon, indulgence",
+    "defB": "to grant amnesty"
+  },
+  {
+    "key": "ăn mặc",
+    "defA": "to dress, be dressed",
+    "defB": "Dress Up"
+  },
+  {
+    "key": "ăn ngon",
+    "defA": "to have a tasty meal",
+    "defB": "tasty, delicious"
+  },
+  {
+    "key": "điều đáng tiếc",
+    "defA": "regrettable",
+    "defB": "unfortunate/regret/regrettable/unfortunately/regrettably"
+  },
+  {
+    "key": "đèn chớp",
+    "defA": "(photographic) flash",
+    "defB": "Flashing light"
+  },
+  {
+    "key": "đê tiện",
+    "defA": "abject, ignoble",
+    "defB": "ignoble/despicable/blackguard/brat/ignominious/scumbag/bitch/scoundrel/wretched/vulgar/damn/dishonest"
+  },
+  {
+    "key": "đóng một vai",
+    "defA": "to play, act out a role",
+    "defB": "Role Playing"
+  },
+  {
+    "key": "đóng một vai",
+    "defA": "to play, act out a role",
+    "defB": "to play a part"
+  },
+  {
+    "key": "đơn xin",
+    "defA": "application (form), request, requisition, petition",
+    "defB": "The Petition"
+  },
+  {
+    "key": "đơn xin",
+    "defA": "application (form), request, requisition, petition",
+    "defB": "application/request form"
+  },
+  {
+    "key": "đường luật",
+    "defA": "tang prosody",
+    "defB": "tang prosody"
+  },
+  {
+    "key": "đường đi",
+    "defA": "road, way",
+    "defB": "Way"
+  },
+  {
+    "key": "đại hùng tinh",
+    "defA": "the great bear",
+    "defB": "the great bear"
+  },
+  {
+    "key": "đạt mức",
+    "defA": "to reach, attain a level",
+    "defB": "reached the level"
+  },
+  {
+    "key": "đảng dân chủ xã hội",
+    "defA": "Socialist Party (of Japan)",
+    "defB": "democratic socialist party"
+  },
+  {
+    "key": "đấu loại",
+    "defA": "elimination",
+    "defB": "qualification/qualifying/elimination round"
+  },
+  {
+    "key": "đấu loại",
+    "defA": "elimination",
+    "defB": "qualifiers/qualifying/elimination/disqualification/playoffs/auction/tournament/eliminate"
+  },
+  {
+    "key": "đầu dương",
+    "defA": "positive pole, terminal",
+    "defB": "positive head/electrode/lead/terminal/start/pole"
+  },
+  {
+    "key": "đặt bút ký",
+    "defA": "to sign",
+    "defB": "sign/place the pen"
+  },
+  {
+    "key": "đế quốc la mã",
+    "defA": "Roman empire",
+    "defB": "Roman empire"
+  },
+  {
+    "key": "địa bàn",
+    "defA": "staging ground",
+    "defB": "field, ground"
+  },
+  {
+    "key": "định danh",
+    "defA": "identification",
+    "defB": "identification/identifier/name/fame/identity/identify/username"
+  },
+  {
+    "key": "định danh",
+    "defA": "to identify",
+    "defB": "identification/identifier/name/fame/identity/identify/username"
+  },
+  {
+    "key": "đồ đĩ",
+    "defA": "whore (term of abuse)",
+    "defB": "whore/you/slut slut"
+  },
+  {
+    "key": "độ bền",
+    "defA": "durability",
+    "defB": "durability/endurance/tenacity/toughness/persistence"
+  },
+  {
+    "key": "đủ sức",
+    "defA": "able, competent",
+    "defB": "To be able"
+  },
+  {
+    "key": "ươn ướt",
+    "defA": "damp, moist, wet",
+    "defB": "wet/wetness/wetly/damp/slippery/soggy/dampness"
+  },
+  {
+    "key": "ấn",
+    "defA": "to press, print",
+    "defB": "to press"
+  },
+  {
+    "key": "ẩn danh",
+    "defA": "anonymous",
+    "defB": "anonymous/anonymize/incognito/anonymity"
+  },
+  {
+    "key": "ủy ban",
+    "defA": "committee, commission, board",
+    "defB": "Commission"
+  }
+]

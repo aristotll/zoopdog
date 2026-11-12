@@ -34,7 +34,9 @@ inlines any of it and never asks for the `GM_xmlhttpRequest` / `127.0.0.1` grant
 `popupdict-local.runtime.js` has no header or IIFE of its own: `scripts/build-popupdict-userscript.js`
 concatenates it inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
 `__ZOOPDOG_RUNTIME_SOURCES__`, the same mechanism used for the other inlined browser sources),
-so it shares scope with the core runtime. The core file calls into it through three
+so it shares scope with the core runtime. The separately testable `local-transport.js` factory
+is inlined ahead of the fragment and receives the userscript manager request function explicitly;
+it preserves the same local routes, payloads, timeouts and error responses. The core file calls into it through three
 `typeof x === 'function'` guarded call sites (`zooRenderLocalActions`, `zooProbeLocalMode`,
 `zooWireSelectionBar`) that are silent no-ops when this fragment isn't built in. Matching styles
 are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
@@ -59,6 +61,11 @@ disabled controls, and tells the user to reload the page and try again.
 The Nôm entry modal also clears its prior datalist choices, generated Nôm value, and autofill
 marker immediately when it opens for a different term or its Vietnamese term is edited. A
 slower response for the earlier term is ignored, so suggestions never drift across terms.
+
+The untouched auto-filled Chữ Nôm default is blanked on focus (so the datalist shows every
+suggestion) only for keyboard focus. A mouse press keeps the text, and a late suggestion refill
+does not blank a pointer-focused field: blanking under the caret left the browser's selection on
+the wrong character ("select 糖, delete" removed 蜜).
 
 Save, Preview and Confirm handlers of both modals run through `zooGuard`: while the request is
 pending every action button of that modal is disabled (Cancel is not) and a second submit is
@@ -96,6 +103,18 @@ asked before the server has answered once; a failed first request is retried aft
 results are repainted on DOM changes, every 2.5 s, and when the tab is shown again; the `/search` check is made at paint time;
 links are found under `#search`, `#rso`, `main` or `#main`; one odd result never stops the rest.
 
+**Buttons on Google links** (`scripts/userscript/local-explored-tools.js`), in two forms with the same two buttons. (1) Always present:
+every organic result (a link with a title heading), coloured or not, gets them inline right after its title; `decorate` is idempotent and
+runs with every repaint, so a result Google re-renders gets them back. (2) Hovering any other link that is not coloured (chips, cards)
+shows one small floating pill at its top-right corner (fixed position, outside Google's DOM, no layout shift).
+`↻` is a manual retry for the whole page: it asks the server again for the keys (`zooAnchorKeys`) of the clicked link and of every
+link still without colour (up to 100), bypassing what was asked or answered before, and colours those explored by now (a toast says how many). `⛔` opens the project-style modal "Blacklist a site: no need to
+explore": the site field is pre-filled with the link's own host (editable; the server stores the registrable domain), the reason
+defaults to `no search` (editable), and submit sends `POST /v1/explored-sites/blacklist?host=&reason=`, which appends it to
+book-translator's `docs/explored_sites_blacklist.json` (hot reload) and answers the finished grey entry; the link is then asked
+again and turns grey. The server's own refusal (HTTP 422 `error`) is shown in the modal. The hover pill never appears on a coloured link; the inline buttons stay.
+The route is in `test/fixtures/local-mode-contract.json`, identical to book-translator's copy.
+
 Troubleshooting and fixing this feature (a link not coloured, a visual regression): follow book-translator's
 `.claude/ai-common/rules/google-explored-highlighter.md` (matching stays on the server, verify on the real page with a screenshot,
 never overwrite uncommitted work in this repo).
@@ -104,7 +123,7 @@ never overwrite uncommitted work in this repo).
 
 `scripts/build-nom-userscript.js` and `scripts/build-popupdict-userscript.js` each write two
 files per run: the github-hosted `.user.js` (unchanged name, `@updateURL`/`@downloadURL` point
-at the raw github URL as before) and a `-local.user.js` variant whose `@name` gets a `(Local)`
+at GitHub Release assets) and a `-local.user.js` variant whose `@name` gets a `(Local)`
 suffix and whose `@updateURL`/`@downloadURL` point at `file://<absolute path to that file on
 this machine>` instead — so Violentmonkey's "track local file" picks up a rebuild directly,
 without waiting on a github push or periodic update check. The `-local` files are never
@@ -129,7 +148,7 @@ plain wrapper as tampering) while open shadow roots are still annotated.
 
 | Piece | Function(s) |
 | --- | --- |
-| Reachability probe | `zooProbeLocalMode` — one `GET /healthz`, sets `ZOO_LOCAL_AVAILABLE` |
+| Availability initialization | `zooProbeLocalMode` enables local actions; individual requests report connection failures |
 | HTTP transport | `zooHttpRequest` / `zooGetJSON` / `zooPost` — `GM_xmlhttpRequest`, not `fetch` (bypasses CORS; needs `@connect`) |
 | Buttons on the hover popup | `zooRenderLocalActions`, wired via `[data-zd-action]` delegation on `popup.body` in `main()` |
 | Selection toolbar (multi-word) | `zooWireSelectionBar` / `zooHandleSelectionChange` / `zooShowSelectionBar` |
@@ -155,10 +174,14 @@ there is nothing to hand-sync in this file except the rendering of a new field.
 
 ## Reachability and endpoints
 
+- Versioned request/response and method catalog: [`test/fixtures/local-mode-contract.json`](../test/fixtures/local-mode-contract.json),
+  mirrored in book-translator's `tests/fixtures/zoopdog-local-contract.json`. Each repository tests
+  its own routes or callers; when both checkouts exist, tests compare the fixtures too. The catalog
+  version describes the fixture, not a negotiated network protocol version.
 - Base URL: `http://127.0.0.1:8770` (`ZOO_LOCAL_BASE`). Hard-coded — the reader server always
   runs on this port locally (see `AGENTS-book-server.md` in `book-translator`).
-- Probe: `GET /healthz`. Runs once at `document-idle`; result is not re-checked, so a server that
-  starts *after* a page has already loaded needs that page reloaded to pick up local mode.
+- No startup probe: the local build enables its actions immediately. Each request reports its own
+  failure, and requests made after the reader starts can succeed without reloading the page.
 - `GET /v1/suggest?kind=nom&text=...` — Chữ Nôm candidates for the "Add entry" field's datalist.
 - `GET /v1/suggest?kind=nom-notes&text=...` — a live-translated Notes draft. Fetched in parallel,
   never blocking the fields above — see "Known slow paths" below.
@@ -167,8 +190,11 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `next_order`. The ↻ button sends the previous reply's `next_order`, so one click gives the
   zoopdog dictionary order and the next click returns to the default ranking (the toggle is the
   server's, not kept here). Replaces the separate `kind=nom` + `/v1/nom/entry` lookups.
-- `GET /v1/google-search` → `{lang, langs, suffix}`; the Google-search icon opens `https://www.google.com/search?q=<term>` + `suffix` (`&hl=ja` etc., empty when unconfigured). The language is set on the server's `/control` page (`POST /v1/google-search?lang=`) and persisted server-side.
-- **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is drawn once, at the end: the channels that answered, and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator.
+- `POST /v1/web-search/open?q=<term>&from=<this page's URL>` → `{urls: [{id, name, url}], opened}`; the search icon opens one tab per search engine enabled on the server's `/control` page (Google, Bing, DuckDuckGo, Yahoo, Yandex, Baidu, ... and custom `{q}` URLs). **The server opens the tabs through CDP** (`Target.createTarget` with the `browserContextId` of the tab at `from`), so they appear in the same Chrome profile as the page and no popup blocker applies. The userscript calls `window.open` on the finished `urls` only when `opened` is 0 (no debug port / tab not found). `GET /v1/web-search` returns the settings (`{lang, langs, region, regions, enabled, engines, custom}`), `POST /v1/web-search?lang=&region=&engines=a,b&custom=<json>` saves them; Google is one engine and `region` selects its `gl` parameter; `/v1/google-search` is the same pair, kept for older clients. Language is each engine's own parameter (`hl=`, `setlang=`, `kl=`), set on `/control`. Mirror: book-translator `scripts/web_search.py`.
+- Qwen and Tencent Yuanbao receive `#zoopdog_search=<encoded term>` in the finished URL from book-translator. The local popup userscript runs on the destination, inserts the term into the empty chat editor and clicks Send once; it removes the marker before submitting, leaves existing drafts and unmarked tabs alone, and lets the site present any login or age prompts. It also works when search is initiated from the reader, provided this local userscript is installed and enabled on the target site. See book-translator `docs/research/search_engines_explored/README.md`.
+- **Redraw at most once every 2 s (2026-11-07):** streamed replies arrive many times a second and redrawing on each made the Notes list flicker; `zooWireNotesAll` draws the first reply at once, then at most once per `ZOO_NOTES_ALL_REDRAW_MS` (2000) with the latest rows, and the final rows always replace the list. Mirrors `NOTES_ALL_REDRAW_MS` in book-translator's `shared/suggest.js`.
+- **One connection for Refresh all (2026-11-07):** `zooFetchNotesAll` reads `GET /v1/suggest/stream?kind=&text=` (NDJSON, a `{entry, rows}` line per finished channel, then `{"done": true}`; book-translator `scripts/reader/notes_stream.py`) with one `GM_xmlhttpRequest` (`onprogress` for live lines, `onload` for the full text). Only if that fails does it use the per-channel requests, capped at 5 (`ZOO_NOTES_ALL_CONCURRENCY`): a browser keeps 6 connections per host and 70 channel requests made a 3 ms reading request wait 27 s.
+- **Client retry, per channel:** "Refresh all" asks `refresh=all&engines=1` for the channels, then one `refresh=all&engine=<i>&session=<id>` request per channel; every reply carries the finished `rows` over all channels so far (waiting / error rows are built by the server). Each channel request waits 75 s (`ZOO_NOTES_ALL_TIMEOUT`, above the server's 60 s per-channel cut-off) instead of the generic 8 s; the server merges a retry into the call still running for the same channel and text (`coalesced`), so a retry never starts a second engine call. A failing channel is retried alone 3 times (1 s, 2 s, 4 s), then reported with `&error=1`. The list is redrawn with every reply (2026-11-07; `onRows`), so the quick engines' answers show while slow ones (7-30 s) are still a `waiting` row; the final draw has the channels that answered and the failed ones as an error row. Mirrors `shared/suggest.js` in book-translator. A channel that failed 5 times in a row (2026-10-31) comes back as a server-made `failing: <id>` row whose `actions` (a list of `label`, `path`, `params`: "Disable globally", "Disable for this process") the runtime draws as buttons and sends as GETs (`GET /v1/suggest?channel=<id>&disabled=1|0|global`: off for the server process, on again, or off for good in book-translator's `provider-lists.toml`); the runtime decides nothing.
 - `GET /v1/suggest?kind=nom-notes&text=...&refresh=all` — every translation engine at once; the
   reply carries `rows`, already grouped and folded server-side (`scripts/notes_grouping.py`), which
   the "Refresh all" list just draws. Each row has a finished `label` (`"edge, google"`, `"ALL"`, or
@@ -191,7 +217,9 @@ there is nothing to hand-sync in this file except the rendering of a new field.
   `current_hint` and default `pick` (the recorded first choice when it is not already the ruby on screen, else the second rendering: never the shown one) already
   written by the server.
 - `POST /v1/nom/order?vi=...&nom=...&scope=global[&preview=1]` — record which rendering leads.
-  This one *replaces* the preference, so it always goes through preview → confirm.
+  This one *replaces* the preference, so it always goes through preview → confirm. When the
+  case-sensitive option is selected, both preview and save include `caseSensitive=1` so they
+  refer to the same exact-spelling row.
 
 - `POST /v1/zoopdog/speak` with a JSON body `{text, confirm}` (optionally `session` and `voice: "next"`: the Eudic plugins' "play all" button rotates the engine per session, the userscript does not use it) — read the selection aloud. Triggered
   by Alt+R (matched by physical key, so macOS Option works) or the 🔊 button in the selection bar
@@ -300,3 +328,89 @@ shells belonging to its own checkout after two high-CPU observations five
 minutes apart and a fresh ownership/identity check. It does not terminate this
 repository's processes. Keep this server behavior documented in all three
 repositories; client code needs no change while the HTTP contract is unchanged.
+
+## Explored-site colouring on other search engines (2026-11-05)
+
+The Google highlighter (`/v1/explored-sites/match`, refresh and blacklist buttons) also runs on Bing, DuckDuckGo, Yahoo,
+Yahoo! JAPAN, Baidu, Brave, Ecosia, Startpage, Qwant, Naver and Seznam. `ZOO_SEARCH_ENGINES` in
+`popupdict-local.runtime.js` describes only layout per engine: `scope` (every link section, AI answers included),
+`block` (one result; none = paint the link itself), `own` hosts (never keys) and how a redirect link yields its target
+(Bing `ck/a?u=a1<base64url>`; Baidu the container's `mu`). Yandex and Sogou (bot check) and Kagi (login) also work in a profile that passed the check / is logged in; Sogou's redirect
+links read the host from the address shown in the result. Evidence and per-engine verdicts: book-translator `docs/research/search_engines_explored/`.
+
+### Additional web and AI search pages (2026-11-08)
+
+The local highlighter recognises all built-in reader search URLs, including Yahoo
+Hong Kong and Taiwan, 360 Search, new regional engines and AI answer pages.
+For 360's opaque result links it reads the original address from `data-mdurl`;
+Yahoo redirect `RU` targets are decoded. Other newly added layouts use external
+links on the recognised page and exclude header, navigation and footer links.
+Citations without result headings use the hover refresh/blacklist controls,
+including after colouring; dynamic links are picked up by the existing observer.
+Recognition is not proof that a site renders link anchors: sign-in, captchas,
+region restrictions, opaque targets and layouts without links can prevent
+colouring. Result matching and blacklist storage remain on book-translator.
+See `docs/research/search_engines_explored/README.md` there for live checks.
+
+### Adding a search engine
+
+Whenever book-translator gains a built-in web or AI search engine, add its
+result-link support to `scripts/userscript/popupdict-local.runtime.js` in the
+same change. Cover the engine's observed hosts, search paths, redirects and
+regional or AI variants; inspect result and citation layouts, including
+dynamically added content. Restrict matching to result links where feasible,
+exclude provider/navigation links and recover the destination host from opaque
+redirects when evidence permits. Never blacklist the search engine's own
+redirect host as if it were a result.
+
+Use the existing `/v1/explored-sites/match` server colours and blacklist route;
+the userscript handles page layout and draws refresh and blacklist controls.
+Both controls must remain reachable on coloured links and on AI citations
+without headings. Cover host/path recognition, redirects, colouring, refresh,
+blacklist and dynamic layouts with meaningful tests; the cross-repository test
+in `test/popup-local-runtime.test.js` also checks the reader's built-in
+catalog. Run the relevant tests and `make rebuild-local-userscripts`.
+In addition, run the real-page audit from book-translator:
+`.venv/bin/python scripts/audit_search_coloring.py --page-id <target-id>`.
+Use a real search that returns at least one known explored or blacklisted site,
+opened in the user's Zoopdog Chrome profile, and let results finish. The audit
+queries the actual server and fails for any matched result without its colour,
+or for a page with zero matched results. Mocks and synthetic colours are not
+substitutes. Save repeatable URLs and observed counts in the book-translator
+search research note; record unavailable or blocked pages.
+
+Bing Copilot renders citations in its `cpltsrchif=1` search iframe. MetaSo chat
+uses clickable source cards rather than anchors; its page-world bridge exposes
+the HTTP(S) destination from the card's React props for matching and controls.
+The live regression suite is opt-in in book-translator:
+`SEARCH_COLOR_E2E=1 .venv/bin/python -m pytest -n0 tests/test_search_coloring_e2e.py -q`.
+It requires the current local userscript installed and the documented real tabs
+open. On 2026-11-08, version 2026.11.08.37 passed live colour and control checks
+on Bing Copilot and a MetaSo chat containing explored sources; the research note
+records the counts and the source-free greeting skipped by the suite.
+The suite also derives a live colour, refresh and blacklist check from every
+built-in search engine in the book-translator catalog. It opens real search tabs
+beside the reader; no matching explored source or an inaccessible engine is a
+failure requiring investigation, not a passing result. Per-engine query and tab
+overrides are documented in `docs/instructions/server-reader.md` there.
+Yahoo! JAPAN Agent i uses `search.yahoo.co.jp/chat` and may redirect to a chat
+subpath; external answer citations are handled as generic AI sources and Yahoo
+navigation is excluded. A live test of the newly built userscript is pending.
+Ecosia's result-report links are excluded as navigation. Gibiru and Brave AI
+use higher-priority colouring to resist their page CSS, and coloured results
+without headings retain hover controls. These fixes passed live checks with
+local userscript 2026.11.09.2. The following build also handles Brave's
+ordinary result CSS and excludes Cốc Cốc's search navigation.
+Brave's ordinary results and controls passed the subsequent live check. Cốc
+Cốc result cards expose a destination URL next to opaque `/composer/goto`
+links; the userscript now uses that host for colouring and blacklist. Version
+2026.11.09.4 passed the real-page colour, refresh and blacklist checks on a
+`youdao` search with 18 explored result links.
+
+Document the URL, selectors, redirects and real verification in this file and
+`~/mine/book-translator/docs/research/search_engines_explored/README.md`.
+Inspect via direct HTTP first, then the authorized project CDP bridge where
+needed. Record authentication, captcha, regional denial, unavailable sites,
+opaque or non-anchor citations and any unverified behavior; recognition of a
+URL alone does not prove its results were coloured. Custom user-defined search
+URLs need their own layout investigation when requested.

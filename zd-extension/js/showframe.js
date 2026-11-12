@@ -2,8 +2,21 @@
 
 const PIN_POSITION_KEY = 'zoopdogPopupPinPosition';
 
+function createPinPositionStorage() {
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    return {
+      get(callback) { chrome.storage.local.get(PIN_POSITION_KEY, items => callback(items && items[PIN_POSITION_KEY])); },
+      set(position) { chrome.storage.local.set({[PIN_POSITION_KEY]: position}); }
+    };
+  }
+  return {
+    get(callback) { callback(JSON.parse(window.localStorage.getItem(PIN_POSITION_KEY) || 'null')); },
+    set(position) { window.localStorage.setItem(PIN_POSITION_KEY, JSON.stringify(position)); }
+  };
+}
+
 class ResultFrame {
-  constructor(srcUrl) {
+  constructor(srcUrl, pinStorage = createPinPositionStorage()) {
     this.container = document.createElement('iframe');
     this.container.id = 'zoopdog-popup';
     this.container.addEventListener('mousedown', (event) => event.stopPropagation());
@@ -18,6 +31,7 @@ class ResultFrame {
     this.dialect = 'hanoi';
     this.onToggleLock = null;
     this.pinPosition = null;
+    this.pinStorage = pinStorage;
     this.loadPinPosition();
   }
 
@@ -60,14 +74,13 @@ class ResultFrame {
     const box = this.container.getBoundingClientRect();
     this.pinPosition = {left: box.left, top: box.top};
     try {
-      chrome.storage.local.set({[PIN_POSITION_KEY]: this.pinPosition});
+      this.pinStorage.set(this.pinPosition);
     } catch (error) { /* position just is not remembered */ }
   }
 
   loadPinPosition() {
     try {
-      chrome.storage.local.get(PIN_POSITION_KEY, (items) => {
-        const pos = items && items[PIN_POSITION_KEY];
+      this.pinStorage.get((pos) => {
         if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
           this.pinPosition = pos;
           if (this.locked) this.moveTo(pos.left, pos.top);

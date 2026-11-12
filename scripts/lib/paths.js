@@ -22,6 +22,8 @@ const relative = Object.freeze({
   popupUserscript: 'zoopdog-popupdict.user.js',
   nomLocalUserscript: 'zoopdog-nom-ruby-local.user.js',
   popupLocalUserscript: 'zoopdog-popupdict-local.user.js',
+  cjkRubyUserscript: 'zoopdog-cjk-ruby.user.js',
+  cjkRubyLocalUserscript: 'zoopdog-cjk-ruby-local.user.js',
   distDir: 'dist',
   defaultInput: '.idea/newfile.md',
   openspecChanges: 'openspec/changes',

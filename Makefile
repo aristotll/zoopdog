@@ -8,14 +8,15 @@ TERM ?=
 .DEFAULT_GOAL := help
 
 .PHONY: help \
-	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-userscripts release-userscripts minify-userscripts \
+	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
-	check-openspec verify verify-scripts verify-browser
+	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types
 
 help:
 	@echo "make rebuild-nom-userscript"
 	@echo "make rebuild-popupdict-userscript"
+	@echo "make rebuild-cjk-ruby-userscript"
 	@echo "make rebuild-userscripts"
 	@echo "make minify-userscripts  # minified release builds into dist/ (esbuild)"
 	@echo "make release-userscripts  # publish dist/*.user.js as a GitHub Release (DRY_RUN=1 to preview)"
@@ -28,6 +29,8 @@ help:
 	@echo "make nom-annotate TEXT='...'  # what the nom-ruby userscript would annotate in TEXT"
 	@echo "make nom-popup TERM='...'     # what the popup dictionary would show for TERM"
 	@echo "make check-openspec    # report OpenSpec lifecycle state; writes nothing"
+	@echo "make build-pages build-styles  # compile tracked website assets"
+	@echo "make check-generated  # check compiled pages and styles without writing"
 	@echo "make check-openspec ARCHIVE=1 [DRY_RUN=1]  # archive eligible changes, promote deltas"
 	@echo "make verify            # tests + syntax-check maintenance and browser scripts"
 
@@ -37,14 +40,20 @@ rebuild-nom-userscript:
 rebuild-popupdict-userscript:
 	$(NODE) scripts/build-popupdict-userscript.js
 
-rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript
+rebuild-cjk-ruby-userscript:
+	$(NODE) scripts/build-cjk-ruby-userscript.js
+
+rebuild-userscripts: rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript
 
 # Minifies the readable root builds into dist/ (needs `npm install` once, for esbuild).
 minify-userscripts:
 	$(NODE) scripts/minify-userscripts.js
 
 # Publishes the minified builds in dist/; needs `gh`. See docs/build.md.
-release-userscripts: rebuild-userscripts rebuild-extension-vnedict-json minify-userscripts
+release-userscripts:
+	$(NODE) scripts/release-inputs.js
+	$(MAKE) rebuild-userscripts rebuild-extension-vnedict-json
+	$(NODE) scripts/minify-userscripts.js
 	$(NODE) scripts/release-userscripts.js $(if $(DRY_RUN),--dry-run)
 
 # The (Local) variants are never committed (see .gitignore) and update from their own file on
@@ -52,6 +61,7 @@ release-userscripts: rebuild-userscripts rebuild-extension-vnedict-json minify-u
 rebuild-local-userscripts:
 	$(NODE) scripts/build-nom-userscript.js --local-only
 	$(NODE) scripts/build-popupdict-userscript.js --local-only
+	$(NODE) scripts/build-cjk-ruby-userscript.js --local-only
 
 # Long-running: polls every 60s for a change under user_nom_entries/ or user_nom_order.jsonc
 # and rebuilds only the (Local) variants when one is found. Runs until interrupted (Ctrl+C).
@@ -88,18 +98,27 @@ nom-popup:
 check-openspec:
 	$(NODE) scripts/check-openspec-lifecycle.js $(if $(ARCHIVE),--archive) $(if $(DRY_RUN),--dry-run)
 
+build-pages:
+	$(NODE) scripts/build-site.js --pages
+
+build-styles:
+	$(NODE) scripts/build-site.js --styles
+
+check-generated:
+	$(NODE) scripts/build-site.js --check
+
 # Enumerated rather than listed file-by-file so a new script joins verification without a
 # Makefile edit. The extracted userscript runtime is checked as code too, which a template
 # literal never was.
-verify: verify-scripts verify-browser
+verify: verify-scripts verify-browser check-types
 
-# Generated userscripts and vnedict.json go stale whenever the dictionary sources or runtimes
-# change, and the tests compare against them. A first failure therefore rebuilds them and
-# reruns once; a failure that survives the rebuild is a real one.
+# Pilot static checking on an isolated adapter before extending it to browser runtimes.
+check-types:
+	./node_modules/.bin/tsc --allowJs --checkJs --noEmit --strict --target es2022 scripts/userscript/nom-review-store.js
+
+# Report the first failure directly; rebuilding and retrying can hide a regression or flake.
 verify-scripts:
-	@$(NODE) --test test/*.test.js || { \
-		echo "Tests failed; rebuilding generated userscripts and vnedict.json, then retrying once..."; \
-		$(MAKE) rebuild-userscripts rebuild-extension-vnedict-json && $(NODE) --test test/*.test.js; }
+	@$(NODE) scripts/test-isolated.js
 	@find scripts -name '*.js' -print0 | xargs -0 -n1 $(NODE) --check
 
 verify-browser:

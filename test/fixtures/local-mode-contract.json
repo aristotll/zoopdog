@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "base": "http://127.0.0.1:8770",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/v1/explored-sites/match",
+      "request": "keys: JSON array of page hosts or names",
+      "response": "version and matches keyed by requested value"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/explored-sites/blacklist",
+      "request": "query host (a host or a link) and optional reason, default no search",
+      "response": "domain, reason, replaced and the finished grey entry; HTTP 422 error when host is not a site"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/web-search/open",
+      "request": "query q (the term) and from (URL of the page that was clicked)",
+      "response": "urls (finished id, name, url rows of the enabled engines) and opened (tabs the server opened through CDP in the profile of the tab at from; 0 = the client opens urls itself)"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/nom/form",
+      "request": "vi and optional order",
+      "response": "candidates, title, existing_info, is_update and next_order"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/nom/order",
+      "request": "vi, global scope and optional caseSensitive",
+      "response": "variants, order, exists, title, existing_info, current_hint and pick"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/nom/entries",
+      "request": "query vi, nom, optional explain, replace and preview",
+      "response": "note or preview diff with changed and rows"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/nom/order",
+      "request": "query vi, nom, global scope, optional caseSensitive and preview",
+      "response": "note or preview diff with changed and rows"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/suggest",
+      "request": "kind, text and optional refresh, engines, engine, session or error; or channel and disabled (1, 0, global) to switch a Notes channel off for the server process, on again, or off for good in provider-lists.toml",
+      "response": "candidates or server-rendered rows (a failing channel's row may carry actions: a list of label, path, params) and engines"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/zoopdog/speak",
+      "request": "JSON text and confirm",
+      "response": "label on success; HTTP 409 status confirm and message when confirmation is required"
+    }
+  ],
+  "examples": {
+    "suggestLegacy": {
+      "candidates": [
+        "巴"
+      ]
+    },
+    "suggestCurrent": {
+      "candidates": [
+        "巴"
+      ],
+      "engine": "fixture"
+    },
+    "confirmation": {
+      "status": "confirm",
+      "message": "Confirm reading?"
+    },
+    "validationError": {
+      "error": "vi is required"
+    }
+  }
+}

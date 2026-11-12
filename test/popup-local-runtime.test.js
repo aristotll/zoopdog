@@ -8,6 +8,12 @@ const vm = require('node:vm');
 
 const runtimePath = path.join(__dirname, '..', 'scripts', 'userscript', 'popupdict-local.runtime.js');
 const runtime = fs.readFileSync(runtimePath, 'utf8');
+const transport = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-transport.js'), 'utf8');
+const selectionTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-selection.js'), 'utf8');
+const modalGeometry = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-geometry.js'), 'utf8');
+const entryDiff = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-entry-diff.js'), 'utf8');
+const modalGuard = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-guard.js'), 'utf8');
+const exploredTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-explored-tools.js'), 'utf8');
 
 function element() {
   const listeners = {};
@@ -23,7 +29,7 @@ function element() {
     disabled: false,
     checked: false,
     addEventListener(type, listener) { (listeners[type] || (listeners[type] = [])).push(listener); },
-    dispatch(type) { (listeners[type] || []).forEach((listener) => listener({preventDefault() {}})); },
+    dispatch(type) { (listeners[type] || []).forEach((listener) => listener({preventDefault() {}, stopPropagation() {}})); },
     appendChild(child) { this.children.push(child); },
     querySelector() { return null; },
     get childElementCount() { return this.children.length; }
@@ -49,12 +55,12 @@ function createHarness(request) {
   };
   const context = vm.createContext({
     Promise, JSON, Error, Object, String, Array, Math, Date, isFinite,
-    clearTimeout, setTimeout, URL, document,
+    clearTimeout, setTimeout, URL, atob, document,
     setInterval(fn, ms) { const timer = setInterval(fn, ms); timer.unref(); return timer; },
     GM_xmlhttpRequest: request,
     escapeHtml(value) { return String(value); }
   });
-  vm.runInContext(runtime, context, {filename: runtimePath});
+  vm.runInContext(transport + '\n' + selectionTools + '\n' + modalGeometry + '\n' + entryDiff + '\n' + modalGuard + '\n' + exploredTools + '\n' + runtime, context, {filename: runtimePath});
   return {context, elements, add(id) { const node = element(); elements.set(id, node); return node; }};
 }
 
@@ -452,6 +458,40 @@ test('Refresh all retries a failing channel alone and shows it as an error next 
   assert.match(unreachable[0].message, /unreachable/);
 });
 
+test('Refresh all draws the buttons the server put on a failing channel and sends its GET', async () => {
+  const seen = [];
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    seen.push(q);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['ink']});
+    if (q.get('channel')) return reply({channel: 'ink', disabled: true});
+    return reply({rows: [{
+      engines: ['ink'], label: 'failing: ink', text: '', message: '(failed 5 times in a row: HTTP 502)', failing: true,
+      actions: [
+        {label: 'Disable globally', path: '/v1/suggest', params: {channel: 'ink', disabled: 'global'}},
+        {label: 'Disable for this process', path: '/v1/suggest', params: {channel: 'ink', disabled: '1'}}
+      ]
+    }]});
+  });
+  const button = harness.add('b');
+  const list = harness.add('l');
+  harness.context.zooWireNotesAll(button, list, 'nom-notes', () => 'a', 's').run();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const li = list.children[0];
+  const global = li.children.find((child) => child.textContent === 'Disable globally');
+  const process = li.children.find((child) => child.textContent === 'Disable for this process');
+  assert.ok(global && process, 'the row carries both server-made buttons');
+  global.dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(seen[seen.length - 1].get('disabled'), 'global');
+  assert.equal(global.textContent, 'Done');
+  process.dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(seen[seen.length - 1].get('channel'), 'ink');
+  assert.equal(seen[seen.length - 1].get('disabled'), '1');
+});
+
 test('Refresh all waits for a slow channel far longer than the generic request timeout', async () => {
   const timeouts = {};
   const harness = createHarness((options) => {
@@ -567,4 +607,519 @@ test('explored highlight paints the cached answers at once, retries a failed fir
   assert.deepEqual(asked[1], ['vdict.com']);
   assert.equal(hit.block.style.background, '#c8f7c5');
   assert.equal(JSON.parse(storage.zooExploredMatches).version, 'v2');
+});
+
+test('local transport can run with an injected request adapter and preserves error payloads', async () => {
+  const transportPath = path.join(__dirname, '..', 'scripts/userscript/local-transport.js');
+  const code = fs.readFileSync(transportPath, 'utf8');
+  const context = vm.createContext({Promise, Error, JSON, Object, encodeURIComponent, setTimeout, clearTimeout});
+  vm.runInContext(code, context);
+  let details;
+  const request = context.createZooLocalTransport({baseUrl: 'http://127.0.0.1:8770',
+    getTimeout: () => 100, send: options => {details = options;}});
+  const pending = request('POST', '/v1/test', {word: 'tình cảm'}, '{"x":1}');
+  assert.equal(details.url, 'http://127.0.0.1:8770/v1/test?word=t%C3%ACnh%20c%E1%BA%A3m');
+  assert.equal(details.data, '{"x":1}');
+  details.onload({status: 409, responseText: '{"error":"confirm","confirm":true}'});
+  await assert.rejects(pending, error => error.status === 409 && error.payload.confirm);
+});
+
+test('order preview uses the same case-sensitive row as the confirmed save', async () => {
+  const requests = [];
+  const harness = createHarness(options => requests.push(options));
+  const ids = harness.context.ZOO_MODAL_IDS.order;
+  Object.keys(ids).forEach(key => harness.add(ids[key]));
+  harness.context.zooWireNomOrderForm();
+  harness.elements.get(ids.vi).value = 'Đỗ';
+  harness.elements.get(ids.nom).value = '杜';
+  harness.elements.get(ids.caseSensitive).checked = true;
+  harness.elements.get(ids.form).dispatch('submit');
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /(?:\?|&)preview=1(?:&|$)/);
+  assert.match(requests[0].url, /(?:\?|&)caseSensitive=1(?:&|$)/);
+  harness.context.zooRenderEntryDiff = () => 1;
+  requests[0].onload({status: 200, responseText: '{"diff":{"changed":1,"rows":[]}}'});
+  await new Promise(resolve => setImmediate(resolve));
+  harness.elements.get(ids.confirmBtn).dispatch('click');
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].url, /(?:\?|&)caseSensitive=1(?:&|$)/);
+  assert.doesNotMatch(requests[1].url, /(?:\?|&)preview=/);
+  requests[1].onerror();
+});
+
+test('local suggestions accept legacy and current response fixtures', async () => {
+  const contract = require('./fixtures/local-mode-contract.json');
+  for (const response of [contract.examples.suggestLegacy, contract.examples.suggestCurrent]) {
+    let request;
+    const harness = createHarness(options => {request = options;});
+    const pending = harness.context.zooFetchSuggestions('nom', 'ba');
+    request.onload({status: 200, responseText: JSON.stringify(response)});
+    assert.deepEqual(Array.from(await pending), ['巴']);
+  }
+});
+
+test('local form surfaces the reader validation-error fixture', async () => {
+  const contract = require('./fixtures/local-mode-contract.json');
+  let request;
+  const harness = createHarness(options => {request = options;});
+  const pending = harness.context.zooFetchNomForm('ba');
+  request.onload({status: 422, responseText: JSON.stringify(contract.examples.validationError)});
+  await assert.rejects(pending, error => error.status === 422 && error.message === 'vi is required');
+});
+
+test('local selection wrappers use injected page caret and selection', () => {
+  const {context} = createHarness(() => {});
+  const node = {nodeType: 3, parentElement: {closest: () => ({closest: () => true})}};
+  const selected = [];
+  context.zdCaretFromPoint = point => ({node, offset: point.x});
+  context.document.createRange = () => ({collapsed: true, setStart(_node, offset) { this.start = offset; },
+    setEnd(_node, offset) { this.collapsed = offset <= this.start; }});
+  context.window = {getSelection: () => ({removeAllRanges() {}, addRange(range) { selected.push(range); }})};
+  assert.ok(context.zooAnnotationInLinkAt(0, 0));
+  context.zooSelectBetweenPoints({x: 0, y: 0}, {x: 2, y: 0});
+  assert.equal(selected.length, 1);
+});
+
+test('the blacklist modal starts with the link host and the default reason, and posts what was edited', async () => {
+  const requests = [];
+  const harness = createHarness((options) => {
+    requests.push(options);
+    const url = new URL(options.url);
+    if (url.searchParams.get('host') === 'localhost') return options.onload({status: 422, responseText: JSON.stringify({error: 'host is not a site'})});
+    options.onload({status: 200, responseText: JSON.stringify({domain: 'x.com', reason: url.searchParams.get('reason'), replaced: false, entry: {label: 'No need to explore: cloudflare', color: '#d9d9d9'}})});
+  });
+  const ids = harness.context.ZOO_MODAL_IDS.blacklist;
+  const nodes = {};
+  Object.keys(ids).forEach((key) => { nodes[key] = harness.add(ids[key]); });
+  const toast = harness.add('zoopdog-toast');
+  harness.context.zooBuildModals = () => {};          // the DOM-built modals are not under test here
+  harness.context.zooWireBlacklistForm();
+  const done = [];
+  harness.context.zooOpenBlacklistModal('www.x.com', (data) => done.push(data));
+  assert.equal(nodes.host.value, 'www.x.com');
+  assert.equal(nodes.reason.value, 'no search');
+  assert.equal(nodes.backdrop.hidden, false);
+
+  nodes.host.value = '';
+  nodes.form.dispatch('submit');
+  assert.match(nodes.status.textContent, /required/);
+  assert.equal(requests.length, 0);
+
+  nodes.host.value = 'localhost';
+  nodes.form.dispatch('submit');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(nodes.status.textContent, 'host is not a site');   // the server's own refusal, shown in the modal
+  assert.equal(nodes.backdrop.hidden, false);
+
+  nodes.host.value = 'https://www.x.com/y';
+  nodes.reason.value = 'cloudflare';
+  nodes.form.dispatch('submit');
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const post = requests[requests.length - 1];
+  assert.equal(post.method, 'POST');
+  const query = new URL(post.url);
+  assert.equal(query.pathname, '/v1/explored-sites/blacklist');
+  assert.equal(query.searchParams.get('host'), 'https://www.x.com/y');
+  assert.equal(query.searchParams.get('reason'), 'cloudflare');
+  assert.equal(nodes.backdrop.hidden, true);
+  assert.match(toast.textContent, /Blacklisted x\.com: cloudflare/);
+  assert.equal(done.length, 1);
+  assert.equal(done[0].domain, 'x.com');
+});
+
+test('hovering an uncoloured link offers refresh, which asks again for every uncoloured link of the page and colours what is explored', async () => {
+  const asked = [];
+  let explored = false;
+  const harness = createHarness((options) => {
+    const keys = JSON.parse(new URL(options.url).searchParams.get('keys'));
+    asked.push(keys);
+    const matches = explored && keys.includes('newsite.example.vn') ? {'newsite.example.vn': {color: '#c8f7c5', label: 'Explored: dict newsite'}} : {};
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', matches})});
+  });
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  const toast = harness.add('zoopdog-toast');
+  harness.context.zooBuildModals = () => {};
+  const anchor = link('https://newsite.example.vn/a');
+  const other = link('https://other.example.vn/b');
+  const handlers = {};
+  const made = [];
+  const heading = element();
+  heading.querySelector = function(selector) { return this.children.find((c) => selector.endsWith(c.className)) || null; };
+  anchor.querySelector = () => heading;
+  const doc = {
+    body: {appendChild: (child) => made.push(child)}, defaultView: {innerWidth: 1000},
+    querySelectorAll: () => [anchor, other], createElement: () => { const n = element(); n.style = {}; return n; },
+    addEventListener: (type, fn) => { handlers[type] = fn; }
+  };
+  anchor.getBoundingClientRect = () => ({top: 10, right: 400, left: 0});
+  await harness.context.zooStartExploredHighlight(doc, {hostname: 'www.google.com', pathname: '/search'});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(asked, [[], ['newsite.example.vn', 'other.example.vn']]);      // probe, then the page's keys once: not explored yet
+  assert.equal(anchor.dataset.zooExplored, undefined);
+
+  assert.equal(heading.children.length, 1, 'the inline buttons are there without any hover');
+  assert.deepEqual(heading.children[0].children.map((b) => b.textContent), ['↻', '⛔']);
+  handlers.mouseover({target: {closest: () => anchor}});
+  const pill = made[0];
+  assert.equal(pill.hidden, false);
+  explored = true;                                            // a plugin was added meanwhile
+  pill.children[0].dispatch('click');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(asked[2], ['newsite.example.vn', 'other.example.vn']);   // the clicked link first, then every other uncoloured one
+  assert.equal(anchor.style.background, '#c8f7c5');
+  assert.equal(anchor.title, 'Explored: dict newsite');
+  assert.match(toast.textContent, /Refreshed 2 site\(s\): 1 now coloured/);
+});
+
+// Regression (2026-11-05): the auto-filled Chữ Nôm default ("糖蜜") was wiped on focus, so a
+// mouse press to select one character emptied the field under the caret, and a late
+// suggestion fetch rewrote it again; the browser's selection offsets then pointed at the wrong
+// character ("select 糖, delete -> 蜜 went"). A pointer-focused field keeps its text.
+function wiredDefaultField() {
+  const harness = createHarness(() => {});
+  const input = element();
+  harness.context.document.activeElement = input;
+  harness.context.zooWireDatalistAutoClear(input, () => false);
+  input.value = '糖蜜';
+  input.dataset.autofillDefault = '糖蜜';
+  return {harness, input};
+}
+
+test('a mouse press into the untouched default keeps its text so a character can be selected', () => {
+  const {input} = wiredDefaultField();
+  input.dispatch('mousedown');
+  input.dispatch('focus');
+  assert.equal(input.value, '糖蜜');
+});
+
+test('keyboard focus still clears the untouched default so the full datalist shows', () => {
+  const {input} = wiredDefaultField();
+  input.dispatch('focus');
+  assert.equal(input.value, '');
+  input.dispatch('blur');
+  assert.equal(input.value, '糖蜜');
+});
+
+test('a late suggestion refill never rewrites a field the pointer is working in', () => {
+  const {harness, input} = wiredDefaultField();
+  input.dispatch('mousedown');
+  input.dispatch('focus');
+  harness.context.zooSetAutofillDefaultLive(input, '塘密', () => false);
+  assert.equal(input.value, '塘密');
+  input.dispatch('blur');
+  input.value = '';
+  harness.context.zooSetAutofillDefaultLive(input, '塘密', () => false);
+  assert.equal(input.value, '', 'keyboard focus keeps the field blank for the datalist');
+});
+
+test('the search icon asks the server to open the tabs (CDP, same profile) and only falls back to window.open', () => {
+  const start = runtime.indexOf('function zooOpenGoogleSearch');
+  const body = runtime.slice(start, runtime.indexOf('// Each channel is asked', start));
+  assert.match(body, /zooPost\('\/v1\/web-search\/open', \{ q: term, from: window\.location\.href \}\)/);
+  assert.match(body, /data && data\.opened \? \[\]/);
+  assert.doesNotMatch(body, /google\.com\/search/);
+});
+
+function onEngine(context, hostname, pathname) {
+  context.ZOO_ENGINE = context.zooSearchEngineFor({hostname, pathname});
+  assert.ok(context.ZOO_ENGINE, hostname);
+}
+
+test('Yahoo Japan Agent i chat recognises external citations and excludes Yahoo navigation', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'search.yahoo.co.jp', '/chat/s/n');
+  assert.equal(context.ZOO_ENGINE.id, 'yahoo-jp-ai');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.youdao.com/'))), ['www.youdao.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://login.yahoo.co.jp/'))), []);
+});
+
+test('Ecosia result feedback is not a search result', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.ecosia.org', '/search');
+  const feedback = link('https://support.google.com/legal/troubleshooter/1114905', {
+    closest: (selector) => selector === '.organic-result-feedback__content__links' ? {} : null
+  });
+  assert.deepEqual(Array.from(context.zooAnchorKeys(feedback)), []);
+});
+
+test('Coc Coc search navigation is not a result', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'coccoc.com', '/search');
+  const navigation = link('https://www.google.com.vn/search?q=youdao', {
+    closest: (selector) => selector === '[class*="topNavigationBar-"], [class*="OtherSearchEngines-"]' ? {} : null
+  });
+  assert.deepEqual(Array.from(context.zooAnchorKeys(navigation)), []);
+});
+
+test('Coc Coc opaque result gets its destination host from its result card', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'coccoc.com', '/search');
+  const card = {querySelectorAll: () => [{textContent: 'https://www.youdao.com'}]};
+  const a = link('https://coccoc.com/composer/goto?url=opaque', {
+    closest: (selector) => selector === '[class*="card_type_"]' ? card : null
+  });
+  assert.equal(context.zooAnchorKeys(a)[0], 'www.youdao.com');
+});
+
+test('Gibiru and Brave colours override site CSS on results', () => {
+  const {context} = createHarness(() => {});
+  for (const [host, path] of [['gibiru.com', '/results.html'], ['search.brave.com', '/ask'], ['search.brave.com', '/search']]) {
+    onEngine(context, host, path);
+    const applied = [];
+    const style = {setProperty: (...args) => applied.push(args)};
+    const block = {style, dataset: {}};
+    const a = link('https://www.youdao.com/', {style, closest: (selector) => selector === '#mixed-main .snippet' ? block : null});
+    context.zooPaintExplored({querySelectorAll: () => [a]}, {'www.youdao.com': {color: '#c8f7c5', label: 'Explored'}});
+    assert.ok(applied.some(([name, , priority]) => name === 'background' && priority === 'important'));
+  }
+});
+
+test('every listed search engine is recognised by host and path, and unlisted pages are not', () => {
+  const {context} = createHarness(() => {});
+  const pages = {google: ['www.google.com', '/search'], bing: ['www.bing.com', '/search'], duckduckgo: ['duckduckgo.com', '/'],
+    yahoo: ['search.yahoo.com', '/search'], 'yahoo-jp': ['search.yahoo.co.jp', '/search'], baidu: ['www.baidu.com', '/s'],
+    brave: ['search.brave.com', '/search'], ecosia: ['www.ecosia.org', '/search'], startpage: ['www.startpage.com', '/do/search'],
+    qwant: ['www.qwant.com', '/'], naver: ['search.naver.com', '/search.naver'], seznam: ['search.seznam.cz', '/']};
+  Object.keys(pages).forEach((id) => assert.equal(context.zooSearchEngineFor({hostname: pages[id][0], pathname: pages[id][1]}).id, id));
+  assert.equal(context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/images/search'}), null);
+  assert.equal(context.zooSearchEngineFor({hostname: 'yandex.com', pathname: '/'}), null);
+});
+
+test('Bing redirect links are decoded to their target host; Baidu reads the result container\'s mu; own hosts are never keys', () => {
+  const {context} = createHarness(() => {});
+  const target = Buffer.from('https://luatvietnam.vn/dat-dai/x.html').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  onEngine(context, 'www.bing.com', '/search');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.bing.com/ck/a?!&&p=abc&u=a1' + target + '&ntb=1'))), ['luatvietnam.vn']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.bing.com/images/search?q=x'))), []);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://thuvienphapluat.vn/a'))), ['thuvienphapluat.vn']);
+  onEngine(context, 'www.baidu.com', '/s');
+  const inResult = link('http://www.baidu.com/link?url=abc', {closest: (sel) => (sel === '[mu]' ? {getAttribute: () => 'https://hikidasu.com/p/1'} : null)});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(inResult)), ['hikidasu.com']);
+  onEngine(context, 'duckduckgo.com', '/');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://duckduckgo.com/?q=x'))), []);
+});
+
+test('on a non-Google engine the whole result block is painted, a sibling link without an answer does not wipe it, AI/loose links are tinted', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.bing.com', '/search');
+  const block = {style: {}, title: '', dataset: {}};
+  const inBlock = (href) => link(href, {closest: () => block});
+  const title = inBlock('https://luatvietnam.vn/a');
+  const favicon = inBlock('https://www.bing.com/images/search?q=x');          // same block, no key, no answer
+  const aiChip = link('https://www.hellobacsi.com/a');                         // outside any block (AI answer citation)
+  const doc = {querySelectorAll: () => [title, favicon, aiChip]};
+  const matches = {'luatvietnam.vn': {color: '#c8f7c5', label: 'Explored'}, 'www.hellobacsi.com': {color: '#ffe9a8', label: 'Explored: tts'}};
+  assert.equal(context.zooPaintExplored(doc, matches), 2);
+  assert.equal(block.style.background, '#c8f7c5');
+  assert.equal(block.dataset.zooExplored, '1');
+  assert.equal(aiChip.style.mixBlendMode, 'multiply');
+  context.zooPaintExplored(doc, {});
+  assert.equal(block.style.background, '');                                    // cleared once no link of the block has an answer
+  assert.equal(aiChip.style.outline, '');
+});
+
+test('Sogou redirect links take the host from the address shown in the result; Yandex and Kagi are recognised', () => {
+  const {context} = createHarness(() => {});
+  assert.equal(context.zooSearchEngineFor({hostname: 'yandex.com', pathname: '/search/'}).id, 'yandex');
+  assert.equal(context.zooSearchEngineFor({hostname: 'kagi.com', pathname: '/search'}).id, 'kagi');
+  onEngine(context, 'www.sogou.com', '/web');
+  const shown = {children: [], textContent: ' https://helpx.adobe.com/vn/photoshop/... '};
+  const title = {children: [{}], textContent: 'Adobe // other'};
+  const box = {querySelectorAll: () => [title, shown]};
+  const redirect = link('https://www.sogou.com/link?url=abc', {closest: () => box});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(redirect)), ['helpx.adobe.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.sogou.com/web?query=x'))), []);
+});
+
+test('Refresh all hands every cumulative reply to onRows while slower channels are still asked', async () => {
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['a', 'b']});
+    if (q.get('engine') === '0') return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]});
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'b', text: 'late'}]});
+  });
+  const seen = [];
+  await harness.context.zooFetchNotesAll('nom-notes', 'a', (rows) => seen.push(rows.map((row) => row.label).join('|')));
+  assert.deepEqual(seen, ['a|waiting: b', 'a|b']);
+});
+
+test('Refresh all reads every channel from one streamed request and falls back to per-channel ones without it', async () => {
+  const lines = [
+    {entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]},
+    {entry: {engine: 'b'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'b', text: 'late'}]},
+    {done: true}
+  ].map((line) => JSON.stringify(line) + '\n').join('');
+  const urls = [];
+  const harness = createHarness((options) => {
+    urls.push(options.url);
+    const cut = Math.floor(lines.length / 2);
+    options.onprogress({responseText: lines.slice(0, cut)}); // a line cut in half is not consumed yet
+    options.onload({status: 200, responseText: lines});
+  });
+  const seen = [];
+  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a', (r) => seen.push(r.map((row) => row.label).join('|')));
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /\/v1\/suggest\/stream\?kind=nom-notes/);
+  assert.deepEqual(seen, ['a|waiting: b', 'a|b']);
+  assert.equal(rows[1].text, 'late');
+
+  const fallback = [];
+  const old = createHarness((options) => {
+    const url = new URL(options.url);
+    fallback.push(url.pathname);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (url.pathname === '/v1/suggest/stream') return options.onload({status: 404, responseText: '{}'});
+    if (url.searchParams.get('engines')) return reply({engines: ['a']});
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}]});
+  });
+  const got = await old.context.zooFetchNotesAll('nom-notes', 'a');
+  assert.equal(got[0].text, 'ok');
+  assert.equal(fallback[0], '/v1/suggest/stream');
+});
+
+test('Refresh all redraws the list at most once per second while streamed replies arrive', async () => {
+  const lines = [1, 2, 3, 4, 5].map((n) => JSON.stringify({entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'v' + n}]}) + '\n')
+    .join('') + JSON.stringify({done: true}) + '\n';
+  const harness = createHarness((options) => {
+    let sent = 0;
+    for (const line of lines.split('\n').filter(Boolean)) {
+      sent += line.length + 1;
+      options.onprogress({responseText: lines.slice(0, sent)});
+    }
+    options.onload({status: 200, responseText: lines});
+  });
+  const button = harness.add('b');
+  const list = harness.add('l');
+  let appended = 0;
+  const append = list.appendChild;
+  list.appendChild = function(child) { appended += 1; return append.call(this, child); };
+  harness.context.zooWireNotesAll(button, list, 'nom-notes', () => 'a', 's').run();
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  // the "Asking..." line, the first reply at once and the final rows; the replies between are held back
+  assert.ok(appended <= 3, 'drew ' + appended + ' rows');
+  assert.equal(list.children[0].children[1].textContent, 'v5');
+});
+
+test('new regional and AI result pages are recognised without matching unrelated sites', () => {
+  const {context} = createHarness(() => {});
+  const pages = [
+    ['tw.search.yahoo.com', '/search'], ['hk.search.yahoo.com', '/search'], ['www.so.com', '/s'],
+    ['search.daum.net', '/search'], ['so.toutiao.com', '/search'], ['coccoc.com', '/search'],
+    ['www.mojeek.com', '/search'], ['swisscows.com', '/en/web'], ['marginalia-search.com', '/search'],
+    ['www.bing.com', '/copilotsearch'], ['ai.so.com', '/search/'], ['felo.ai', '/search/abc'],
+    ['metaso.cn', '/search/123'], ['www.kimi.com', '/chat/123'], ['wenxin.baidu.com', '/search'],
+    ['chat.qwen.ai', '/c/abc'], ['yuanbao.tencent.com', '/chat/abc'], ['grok.com', '/c/abc'],
+    ['ai-hay.vn', '/question-id'], ['wiby.me', '/'], ['gerdoo.me', '/search/'],
+  ];
+  for (const [hostname, pathname] of pages) assert.ok(context.zooSearchEngineFor({hostname, pathname}), `${hostname}${pathname}`);
+  assert.equal(context.zooSearchEngineFor({hostname: 'random.example', pathname: '/search'}), null);
+});
+
+test('360 search redirect links use data-mdurl and never blacklist the redirect host', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'www.so.com', '/s');
+  const result = link('https://www.so.com/link?m=opaque', {getAttribute: (name) => name === 'data-mdurl' ? 'https://vdict.com/word' : null});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(result)), ['vdict.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.so.com/link?m=opaque'))), []);
+});
+
+test('new search page references exclude navigation and site-owned links', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'metaso.cn', '/search/123');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://vdict.com/hello'))), ['vdict.com']);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://metaso.cn/settings'))), []);
+  const nav = link('https://facebook.com/foo', {closest: (selector) => /header/.test(selector) ? {} : null});
+  assert.deepEqual(Array.from(context.zooAnchorKeys(nav)), []);
+});
+
+test('Yahoo redirect URLs reveal the original result host', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'hk.search.yahoo.com', '/search');
+  const result = link('https://r.search.yahoo.com/_ylt=abc/RU=https%3a%2f%2fvdict.com%2fword/RK=2/RS=abc');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(result)), ['vdict.com']);
+});
+
+test('AI citation tools remain available after the citation is coloured', async () => {
+  const harness = createHarness((options) => options.onload({status: 200, responseText: '{"version":"v1","matches":{}}'}));
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let options;
+  harness.context.zooExploredToolsCreate = (deps) => { options = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  const anchor = link('https://vdict.com/entry');
+  anchor.dataset.zooExplored = '1';
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => []}, {hostname: 'metaso.cn', pathname: '/search/id'});
+  assert.equal(options.eligible(anchor), true);
+});
+
+test('coloured Brave results without headings still offer hover controls', async () => {
+  const harness = createHarness((options) => options.onload({status: 200, responseText: '{"version":"v1","matches":{}}'}));
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let options;
+  harness.context.zooExploredToolsCreate = (deps) => { options = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  const block = {dataset: {zooExplored: '1'}};
+  const anchor = link('https://vdict.com/entry', {closest: () => block});
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => []}, {hostname: 'search.brave.com', pathname: '/search'});
+  assert.equal(options.eligible(anchor), true);
+});
+
+test('all built-in reader search URLs are recognised by the local highlighter', {skip: !fs.existsSync('/Users/cheng/mine/book-translator/scripts/web_search.py')}, () => {
+  const child = require('node:child_process');
+  const lines = child.execFileSync('/Users/cheng/mine/book-translator/.venv/bin/python', ['-c',
+    'from scripts.web_search import ENGINES; import json; print(json.dumps([(e.id,e.url) for e in ENGINES]))'],
+    {cwd: '/Users/cheng/mine/book-translator', encoding: 'utf8'});
+  const {context} = createHarness(() => {});
+  for (const [id, template] of JSON.parse(lines)) {
+    const url = new URL(template.replace('{q}', 'hello'));
+    assert.ok(context.zooSearchEngineFor({hostname: url.hostname, pathname: url.pathname}), `${id}: ${url.href}`);
+  }
+});
+
+test('new AI channel refreshes the actual source and opens blacklist with its host', async () => {
+  const requests = [];
+  const harness = createHarness((options) => {
+    const keys = JSON.parse(new URL(options.url).searchParams.get('keys'));
+    requests.push(keys);
+    options.onload({status: 200, responseText: JSON.stringify({version: 'v1', matches: {}})});
+  });
+  harness.context.localStorage = {getItem: () => null, setItem() {}};
+  let tools, blacklisted;
+  harness.context.zooExploredToolsCreate = (deps) => { tools = deps; return {attach() {}, decorate() {}, hide() {}}; };
+  harness.context.zooBuildModals = () => {};
+  harness.context.zooShowToast = () => {};
+  harness.context.zooOpenBlacklistModal = (host) => { blacklisted = host; };
+  const anchor = link('https://vdict.com/article');
+  await harness.context.zooStartExploredHighlight({body: null, querySelectorAll: () => [anchor]}, {hostname: 'metaso.cn', pathname: '/search/id'});
+  await tools.refresh(anchor);
+  tools.blacklist(anchor);
+  assert.equal(blacklisted, 'vdict.com');
+  assert.ok(requests.some((keys) => keys.includes('vdict.com')));
+});
+
+test('AI mode ignores provider navigation links on sibling domains', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'ai.so.com', '/search/');
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://www.so.com/s?q=x'))), []);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(link('https://vdict.com/entry'))), ['vdict.com']);
+});
+
+test('MetaSo chat URLs remain recognised after the search redirects', () => {
+  const {context} = createHarness(() => {});
+  assert.equal(context.zooSearchEngineFor({hostname: 'metaso.cn', pathname: '/chat/2119411307674038273'})?.id, 'metaso');
+});
+
+test('MetaSo source cards expose the real source host for colouring and blacklist', () => {
+  const {context} = createHarness(() => {});
+  onEngine(context, 'metaso.cn', '/chat/123');
+  const card = link('', {getAttribute: name => name === 'data-zoo-result-url' ? 'https://www.youdao.com/' : null});
+  assert.match(context.ZOO_ENGINE.scope, /search-origin-box/);
+  assert.deepEqual(Array.from(context.zooAnchorKeys(card)), ['www.youdao.com']);
+  assert.equal(context.zooExploredBlock(card), card);
+});
+
+test('Bing Copilot response iframe has a citation-aware layout', () => {
+  const {context} = createHarness(() => {});
+  const frame = context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/search', search: '?cpltsrchif=1'});
+  assert.equal(frame?.id, 'bing-copilot-frame');
+  assert.equal(frame.scope, 'a[href]');
+  assert.equal(context.zooSearchEngineFor({hostname: 'www.bing.com', pathname: '/search', search: '?q=abc'}).id, 'bing');
 });

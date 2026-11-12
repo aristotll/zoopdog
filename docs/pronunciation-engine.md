@@ -31,13 +31,15 @@ an object with exactly the three dialect keys (`hanoi`, `quangnam`, `saigon`), e
 - `input`: the normalized (Unicode-normalized, lowercased) input string.
 
 Empty/whitespace-only input returns `{ipa: "", zd: ""}` for every dialect rather than the
-pre-refactor behavior of echoing a stray placeholder space. Unsupported tokens (punctuation,
-symbols) are passed through verbatim in both `.ipa` and `.zd` -- this is intentional passthrough,
-not an error, so a sentence like "Xin chào!" still renders its punctuation.
+pre-refactor behavior of echoing a stray placeholder space. Unsupported characters (punctuation,
+symbols) remain text in both `.ipa` and `.zd`; formatting may insert spaces between them. This
+is intentional passthrough, so a sentence like "Xin chào!" still renders its punctuation.
 
 `getHomophones`/`getMultiWordHomophones`/`getShortLongPairs` are total in the same sense: they
-always return all three dialect keys, with an array (or, for `getMultiWordHomophones`, a number
-above its `limit` or `"&nbsp;"` placeholder) per dialect, never `undefined`.
+always return all three dialect keys, with an array (or, for `getMultiWordHomophones`, a count
+when the number of combinations reaches its `limit`) per dialect, never `undefined`. Empty or
+whitespace-only input gives empty homophone arrays; the UI owns its blank placeholder. The
+combination iterator is independent of token count and keeps the original result ordering.
 
 Adapters must read results through this contract (dialect keys always present, string fields
 always strings) rather than inferring validity from whether a field exists.

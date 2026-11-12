@@ -175,3 +175,27 @@ test('lexicon: membership lookup is a single Set built lazily, not a per-call sc
   const again = core.getHomophones('ba', false);
   assert.deepEqual(guide, again);
 });
+
+test('homophones return arrays for input without words', () => {
+  for (const input of ['', ' \t\n', '!!!']) {
+    for (const dialect of DIALECTS) {
+      assert.deepEqual(core.getMultiWordHomophones(input, 10000)[dialect], []);
+    }
+  }
+});
+
+test('homophone combinations preserve order without recursion on long input', () => {
+  assert.deepEqual(core.getPermutations([['a', 'b'], ['c', 'd']]), ['a c', 'a d', 'b c', 'b d']);
+  const input = Array(4000).fill('xyz').join(' ');
+  for (const dialect of DIALECTS) {
+    assert.deepEqual(core.getMultiWordHomophones(input, 10000)[dialect], []);
+  }
+  assert.equal(typeof core.getMultiWordHomophones('ba ba', 1).hanoi, 'number');
+});
+
+test('homophone results remain well typed for numbers and unsupported input', () => {
+  for (const input of [0, '0', '!!!', '😀']) {
+    const result = core.getMultiWordHomophones(input, 10000);
+    for (const dialect of DIALECTS) assert.ok(Array.isArray(result[dialect]) || typeof result[dialect] === 'number');
+  }
+});

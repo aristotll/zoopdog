@@ -12,7 +12,7 @@
   // Talks to the book-translator reader server (scripts/reader/tts_server.py
   // in the book-translator repo) running on the user's own machine, so
   // "Add Ch\u1EEF N\u00F4m entry" / "Set Ch\u1EEF N\u00F4m order" write to the very same
-  // user_nom_entries.jsonc / user_nom_order.jsonc the reader itself edits.
+  // user_nom_entries/ shards / user_nom_order.jsonc the reader itself edits.
   // Every piece below mirrors the reader's own modals (reader_nom.js,
   // reader_nom_order.js, and the shared shared/entry_forms.js,
   // shared/suggest.js, shared/modal.js, reader_entry_diff.js) field for
@@ -32,70 +32,14 @@
   // so a channel request waits that long plus a margin before the client calls it failed.
   var ZOO_NOTES_ALL_TIMEOUT = 75000;
 
-  function zooHttpRequest(method, path, params, body, timeout) {
-    var limit = timeout || ZOO_LOCAL_REQUEST_TIMEOUT;
-    return new Promise(function(resolve, reject) {
-      var settled = false;
-      var watchdog = null;
-      function settle(callback, value) {
-        if (settled) return;
-        settled = true;
-        clearTimeout(watchdog);
-        callback(value);
-      }
-      if (typeof GM_xmlhttpRequest !== 'function') {
-        settle(reject, new Error('GM_xmlhttpRequest unavailable'));
-        return;
-      }
-      var pairs = [];
-      if (params) {
-        Object.keys(params).forEach(function(key) {
-          var value = params[key];
-          if (value === undefined || value === null || value === '') return;
-          pairs.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
-        });
-      }
-      var query = pairs.join('&');
-      var url = ZOO_LOCAL_BASE + path + (query ? (path.indexOf('?') === -1 ? '?' : '&') + query : '');
-      watchdog = setTimeout(function() {
-        settle(reject, new Error('request timed out'));
-      }, limit + 25);
-      try {
-      var details = {
-        method: method,
-        url: url,
-        timeout: limit,
-        onload: function(response) {
-          var payload = {};
-          try {
-            payload = JSON.parse(response.responseText || '{}');
-          } catch (parseError) {
-            payload = {};
-          }
-          if (response.status >= 200 && response.status < 300) {
-            settle(resolve, payload);
-          } else {
-            // The status and body ride on the error: a 409 "confirm" answer is a question to put
-            // to the user, not a failure, and only the caller knows which it is.
-            var failure = new Error(payload.error || payload.message || ('request failed (' + response.status + ')'));
-            failure.status = response.status;
-            failure.payload = payload;
-            settle(reject, failure);
-          }
-        },
-        onerror: function() { settle(reject, new Error('request failed')); },
-        ontimeout: function() { settle(reject, new Error('request timed out')); }
-      };
-      if (body !== undefined) {
-        details.data = body;
-        details.headers = {'Content-Type': 'application/json'};
-      }
+  var zooHttpRequest = createZooLocalTransport({
+    baseUrl: ZOO_LOCAL_BASE,
+    getTimeout: function() { return ZOO_LOCAL_REQUEST_TIMEOUT; },
+    send: function(details) {
+      if (typeof GM_xmlhttpRequest !== 'function') throw new Error('GM_xmlhttpRequest unavailable');
       GM_xmlhttpRequest(details);
-      } catch (error) {
-        settle(reject, error);
-      }
-    });
-  }
+    }
+  });
 
   function zooGetJSON(path, params, timeout) { return zooHttpRequest('GET', path, params, undefined, timeout); }
   function zooPost(path, params) { return zooHttpRequest('POST', path, params); }
@@ -109,6 +53,8 @@
   // server is up rather than asking first. A real request that fails still
   // reports its own error normally (zooHttpRequest's onerror/ontimeout).
   function zooProbeLocalMode() {
+    zooStartAiSearchHandoff();
+    zooInstallMetaSoSourceBridge();
     ZOO_LOCAL_AVAILABLE = true;
     zooStartExploredHighlight();
   }
@@ -124,8 +70,116 @@
   var ZOO_EXPLORED_BLOCK = 'div.g, div.MjjYud, div[data-hveid], li';
   var ZOO_EXPLORED_MAX_KEYS = 100;
 
+  // The search engines whose result pages are coloured, measured on the live pages (docs/research/search_engines_explored/).
+  // Only LAYOUT is described here (where the results are, what one result block is, how to read the real target
+  // off a redirect link); what counts as explored stays on the server. `own`: the engine's own hosts, never a key.
+  // `block` null = no stable wrapper (hashed class names): the link itself is painted. Yandex and Sogou show a bot check
+  // to a profile that never passed it and Kagi needs a login: a profile that did both is read like the others.
+  var ZOO_SEARCH_ENGINES = [
+    {id: 'google', host: /(^|\.)google\.[a-z.]+$/, path: /^\/search$/, own: /(^|\.)(google\.[a-z.]+|gstatic\.com)$/,
+      scope: '#search a[href], #rso a[href], [role="main"] a[href], #main a[href]', block: 'div.g, div.MjjYud, div[data-hveid], li'},
+    {id: 'bing', host: /(^|\.)bing\.com$/, path: /^\/search$/, own: /(^|\.)(bing\.com|microsoft\.com)$/,
+      scope: '#b_results a[href]', block: 'li.b_algo, li.b_ans'},
+    {id: 'duckduckgo', host: /(^|\.)duckduckgo\.com$/, path: /^\/$/, own: /(^|\.)duckduckgo\.com$/,
+      scope: '#web_content_wrapper a[href]', block: '[data-testid="result"]'},
+    {id: 'yahoo', host: /^(?:(?:tw|hk)\.)?search\.yahoo\.com$/, path: /^\/search/, own: /(^|\.)yahoo\.com$/,
+      scope: '#web a[href]', block: '#web ol > li'},
+    {id: 'yahoo-jp', host: /^search\.yahoo\.co\.jp$/, path: /^\/search/, own: /(^|\.)yahoo\.co\.jp$/,
+      scope: '.Contents__inner a[href]', block: '.sw-Card.Algo'},
+    {id: 'baidu', host: /(^|\.)baidu\.com$/, path: /^\/s$/, own: /(^|\.)baidu\.com$/,
+      scope: '#content_left a[href]', block: '#content_left .c-container', target: 'mu'},
+    {id: 'brave', host: /^search\.brave\.com$/, path: /^\/search$/, own: /(^|\.)brave\.com$/,
+      scope: '#mixed-main a[href]', block: '#mixed-main .snippet'},
+    {id: 'ecosia', host: /(^|\.)ecosia\.org$/, path: /^\/search$/, own: /(^|\.)ecosia\.org$/,
+      scope: 'article.result a[href]', block: 'article.result'},
+    {id: 'startpage', host: /(^|\.)startpage\.com$/, path: /^\/do\/search|^\/sp\/search/, own: /(^|\.)startpage\.com$/,
+      scope: '.w-gl a[href]', block: '.w-gl .result'},
+    {id: 'qwant', host: /(^|\.)qwant\.com$/, path: /^\/$/, own: /(^|\.)qwant\.com$/,
+      scope: '[data-testid="webResult"] a[href]', block: '[data-testid="webResult"]'},
+    {id: 'yandex', host: /(^|\.)yandex\.[a-z.]+$/, path: /^\/search\/?$/, own: /(^|\.)(yandex\.[a-z.]+|ya\.ru|yastatic\.net)$/,
+      scope: 'main a[href], #inter-search-additional-content a[href]', block: 'li:has(> .Organic)'},
+    // Sogou's links are sogou.com/link?url= redirects; the result shows its real address in a leaf span (`shown`).
+    {id: 'sogou', host: /(^|\.)sogou\.com$/, path: /^\/web/, own: /(^|\.)(sogou\.com|sogoucdn\.com)$/,
+      scope: '.results a[href]', block: '.vrwrap, .rb', shown: true},
+    {id: 'kagi', host: /(^|\.)kagi\.com$/, path: /^\/search/, own: /(^|\.)kagi\.com$/,
+      scope: '#main a[href]', block: '._0_SRI, .__srgi'},
+    {id: 'naver', host: /^search\.naver\.com$/, path: /^\/search\.naver$/, own: /(^|\.)naver\.(com|net)$/,
+      scope: '#main_pack a[href]', block: null},
+    {id: 'seznam', host: /^search\.seznam\.cz$/, path: /^\/$/, own: /(^|\.)(seznam\.cz|zbozi\.cz|mapy\.com|firmy\.cz)$/,
+      scope: '[data-e-b-z="main"] a[href]', block: null},
+    {id: 'so360', host: /^www\.so\.com$/, path: /^\/s$/, own: /(^|\.)(so\.com|360\.cn|360\.com)$/,
+      scope: '#main .res-list a[href]', block: 'li.res-list', linkTarget: 'data-mdurl'}
+  ];
+  // Additional search and answer pages: keep the match local to known hosts and paths.
+  // Generic layouts paint citations individually; exclude navigation/footer links in zooAnchorKeys.
+  [
+    ['daum', 'search.daum.net', /^\/(search|nate)/], ['nate', 'search.nate.com', /^\/search/],
+    ['toutiao', 'so.toutiao.com', /^\/search/], ['coccoc', 'coccoc.com', /^\/search/],
+    ['onet', 'szukaj.onet.pl', /^\/wyniki/], ['mojeek', 'www.mojeek.com', /^\/search/],
+    ['swisscows', 'swisscows.com', /^\/(?:[a-z]{2}\/)?web/], ['lilo', 'search.lilo.org', /^\/$/],
+    ['metager', 'metager.org', /^\/(?:meta|$)/], ['searxng', 'searx.rhscz.eu', /^\/search/],
+    ['marginalia', 'marginalia-search.com', /^\/search/], ['marginalia-old', 'search.marginalia.nu', /^\/search/],
+    ['oceanhero', 'oceanhero.today', /^\/web/], ['searchch', 'search.ch', /^\/$/],
+    ['najdi', 'www.najdi.si', /^\/(?:search|$)/], ['wiby', 'wiby.me', /^\/$/],
+    ['yep', 'yep.com', /^\/web/], ['you', 'you.com', /^\/search/], ['presearch', 'presearch.com', /^\/search/],
+    ['metacrawler', 'www.metacrawler.com', /^\/search/], ['gibiru', 'gibiru.com', /^\/results/],
+    ['privacywall', 'www.privacywall.org', /^\/search/], ['sapo', 'pesquisa.sapo.pt', /^\//],
+    ['rambler', 'nova.rambler.ru', /^\/search/], ['mailru', 'go.mail.ru', /^\/search/],
+    ['gerdoo', 'gerdoo.me', /^\/search/], ['zum', 'search.zum.com', /^\/search/],
+    ['uol', 'busca.uol.com.br', /^\/web/], ['terra-br', 'buscador.terra.com.br', /^\//],
+    ['terra-cl', 'buscador.terra.cl', /^\//], ['tiscali', 'search.tiscali.it', /^\//],
+    ['bing-ai', 'www.bing.com', /^\/copilotsearch/], ['so360-ai', 'ai.so.com', /^\/search/],
+    ['yahoo-jp-ai', 'search.yahoo.co.jp', /^\/chat(?:\/|$)/],
+    ['brave-ai', 'search.brave.com', /^\/ask/], ['duck-ai', 'duck.ai', /^\/chat/],
+    ['felo', 'felo.ai', /^\/search/], ['perplexity', 'www.perplexity.ai', /^\/search/],
+    ['grok', 'grok.com', /^\//], ['aihay', 'ai-hay.vn', /^\//], ['phind', 'www.phind.com', /^\/search/],
+    ['doubao', 'www.doubao.com', /^\/chat/], ['metaso', 'metaso.cn', /^\/(?:search|chat|$)/],
+    ['kimi', 'kimi.moonshot.cn', /^\//], ['kimi-current', 'www.kimi.com', /^\//],
+    ['baidu-ai', 'chat.baidu.com', /^\/search/], ['wenxin', 'wenxin.baidu.com', /^\/search/],
+    ['zhida', 'zhida.zhihu.com', /^\//], ['deepseek', 'chat.deepseek.com', /^\//],
+    ['qwen', 'chat.qwen.ai', /^\//], ['yuanbao', 'yuanbao.tencent.com', /^\/chat/]
+  ].forEach(function(row) {
+    var host = row[1].replace(/^www\./, '');
+    var escaped = host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var related = {'so360-ai': /(^|\.)(so\.com|360\.cn|360\.com)$/,
+      'bing-ai': /(^|\.)(bing\.com|microsoft\.com)$/,
+      'brave-ai': /(^|\.)brave\.com$/, 'baidu-ai': /(^|\.)baidu\.com$/,
+      'yahoo-jp-ai': /(^|\.)yahoo\.co\.jp$/,
+      wenxin: /(^|\.)baidu\.com$/, zhida: /(^|\.)zhihu\.com$/};
+    ZOO_SEARCH_ENGINES.push({id: row[0], host: new RegExp('^(?:www\\.)?' + escaped + '$'), path: row[2],
+      own: related[row[0]] || new RegExp('(^|\\.)' + escaped + '$'),
+      scope: row[0] === 'metaso' ? 'a[href], .search-origin-box[data-zoo-result-url]' : 'a[href]', block: null, generic: true});
+  });
+  // The engine of the page shown (null = not a search page we colour); tests and the Google-only helpers default to Google.
+  var ZOO_ENGINE = ZOO_SEARCH_ENGINES[0];
+
+  var ZOO_BING_COPILOT_FRAME = {id: 'bing-copilot-frame', own: /(^|\.)(bing\.com|microsoft\.com)$/,
+    scope: 'a[href]', block: null, generic: true};
+
+  function zooSearchEngineFor(loc) {
+    if (/(^|\.)bing\.com$/.test(loc.hostname) && loc.pathname === '/search' &&
+        /(?:^|[?&])cpltsrchif=1(?:&|$)/.test(loc.search || '')) return ZOO_BING_COPILOT_FRAME;
+    for (var i = 0; i < ZOO_SEARCH_ENGINES.length; i++) {
+      var engine = ZOO_SEARCH_ENGINES[i];
+      if (engine.host.test(loc.hostname) && engine.path.test(loc.pathname)) return engine;
+    }
+    return null;
+  }
+
+  function zooIsSearchPage(loc) {
+    var engine = zooSearchEngineFor(loc);
+    return !!engine && engine === ZOO_ENGINE;
+  }
+
   function zooIsGoogleSearchPage(loc) {
     return /(^|\.)google\.[a-z.]+$/.test(loc.hostname) && loc.pathname === '/search';
+  }
+
+  // Bing's result links are bing.com/ck/a?...&u=a1<base64url of the target>: decode the target.
+  function zooBingTarget(url) {
+    var u = url.searchParams.get('u') || '';
+    if (url.pathname !== '/ck/a' || u.indexOf('a1') !== 0) return '';
+    try { return atob(u.slice(2).replace(/-/g, '+').replace(/_/g, '/')); } catch (error) { return ''; }
   }
 
   // A result href is direct (https://site/...) or, on some layouts, google.com/url?q=<target>.
@@ -133,6 +187,11 @@
     try {
       var url = new URL(href);
       if (/(^|\.)google\./.test(url.hostname) && url.pathname === '/url') url = new URL(url.searchParams.get('q') || url.searchParams.get('url'));
+      if (/(^|\.)bing\.com$/.test(url.hostname)) { var target = zooBingTarget(url); if (target) url = new URL(target); }
+      if (/(^|\.)search\.yahoo\.com$/.test(url.hostname)) {
+        var match = url.pathname.match(/\/RU=([^/]+)/i);
+        if (match) url = new URL(decodeURIComponent(match[1]));
+      }
       return url.hostname;
     } catch (error) {
       return '';
@@ -163,18 +222,47 @@
   // The keys of one link, most specific first: its direct host (not Google's own), then, for an opaque /goto link,
   // the hints read off the page.
   function zooAnchorKeys(anchor) {
-    var href = anchor.href || anchor.getAttribute('href') || '';
+    if (ZOO_ENGINE.id === 'ecosia' && anchor.closest && anchor.closest('.organic-result-feedback__content__links')) return [];
+    if (ZOO_ENGINE.id === 'coccoc' && anchor.closest && anchor.closest('[class*="topNavigationBar-"], [class*="OtherSearchEngines-"]')) return [];
+    if (ZOO_ENGINE.generic && anchor.closest && anchor.closest('header, nav, footer, [role="navigation"]')) return [];
+    var href = anchor.getAttribute('data-zoo-result-url') || anchor.href || anchor.getAttribute('href') || '';
     var host = zooResultHost(href);
-    var keys = host && !/(^|\.)(google\.[a-z.]+|gstatic\.com)$/.test(host) ? [host] : [];
+    if (ZOO_ENGINE.id === 'coccoc' && host && ZOO_ENGINE.own.test(host) && anchor.closest) {
+      var card = anchor.closest('[class*="card_type_"]');
+      var addresses = card && card.querySelectorAll ? card.querySelectorAll('a[class*="url-"] span') : [];
+      for (var c = 0; c < addresses.length; c++) {
+        var destination = String(addresses[c].textContent || '').trim();
+        var resolved = /^https?:\/\//i.test(destination) ? zooResultHost(destination) : '';
+        if (resolved && !ZOO_ENGINE.own.test(resolved)) { host = resolved; break; }
+      }
+    }
+    if (ZOO_ENGINE.linkTarget && anchor.getAttribute) {
+      var linkTarget = zooResultHost(anchor.getAttribute(ZOO_ENGINE.linkTarget) || '');
+      if (linkTarget) host = linkTarget;
+    }
+    // Baidu links are opaque /link?url= redirects; the result container's `mu` attribute holds the real target.
+    if (ZOO_ENGINE.target && anchor.closest) {
+      var holder = anchor.closest('[' + ZOO_ENGINE.target + ']');
+      var direct = holder ? zooResultHost(holder.getAttribute(ZOO_ENGINE.target)) : '';
+      if (direct) host = direct;
+    }
+    if (ZOO_ENGINE.shown && host && ZOO_ENGINE.own.test(host) && anchor.closest) {
+      var box = anchor.closest(ZOO_ENGINE.block);
+      var leaves = box && box.querySelectorAll ? box.querySelectorAll('span, cite') : [];
+      for (var l = 0; l < leaves.length; l++) {
+        var shown = !leaves[l].children.length && String(leaves[l].textContent || '').trim().match(/^https?:\/\/([^\s\/]+)/i);
+        if (shown) { host = shown[1]; break; }
+      }
+    }
+    var keys = host && !ZOO_ENGINE.own.test(host) ? [host] : [];
     if (href.indexOf('/goto?url=') !== -1) keys = keys.concat(zooGotoHints(anchor));
     return keys.filter(function(key) { return key && String(key).length <= 200; });
   }
 
-  var ZOO_EXPLORED_SELECTOR = '#search a[href], #rso a[href], [role="main"] a[href], #main a[href]';
 
   // Keys of the page's links not asked yet.
   function zooPendingKeys(doc, asked) {
-    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+    var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
     var keys = [];
     for (var i = 0; i < anchors.length; i++) {
       var own = zooAnchorKeys(anchors[i]);
@@ -185,21 +273,41 @@
     return keys.slice(0, ZOO_EXPLORED_MAX_KEYS);
   }
 
+  // What gets painted for a link: the whole result block of an organic result, else the link itself.
+  function zooExploredBlock(anchor) {
+    if (ZOO_ENGINE.id !== 'google') return (ZOO_ENGINE.block && anchor.closest && anchor.closest(ZOO_ENGINE.block)) || anchor;
+    var organic = anchor.querySelector && anchor.querySelector('h3, [role="heading"]');
+    return organic ? (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor) : anchor;
+  }
+
   function zooPaintExplored(doc, matches) {
-    var anchors = doc.querySelectorAll(ZOO_EXPLORED_SELECTOR);
+    var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
     var painted = 0;
+    // A result block holds several links (title, favicon, site line): one without an answer must not wipe the colour
+    // another one of the same block earned, so a block is only cleared when none of its links has an answer.
+    var live = [];
+    for (var j = 0; j < anchors.length; j++) {
+      try {
+        var own = zooAnchorKeys(anchors[j]);
+        for (var m = 0; m < own.length; m++) {
+          if (matches[own[m]]) { live.push(zooExploredBlock(anchors[j])); break; }
+        }
+      } catch (error) { /* one odd result must not stop the rest */ }
+    }
     for (var i = 0; i < anchors.length; i++) {
       try {
         var anchor = anchors[i];
-        var ai = !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]');
+        var ai = ZOO_ENGINE.id === 'google'
+          ? !anchor.querySelector || !anchor.querySelector('h3, [role="heading"]')
+          : !(ZOO_ENGINE.block && anchor.closest && anchor.closest(ZOO_ENGINE.block));
         var entry = null;
         var keys = zooAnchorKeys(anchor);
         for (var k = 0; k < keys.length && !entry; k++) entry = matches[keys[k]] || null;
         // An AI-panel reference is a small chip/inline link: outline the link itself instead of a whole block.
-        var block = ai ? anchor : (anchor.closest(ZOO_EXPLORED_BLOCK) || anchor);
+        var block = zooExploredBlock(anchor);
         if (ai && !entry && !block.dataset.zooExplored) continue;
         if (!entry) {
-          if (block.dataset.zooExplored) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
+          if (block.dataset.zooExplored && live.indexOf(block) === -1) { block.style.background = ''; block.style.mixBlendMode = ''; block.style.outline = ''; block.title = ''; delete block.dataset.zooExplored; }
           continue;
         }
         // Organic results get a plain background (it lies under the text). A headingless link is often a transparent overlay
@@ -207,6 +315,11 @@
         // `multiply` tints what lies under the overlay instead of covering it, so chip text stays readable.
         if (ai) { block.style.background = entry.color; block.style.mixBlendMode = 'multiply'; block.style.outline = '2px solid ' + entry.color; block.style.outlineOffset = '-1px'; block.style.borderRadius = '6px'; }
         else block.style.background = entry.color;
+        // These sites force citation backgrounds and outlines with !important.
+        if ((ZOO_ENGINE.id === 'gibiru' || ZOO_ENGINE.id === 'brave-ai' || ZOO_ENGINE.id === 'brave') && block.style.setProperty) {
+          block.style.setProperty('background', entry.color, 'important');
+          block.style.setProperty('outline', '2px solid ' + entry.color, 'important');
+        }
         block.title = entry.label;
         block.dataset.zooExplored = '1';
         painted++;
@@ -234,7 +347,9 @@
   function zooStartExploredHighlight(doc, loc) {
     doc = doc || document;
     loc = loc || (typeof location === 'undefined' ? null : location);
-    if (!loc || !/(^|\.)google\.[a-z.]+$/.test(loc.hostname)) return Promise.resolve(false);
+    var engine = loc ? zooSearchEngineFor({hostname: loc.hostname, pathname: loc.pathname || '/search', search: loc.search || ''}) || (/(^|\.)google\.[a-z.]+$/.test(loc.hostname) ? ZOO_SEARCH_ENGINES[0] : null) : null;
+    if (!engine) return Promise.resolve(false);
+    ZOO_ENGINE = engine;
     var cached = zooExploredCacheRead();
     var state = {version: cached && cached.version || '', matches: cached && cached.matches ? cached.matches : {}, asked: {}, loaded: false};
     Object.keys(state.matches).forEach(function(key) { state.asked[key] = true; });
@@ -251,12 +366,63 @@
     };
     var paintNow = function() {
       try {
-        if (!zooIsGoogleSearchPage(loc)) return;
+        if (!zooIsSearchPage(loc)) return;
         zooPaintExplored(doc, state.matches);
+        decorateAll();
         ask();
       } catch (error) { /* retry on next tick */ }
     };
     var paint = zooDebounce(paintNow, 150);
+    // Ask again for these keys only, ignoring what was asked or answered before (the refresh button, and after a blacklist).
+    var requery = function(keys) {
+      keys.forEach(function(key) { delete state.asked[key]; delete state.matches[key]; });
+      return zooGetJSON('/v1/explored-sites/match', {keys: JSON.stringify(keys)}).then(function(data) {
+        keys.forEach(function(key) { state.asked[key] = true; });
+        Object.keys(data.matches || {}).forEach(function(key) { state.matches[key] = data.matches[key]; });
+        zooExploredCacheWrite(state);
+        zooPaintExplored(doc, state.matches);
+        return keys.filter(function(key) { return state.matches[key]; }).length;
+      });
+    };
+    var tools = zooExploredToolsCreate({
+      doc: doc,
+      headingOf: function(anchor) {
+        return ZOO_ENGINE.id === 'google' || !anchor.closest ? null : anchor.closest('h1, h2, h3, h4, [role="heading"]');
+      },
+      eligible: function(anchor) {
+        return zooIsSearchPage(loc) && zooAnchorKeys(anchor).length > 0;
+      },
+      // Refresh is a manual retry for the whole page: every link still without colour is asked again, not only the one clicked.
+      refresh: function(anchor) {
+        var keys = zooAnchorKeys(anchor);
+        var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
+        for (var i = 0; i < anchors.length && keys.length < ZOO_EXPLORED_MAX_KEYS; i++) {
+          if (zooExploredBlock(anchors[i]).dataset.zooExplored) continue;
+          zooAnchorKeys(anchors[i]).forEach(function(key) { if (keys.indexOf(key) === -1 && keys.length < ZOO_EXPLORED_MAX_KEYS) keys.push(key); });
+        }
+        return requery(keys).then(function(found) {
+          zooBuildModals();
+          zooShowToast(found ? 'Refreshed ' + keys.length + ' site(s): ' + found + ' now coloured' : 'Refreshed ' + keys.length + ' site(s): none explored yet');
+        }, function(error) {
+          zooBuildModals();
+          zooShowToast(error.message || 'Could not reach the reader server');
+        });
+      },
+      blacklist: function(anchor) {
+        var keys = zooAnchorKeys(anchor);
+        // The link's own host first; a name hint ("Tuổi Trẻ") is no host, so then the field starts empty.
+        var host = keys.filter(function(key) { return /^[^\s]+\.[a-z]{2,}$/i.test(key); })[0] || '';
+        tools.hide();
+        zooOpenBlacklistModal(host, function() { requery(keys).catch(function() {}); });
+      }
+    });
+    // The inline buttons of every organic result that has keys (the hover pill covers the other links); idempotent, so it runs with every repaint.
+    var decorateAll = function() {
+      var anchors = doc.querySelectorAll(ZOO_ENGINE.scope);
+      for (var i = 0; i < anchors.length; i++) {
+        try { if (zooAnchorKeys(anchors[i]).length) tools.decorate(anchors[i]); } catch (error) { /* one odd result must not stop the rest */ }
+      }
+    };
     var attempt = function(n) {
       return zooGetJSON('/v1/explored-sites/match', {keys: '[]'}).then(function(data) {
         state.loaded = true;
@@ -271,6 +437,7 @@
     };
     var refresh = function() { return attempt(ZOO_EXPLORED_RETRY_MS.length); };
     var root = doc.body || doc.documentElement;
+    if (doc.body) tools.attach();
     if (typeof MutationObserver === 'function' && root) new MutationObserver(paint).observe(root, {childList: true, subtree: true});
     if (doc.addEventListener) {
       doc.addEventListener('visibilitychange', function() { if (!doc.hidden) { refresh(); paint(); } });
@@ -337,31 +504,95 @@
   // finished `rows` ({engines, label, text[, skipped][, unsupported]}), already grouped and folded; an
   // engine with no answer is in a trailing row with empty text, and engines that do not offer the pair
   // are one `unsupported` row whose `label` already says "pair not supported: ...".
-  // The Google-search icon follows the language set on the server's /control page (a finished
-  // `suffix`, "" when unconfigured). It is asked at the click: the local answer is fast and the
-  // click's user activation outlives it, so the tab opens.
+  // The search icon opens every engine enabled on the server's /control page. The SERVER opens the tabs
+  // through CDP in the Chrome profile of this page (`from`), so no popup blocker is involved; only when it
+  // could not (`opened` 0) does the userscript open the server's finished `urls` itself.
+  // Idempotent: a click on the same term while its open is in flight (or a double click) shares that one request;
+  // the guard lets go after 15 s whatever the server does, so the button is never stuck.
+  var zooSearchInFlight = {};
   function zooOpenGoogleSearch(term) {
     if (!term) return Promise.resolve();
-    return zooGetJSON('/v1/google-search', {}).then(function(data) {
-      return (data && data.suffix) || '';
-    }, function() { return ''; }).then(function(suffix) {
-      window.open('https://www.google.com/search?q=' + encodeURIComponent(term) + suffix, '_blank', 'noopener');
+    var key = term + '\n' + window.location.href;
+    if (zooSearchInFlight[key]) return zooSearchInFlight[key];
+    var release = function() { delete zooSearchInFlight[key]; };
+    var run = zooPost('/v1/web-search/open', { q: term, from: window.location.href }).then(function(data) {
+      return data && data.opened ? [] : ((data && data.urls) || []);
+    }, function() { return []; }).then(function(urls) {
+      urls.forEach(function(row) { window.open(row.url, '_blank', 'noopener'); });
     });
+    run.then(release, release);
+    setTimeout(release, 15000);
+    zooSearchInFlight[key] = run;
+    return run;
   }
 
   // Each channel is asked in its own request, so a failing channel is retried alone
   // (ZOO_NOTES_ALL_RETRIES times, sleeping 1 s, 2 s, 4 s) and the channels that answered still show. The
   // server keeps the answers per `session` and returns the finished `rows` over all channels with every
   // reply; a channel that failed every retry is reported to the server (`error=1`) and becomes an "error"
-  // row of its own. The list is drawn once, from the final rows. If not even the channel list can be had,
+  // row of its own. `onRows(rows)`, if given, sees each reply, so the list shows answers as they arrive. If not even the channel list can be had,
   // one row says the server was unreachable.
   var ZOO_NOTES_ALL_RETRIES = 3;
   var ZOO_NOTES_ALL_BASE_DELAY_MS = 1000;
+  var ZOO_NOTES_ALL_CONCURRENCY = 5;
+  var ZOO_NOTES_ALL_REDRAW_MS = 2000;
   function zooNotesAllWaiting(rows) {
     return rows.reduce(function(n, row) { return n + (row.pending ? row.engines.length : 0); }, 0);
   }
-  function zooFetchNotesAll(kind, text) {
+  // One connection for every channel (`GET /v1/suggest/stream`, NDJSON: a line per finished channel, then
+  // `{"done": true}`; book-translator scripts/reader/notes_stream.py). Resolves true when the stream ended with `done`;
+  // false (no GM_xmlhttpRequest, HTTP error, cut connection) sends the caller to the per-channel requests below.
+  // `onprogress` shows lines as they arrive; `onload` carries the whole text, so a manager that never reports progress
+  // still gets every line, just at the end.
+  function zooStreamNotesAll(kind, text, take) {
+    return new Promise(function(resolve) {
+      if (typeof GM_xmlhttpRequest !== 'function') { resolve(false); return; }
+      var seen = 0;
+      var finished = false;
+      function consume(responseText) {
+        var end = responseText.lastIndexOf('\n');
+        if (end < seen) return;
+        responseText.slice(seen, end).split('\n').forEach(function(line) {
+          if (!line) return;
+          var data = JSON.parse(line);
+          if (data.done) finished = true; else take(data);
+        });
+        seen = end + 1;
+      }
+      try {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: ZOO_LOCAL_BASE + '/v1/suggest/stream?kind=' + encodeURIComponent(kind) + '&text=' + encodeURIComponent(text),
+          timeout: ZOO_NOTES_ALL_TIMEOUT,
+          onprogress: function(response) { try { consume(response.responseText || ''); } catch (e) { /* the final onload re-reads */ } },
+          onload: function(response) {
+            try {
+              if (response.status !== 200) { resolve(false); return; }
+              consume(response.responseText || '');
+              resolve(finished);
+            } catch (e) { resolve(false); }
+          },
+          onerror: function() { resolve(false); },
+          ontimeout: function() { resolve(false); }
+        });
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function zooFetchNotesAll(kind, text, onRows) {
     if (!text) return Promise.resolve([]);
+    var streamedRows = [];
+    function takeStreamed(reply) {
+      if (!reply || !reply.rows || (streamedRows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(streamedRows))) return;
+      streamedRows = reply.rows;
+      if (onRows) onRows(streamedRows);
+    }
+    return zooStreamNotesAll(kind, text, takeStreamed).then(function(done) {
+      return done ? streamedRows : zooFetchNotesAllPerChannel(kind, text, onRows);
+    });
+  }
+
+  function zooFetchNotesAllPerChannel(kind, text, onRows) {
     function withRetry(params, n) {
       return zooGetJSON('/v1/suggest', params, params.engine === undefined ? undefined : ZOO_NOTES_ALL_TIMEOUT).catch(function(error) {
         if (n >= ZOO_NOTES_ALL_RETRIES) throw error;
@@ -381,8 +612,14 @@
         // Replies can arrive out of order; each is cumulative, so the one with fewest channels waiting is newest.
         if (!reply || !reply.rows || (rows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(rows))) return;
         rows = reply.rows;
+        if (onRows) onRows(rows);
       }
-      return Promise.all(engines.map(function(name, index) {
+      // Fallback only (no stream): at most ZOO_NOTES_ALL_CONCURRENCY channels in flight: a browser keeps 6 connections per host, and all of
+      // them busy for 27 s (70 channels, measured 2026-11-07) made the quick fields of the modal show last.
+      var nextChannel = 0;
+      function askNext() {
+        if (nextChannel >= engines.length) return Promise.resolve();
+        var index = nextChannel++;
         var params = base();
         params.engine = String(index);
         params.session = session;
@@ -393,8 +630,11 @@
           report.error = '1';
           // the server is unreachable: this channel simply stays in the waiting row
           return zooGetJSON('/v1/suggest', report).then(take, function() {});
-        });
-      })).then(function() { return rows; });
+        }).then(askNext);
+      }
+      var workers = [];
+      for (var w = 0; w < Math.min(ZOO_NOTES_ALL_CONCURRENCY, engines.length); w++) workers.push(askNext());
+      return Promise.all(workers).then(function() { return rows; });
     }, function() {
       return [{ engines: [], text: '', message: '(server unreachable after 3 retries)' }];
     });
@@ -462,10 +702,39 @@
             li.appendChild(document.createTextNode(' '));
             li.appendChild(copy);
           }
+          (row.actions || []).forEach(function(action) {
+            // A failing channel's row: the server finished the buttons (label, GET); we only send them.
+            var toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'zd-notes-all-copy';
+            toggle.textContent = action.label;
+            toggle.addEventListener('click', function() {
+              toggle.disabled = true;
+              zooGetJSON(action.path, action.params).then(function() { toggle.textContent = 'Done'; }, function() {
+                toggle.textContent = 'Failed';
+                toggle.disabled = false;
+              });
+            });
+            li.appendChild(document.createTextNode(' '));
+            li.appendChild(toggle);
+          });
           list.appendChild(li);
         });
       }
-      zooFetchNotesAll(kind, text).then(renderRows, function() {
+      // Streamed replies can arrive dozens of times a second; redrawing on each one made the list flicker. Drawn at most once
+      // per ZOO_NOTES_ALL_REDRAW_MS (first reply at once, the latest rows after the pause); the final rows always replace it.
+      var lastDraw = 0;
+      var latest = null;
+      var timer = null;
+      function drawLatest() { timer = null; lastDraw = Date.now(); renderRows(latest); }
+      function onRows(shown) {
+        latest = shown;
+        var wait = lastDraw + ZOO_NOTES_ALL_REDRAW_MS - Date.now();
+        if (wait <= 0) drawLatest();
+        else if (timer === null) timer = setTimeout(drawLatest, wait);
+      }
+      zooFetchNotesAll(kind, text, onRows).then(function(finalRows) { clearTimeout(timer); renderRows(finalRows); }, function() {
+        clearTimeout(timer);
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {
@@ -590,7 +859,7 @@
   // default if nothing gets picked.
   function zooSetAutofillDefaultLive(input, value, isEdited) {
     zooSetAutofillDefault(input, value);
-    if (document.activeElement === input && !isEdited()) input.value = '';
+    if (document.activeElement === input && !isEdited() && !input._zooPointerFocus) input.value = '';
   }
 
   function zooClearNomGeneratedState(ids) {
@@ -604,11 +873,18 @@
     return 'Unable to contact the local reader server. Reload the page and try again.';
   }
 
+  // The default is blanked only for keyboard focus. A mouse press means the reader is
+  // pointing at its characters to select or edit them: blanking the text under the caret
+  // (and again when a late suggestion refills it) left the browser's selection offsets on
+  // the wrong character, so "select 糖, delete" removed 蜜. Pointer focus keeps the text.
   function zooWireDatalistAutoClear(input, isEdited) {
+    input.addEventListener('mousedown', function() { input._zooPointerFocus = true; });
     input.addEventListener('focus', function() {
+      if (input._zooPointerFocus) return;
       if (!isEdited() && input.value && input.value === input.dataset.autofillDefault) input.value = '';
     });
     input.addEventListener('blur', function() {
+      input._zooPointerFocus = false;
       if (!isEdited() && !input.value && input.dataset.autofillDefault) input.value = input.dataset.autofillDefault;
     });
   }
@@ -626,20 +902,10 @@
 
   // Normalised here because a selection becomes the key of a saved Chu Nom entry: a decomposed
   // selection would be stored as a term no precomposed lookup can ever reach again.
-  function zooTrimSelectionPunctuation(value) {
-    // Some pages (v2ex among them) embed invisible Unicode format characters
-    // -- zero-width space U+200B chief among them -- inside long Vietnamese
-    // phrases as a line-wrap hint. A mouse-drag selection picks those up
-    // along with the visible text, and the resulting string never matches
-    // any dictionary key: "kiến​thức" looks identical to "kiến thức" on screen
-    // but is a different string, so every suggestion/entry/order lookup for
-    // it silently comes back empty. Strip the whole Cf (Format) category --
-    // not just zero-width space -- since the same invisible-hint trick shows
-    // up as word joiners and directional marks too, and none of them belong
-    // in a Chu Nom dictionary key either way.
-    return String(value || '').trim().replace(/\p{Cf}/gu, '')
-      .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
-  }
+  var zooSelectionTools = createZooSelectionTools({document: document, scanLimit: 5000,
+    caretFromPoint: function(point) { return zdCaretFromPoint(point); },
+    getSelection: function() { return window.getSelection(); }});
+  function zooTrimSelectionPunctuation(value) { return zooSelectionTools.trim(value); }
 
   // -- entry-diff preview (draws the server's `diff`, like reader_entry_diff.js) --
   //
@@ -648,69 +914,7 @@
   // `diff`: {changed, rows}. This only draws segments, with textContent, so a stored value
   // can never inject markup.
 
-  function zooDiffEl(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function zooDiffLine(kind, mark, segments) {
-    var line = zooDiffEl('div', 'zd-entry-diff-line zd-entry-diff-' + kind);
-    var markEl = zooDiffEl('span', 'zd-entry-diff-mark', mark);
-    markEl.setAttribute('aria-hidden', 'true');
-    var text = zooDiffEl(kind === 'old' ? 'del' : 'ins');
-    if (!segments.length) text.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
-    segments.forEach(function(segment) {
-      text.appendChild(segment.changed ? zooDiffEl('mark', '', segment.text) : document.createTextNode(segment.text));
-    });
-    line.appendChild(markEl);
-    line.appendChild(text);
-    return line;
-  }
-
-  function zooEntryDiffRow(row) {
-    var item = zooDiffEl('li', 'zd-entry-diff-row');
-    var head = zooDiffEl('div', 'zd-entry-diff-field', row.field);
-    if (row.badge) {
-      var kind = row.badge === 'locked' || row.badge === 'new' ? ' zd-entry-diff-badge-' + row.badge : '';
-      head.appendChild(zooDiffEl('span', 'zd-entry-diff-badge' + kind, row.badge));
-    }
-    item.appendChild(head);
-    if (row.kind === 'change') {
-      if (row.old) item.appendChild(zooDiffLine('old', '\u2212', row.old));
-      item.appendChild(zooDiffLine('new', '+', row.new));
-      return item;
-    }
-    item.className += row.kind === 'key' ? ' zd-entry-diff-key' : ' zd-entry-diff-context';
-    var line = zooDiffEl('div', 'zd-entry-diff-line');
-    var mark = zooDiffEl('span', 'zd-entry-diff-mark', '\u00B7');
-    mark.setAttribute('aria-hidden', 'true');
-    var value = zooDiffEl('span', row.kind === 'key' ? 'zd-entry-diff-keyterm' : '');
-    if (row.value) value.textContent = row.value;
-    else value.appendChild(zooDiffEl('span', 'zd-entry-diff-empty', '(empty)'));
-    line.appendChild(mark);
-    line.appendChild(value);
-    item.appendChild(line);
-    return item;
-  }
-
-  function zooScrollEntryDiffToHead(list) {
-    list.scrollTop = 0;
-    var modal = list.closest ? list.closest('.zd-modal') : null;
-    if (!modal) return;
-    modal.scrollTop = Math.max(0, list.offsetTop - 12);
-  }
-
-  // Returns the number of *changes* drawn; neither the key nor a context row is something to confirm.
-  function zooRenderEntryDiff(list, diff) {
-    list.textContent = '';
-    var rows = diff && Array.isArray(diff.rows) ? diff.rows : [];
-    rows.forEach(function(row) { list.appendChild(zooEntryDiffRow(row)); });
-    list.hidden = !list.childElementCount;
-    zooScrollEntryDiffToHead(list);
-    return diff && diff.changed ? diff.changed : 0;
-  }
+  var zooRenderEntryDiff = createZooEntryDiffRenderer(document);
 
   // -- modal mechanics (mirrors shared/modal.js) --
 
@@ -742,59 +946,23 @@
     return ZOO_MULTI_LABEL_TLDS.indexOf(lastTwo) !== -1 ? lastThree : lastTwo;
   }
 
-  function zooModalPositionKey(modalId) {
-    return 'zd-modal-pos:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
-  }
-
-  function zooSaveModalPosition(modalId, left, top) {
-    if (typeof GM_setValue !== 'function') return;
-    GM_setValue(zooModalPositionKey(modalId), JSON.stringify({ left: left, top: top }));
-  }
-
-  // Applied on every open so a modal dragged once on a site keeps reopening
-  // there, instead of the anchoring wherever its markup happens to land.
-  function zooRestoreModalPosition(modalId, panel) {
-    if (!panel || typeof GM_getValue !== 'function') return;
-    var raw = GM_getValue(zooModalPositionKey(modalId), null);
-    if (!raw) return;
-    var pos;
-    try { pos = JSON.parse(raw); } catch (e) { return; }
-    if (!pos || typeof pos.left !== 'number' || typeof pos.top !== 'number') return;
-    var maxLeft = Math.max(window.innerWidth - panel.offsetWidth, 0);
-    var maxTop = Math.max(window.innerHeight - panel.offsetHeight, 0);
-    panel.style.position = 'fixed';
-    panel.style.margin = '0';
-    panel.style.left = Math.min(Math.max(pos.left, 0), maxLeft) + 'px';
-    panel.style.top = Math.min(Math.max(pos.top, 0), maxTop) + 'px';
-  }
-
-  // Size of a modal, saved per registrable domain and modal like its position
-  // (GM storage when the manager grants it, else the page's localStorage).
-  function zooModalSizeKey(modalId) {
-    return 'zd-modal-size:' + zooRegistrableDomain(location.hostname) + ':' + modalId;
-  }
-
-  function zooSaveModalSize(modalId, width, height) {
-    var raw = JSON.stringify({ width: width, height: height });
-    try {
-      if (typeof GM_setValue === 'function') GM_setValue(zooModalSizeKey(modalId), raw);
-      else localStorage.setItem(zooModalSizeKey(modalId), raw);
-    } catch (e) { /* quota/private mode: the size just resets next open */ }
-  }
-
-  function zooRestoreModalSize(modalId, panel) {
-    if (!panel) return;
-    var raw = null;
-    try {
-      raw = typeof GM_getValue === 'function' ? GM_getValue(zooModalSizeKey(modalId), null) : localStorage.getItem(zooModalSizeKey(modalId));
-    } catch (e) { return; }
-    if (!raw) return;
-    var size;
-    try { size = JSON.parse(raw); } catch (e) { return; }
-    if (!size || !(size.width > 0) || !(size.height > 0)) return;
-    panel.style.width = Math.min(size.width, window.innerWidth) + 'px';
-    panel.style.height = Math.min(size.height, window.innerHeight) + 'px';
-  }
+  var zooModalGeometry = createZooModalGeometry({
+    domain: function() { return zooRegistrableDomain(location.hostname); },
+    viewport: function() { return {width: window.innerWidth, height: window.innerHeight}; },
+    readPosition: function(key) { return typeof GM_getValue === 'function' ? GM_getValue(key, null) : null; },
+    writePosition: function(key, value) { if (typeof GM_setValue === 'function') GM_setValue(key, value); },
+    readSize: function(key) { return typeof GM_getValue === 'function' ? GM_getValue(key, null) : localStorage.getItem(key); },
+    writeSize: function(key, value) {
+      if (typeof GM_setValue === 'function') GM_setValue(key, value);
+      else localStorage.setItem(key, value);
+    }
+  });
+  function zooModalPositionKey(id) { return zooModalGeometry.positionKey(id); }
+  function zooSaveModalPosition(id, left, top) { zooModalGeometry.savePosition(id, left, top); }
+  function zooRestoreModalPosition(id, panel) { zooModalGeometry.restorePosition(id, panel); }
+  function zooModalSizeKey(id) { return zooModalGeometry.sizeKey(id); }
+  function zooSaveModalSize(id, width, height) { zooModalGeometry.saveSize(id, width, height); }
+  function zooRestoreModalSize(id, panel) { zooModalGeometry.restoreSize(id, panel); }
 
   // The native `resize: both` grip (class zd-modal-resizable); the size is saved on
   // pointer release only when the user changed it, so content growth is never frozen.
@@ -844,46 +1012,6 @@
     } else {
       node.classList.remove('zd-error');
     }
-  }
-
-  // A Save/Preview/Confirm handler is asynchronous: until its request settles a
-  // second click (or Enter) would send the same write again and race the first
-  // on the server. Wraps such a handler so the modal's action buttons are
-  // disabled while its promise is pending and a re-entry is ignored. Every
-  // action button is covered (Save and Confirm write the same entry); Cancel
-  // stays usable. Mirrors ReaderShared.modal.guard (shared/modal.js).
-  function zooGuard(handler) {
-    return function(event) {
-      var origin = event && (event.currentTarget || event.target);
-      var scope = origin && origin.closest ? (origin.closest('.zd-modal, form') || origin) : null;
-      if (scope && scope.getAttribute('data-zd-busy')) {
-        if (event && event.preventDefault) event.preventDefault();
-        return undefined;
-      }
-      var buttons = scope && scope.querySelectorAll
-        ? Array.prototype.filter.call(scope.querySelectorAll('button'), function(button) {
-            return !button.disabled && !button.hasAttribute('data-zd-modal-cancel');
-          })
-        : [];
-      if (origin && origin.matches && origin.matches('button') && !origin.disabled && buttons.indexOf(origin) < 0) {
-        buttons.push(origin);
-      }
-      if (scope) scope.setAttribute('data-zd-busy', '1');
-      buttons.forEach(function(button) { button.disabled = true; });
-      var release = function() {
-        buttons.forEach(function(button) { button.disabled = false; });
-        if (scope) scope.removeAttribute('data-zd-busy');
-      };
-      var result;
-      try {
-        result = handler.call(this, event);
-      } catch (error) {
-        release();
-        throw error;
-      }
-      Promise.resolve(result).then(release, release);
-      return result;
-    };
   }
 
   function zooShowToast(message) {
@@ -1011,6 +1139,15 @@
       status: 'zoopdog-nom-order-form-status',
       saveBtn: 'zoopdog-nom-order-save-btn',
       confirmBtn: 'zoopdog-nom-order-confirm-btn'
+    },
+    blacklist: {
+      backdrop: 'zoopdog-explored-blacklist-modal',
+      form: 'zoopdog-explored-blacklist-form',
+      title: 'zoopdog-explored-blacklist-title',
+      host: 'zoopdog-explored-blacklist-host',
+      reason: 'zoopdog-explored-blacklist-reason',
+      status: 'zoopdog-explored-blacklist-status',
+      saveBtn: 'zoopdog-explored-blacklist-save-btn'
     }
   };
 
@@ -1062,13 +1199,7 @@
   // only ever walks upwards -- never matches. The caret lands in the text
   // node itself, which does sit inside the <ruby>.
   function zooAnnotationInLinkAt(x, y) {
-    var caret = zdCaretFromPoint({x: x, y: y});
-    var node = caret && caret.node;
-    if (!node) return null;
-    var element = node.nodeType === 1 ? node : node.parentElement;
-    if (!element || !element.closest) return null;
-    var ruby = element.closest('ruby.zoopdog-nom-ruby');
-    return ruby && ruby.closest('a[href]') ? ruby : null;
+    return zooSelectionTools.annotationInLinkAt(x, y);
   }
 
   // `zdCaretFromPoint` rather than caretRangeFromPoint directly: it carries
@@ -1076,39 +1207,7 @@
   // boundary instead of a text node, which is most of them over <ruby> in a
   // tight row -- exactly the text this drag exists to select.
   function zooSelectBetweenPoints(from, to) {
-    var start = zdCaretFromPoint({x: from.x, y: from.y});
-    var end = zdCaretFromPoint({x: to.x, y: to.y});
-    if (!start || !end) return;
-    var range = zooRangeBetween(start, end) || zooRangeBetween(end, start);
-    if (!range && start.node === end.node) {
-      // Both ends landed on the same offset of the same node, so the range
-      // between them is empty even though the pointer has moved across the
-      // word. That is the ordinary case for the text this drag exists to
-      // select: a word wrapped in its own <ruby> is one short text node, and
-      // a caret recovered from an element boundary (Chromium hands those back
-      // over <ruby> -- see zdClosestTextNode) carries no offset within it. A
-      // drag that stays inside one such word means that whole word.
-      range = document.createRange();
-      range.selectNodeContents(start.node);
-    }
-    if (!range || range.collapsed) return;
-    var selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-
-  // Null when the two carets are the wrong way round in document order, so
-  // the caller can retry them swapped -- a drag runs in both directions and
-  // only one order makes a non-empty Range.
-  function zooRangeBetween(start, end) {
-    var range = document.createRange();
-    try {
-      range.setStart(start.node, start.offset);
-      range.setEnd(end.node, end.offset);
-    } catch (error) {
-      return null;
-    }
-    return range.collapsed ? null : range;
+    return zooSelectionTools.selectBetweenPoints(from, to);
   }
 
   function zooEnsureSelectionBar() {
@@ -1186,55 +1285,8 @@
     }
   }
 
-  var ZOO_SHADOW_SCAN_LIMIT = 5000;
-
-  // Open shadow roots under `node`, nested ones included, bounded so a huge
-  // page cannot stall the selection handler.
-  function zooCollectOpenShadowRoots(node) {
-    var roots = [];
-    if (!node) return roots;
-    var start = node.nodeType === 1 ? node : node.parentElement;
-    if (!start) return roots;
-    var queue = [start];
-    var scanned = 0;
-    while (queue.length && scanned < ZOO_SHADOW_SCAN_LIMIT) {
-      var current = queue.pop();
-      scanned++;
-      if (current.shadowRoot) {
-        roots.push(current.shadowRoot);
-        queue.push(current.shadowRoot);
-      }
-      var children = current.children || [];
-      for (var i = 0; i < children.length; i++) queue.push(children[i]);
-    }
-    return roots;
-  }
-
-  // Bounding rect and annotation-free text of a selection that lives inside a
-  // shadow root, or null when there is none or the browser lacks
-  // Selection.getComposedRanges.
-  function zooComposedSelection(selection, container) {
-    if (typeof selection.getComposedRanges !== 'function') return null;
-    try {
-      var roots = zooCollectOpenShadowRoots(container);
-      if (!roots.length) return null;
-      var composed = selection.getComposedRanges({shadowRoots: roots});
-      if (!composed || !composed.length) return null;
-      var range = document.createRange();
-      range.setStart(composed[0].startContainer, composed[0].startOffset);
-      range.setEnd(composed[0].endContainer, composed[0].endOffset);
-      var rect = range.getBoundingClientRect();
-      if (!rect || (!rect.width && !rect.height)) return null;
-      var holder = document.createElement('div');
-      holder.appendChild(range.cloneContents());
-      Array.prototype.forEach.call(holder.querySelectorAll('rt, rp'), function(node) {
-        node.parentNode.removeChild(node);
-      });
-      return {rect: rect, text: holder.textContent};
-    } catch (error) {
-      return null;
-    }
-  }
+  function zooCollectOpenShadowRoots(node) { return zooSelectionTools.collectRoots(node); }
+  function zooComposedSelection(selection, container) { return zooSelectionTools.composed(selection, container); }
 
   function zooHandleSelectionChange() {
     // Defensive: this runs on arbitrary third-party pages that may carry
@@ -1797,7 +1849,7 @@
       event.preventDefault();
       var q = query();
       if (!q.vi || !q.nom) return;
-      var previewQuery = { vi: q.vi, nom: q.nom, scope: q.scope, preview: '1' };
+      var previewQuery = Object.assign({}, q, {preview: '1'});
       return zooPost('/v1/nom/order', previewQuery).then(function(payload) {
         var changed = zooRenderEntryDiff(document.getElementById(ids.diffPreview), payload.diff);
         if (!changed) {
@@ -1841,6 +1893,47 @@
     document.getElementById(ids.caseSensitive).checked = false;
     zooOpenModal(ids.backdrop);
     zooOrderState.refresh();
+  }
+
+  // The "blacklist" button next to an uncoloured Google link: the modal asks for the site (pre-filled with the link's
+  // host, editable) and a reason (default "no search"), POSTs it, and tells the caller which answer to paint.
+  var ZOO_BLACKLIST_DEFAULT_REASON = 'no search';
+  var zooBlacklistDone = null;
+
+  function zooOpenBlacklistModal(host, done) {
+    zooBuildModals();
+    var ids = ZOO_MODAL_IDS.blacklist;
+    document.getElementById(ids.host).value = host || '';
+    document.getElementById(ids.reason).value = ZOO_BLACKLIST_DEFAULT_REASON;
+    zooSetModalStatus(ids.status, '');
+    zooBlacklistDone = done || null;
+    zooOpenModal(ids.backdrop);
+    var input = document.getElementById(ids.host);
+    if (input.focus) input.focus();
+  }
+
+  function zooWireBlacklistForm() {
+    var ids = ZOO_MODAL_IDS.blacklist;
+    document.getElementById(ids.form).addEventListener('submit', zooGuard(function(event) {
+      event.preventDefault();
+      var host = document.getElementById(ids.host).value.trim();
+      if (!host) {
+        zooSetModalStatus(ids.status, 'The site is required.', true);
+        return undefined;
+      }
+      var reason = document.getElementById(ids.reason).value.trim() || ZOO_BLACKLIST_DEFAULT_REASON;
+      zooSetModalStatus(ids.status, 'Saving...');
+      return zooPost('/v1/explored-sites/blacklist', {host: host, reason: reason}).then(function(data) {
+        zooCloseModal(ids.backdrop);
+        zooShowToast('Blacklisted ' + data.domain + ': ' + data.reason);
+        var done = zooBlacklistDone;
+        zooBlacklistDone = null;
+        if (done) done(data);
+      }, function(error) {
+        var payload = error.payload || {};
+        zooSetModalStatus(ids.status, payload.error || error.message || 'Could not reach the reader server', true);
+      });
+    }));
   }
 
   function zooBuildModals() {
@@ -1919,19 +2012,42 @@
       '</div>'
     ].join('');
 
+    var blIds = ZOO_MODAL_IDS.blacklist;
+    var blacklistHtml = [
+      '<div id="', blIds.backdrop, '" class="zd-modal-backdrop" hidden>',
+      '<form id="', blIds.form, '" class="zd-modal">',
+      '<h2 id="', blIds.title, '">Blacklist a site: no need to explore</h2>',
+      '<p class="zd-modal-hint">Appended to book-translator\'s docs/explored_sites_blacklist.json; links to it are then shown in grey.</p>',
+      '<label>Site (host or link; the registrable domain is stored)',
+      '<input id="', blIds.host, '" type="text" required autocomplete="off">',
+      '</label>',
+      '<label>Reason',
+      '<input id="', blIds.reason, '" type="text" autocomplete="off">',
+      '</label>',
+      '<p id="', blIds.status, '" class="zd-modal-status" hidden></p>',
+      '<div class="zd-modal-actions">',
+      '<button type="button" data-zd-modal-cancel>Cancel</button>',
+      '<button type="submit" id="', blIds.saveBtn, '">Add to blacklist</button>',
+      '</div>',
+      '</form>',
+      '</div>'
+    ].join('');
+
     var toastHtml = '<div id="zoopdog-toast" class="zd-toast" hidden></div>';
 
     var container = document.createElement('div');
     container.id = 'zoopdog-userscript-modals';
-    zooSetHTML(container, nomHtml + orderHtml + toastHtml);
+    zooSetHTML(container, nomHtml + orderHtml + blacklistHtml + toastHtml);
     document.body.appendChild(container);
     container.addEventListener('mousedown', function(event) { event.stopPropagation(); });
 
     zooBindModalDismiss();
     zooMakeModalDraggable(ZOO_MODAL_IDS.nom.backdrop);
     zooMakeModalDraggable(ZOO_MODAL_IDS.order.backdrop);
+    zooMakeModalDraggable(ZOO_MODAL_IDS.blacklist.backdrop);
     zooMakeModalResizable(ZOO_MODAL_IDS.nom.backdrop);
     zooMakeModalResizable(ZOO_MODAL_IDS.order.backdrop);
     zooWireNomForm();
     zooWireNomOrderForm();
+    zooWireBlacklistForm();
   }

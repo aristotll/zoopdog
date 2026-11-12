@@ -228,11 +228,12 @@ function initializePopupDictionary() {
     return Array.from(new Uint8Array(result), byte => byte.toString(16).padStart(2, '0')).join('')
   } : null
   const renderState = (readiness) => {
+    const remedy = readiness.error ? readiness.error.remedy : ''
     const labels = {
       'ready-current': `Dictionary ready (${readiness.entryCount} entries).`,
       'ready-refreshed': `Dictionary refreshed (${readiness.entryCount} entries).`,
-      'ready-stale': `Using the previous dictionary. ${readiness.error.remedy}`,
-      unavailable: `Dictionary unavailable. ${readiness.error.remedy}`
+      'ready-stale': `Using the previous dictionary. ${remedy}`,
+      unavailable: `Dictionary unavailable. ${remedy}`
     }
     status.textContent = labels[readiness.state] || `Dictionary state: ${readiness.state}`
     retry.hidden = !['ready-stale', 'unavailable'].includes(readiness.state)
@@ -251,7 +252,7 @@ function initializePopupDictionary() {
         )
       }
     },
-    fetchDictionaryText: () => loadText(jsonURL),
+    fetchDictionaryText: (metadata) => loadText(metadata.payload ? `zd-extension/js/${metadata.payload}` : jsonURL),
     digest: digest,
     onState: renderState
   })

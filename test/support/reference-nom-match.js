@@ -200,7 +200,7 @@ function zdNomRunStart(text, start) {
   }
 }
 
-// Mirrors zdNomLooksEnglish in zd-nom-match.js: a diacritic-free run of 2+ words where under 75%
+// Mirrors zdNomLooksEnglish in zd-nom-match.js: a diacritic-free run of 2+ words where 75% or fewer
 // of the words are (the start of) a dictionary term is English, not unaccented Vietnamese.
 function zdNomLooksEnglish(trie, text, words) {
   if (words.length < 2) {
@@ -219,7 +219,7 @@ function zdNomLooksEnglish(trie, text, words) {
       hits++;
     }
   });
-  return hits / words.length < 0.75;
+  return hits / words.length <= 0.75;
 }
 
 // Chu Nom (non-ASCII) matches always annotate. An ASCII-only match annotates only when

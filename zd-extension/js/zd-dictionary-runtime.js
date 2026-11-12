@@ -7,6 +7,9 @@
 // performs a full `adapter.replace()` rather than mixing old and new row shapes.
 const ZD_DICTIONARY_METADATA_SCHEMA_VERSION = 2;
 
+/** @typedef {{schemaVersion: number, revision: string, entryCount: number, payload?: string}} DictionaryMetadata */
+/** @typedef {{state: string, revision?: string, entryCount?: number, verification?: string, error?: {code: string, message: string, remedy: string}}} DictionaryReadiness */
+
 const STATES = Object.freeze({
   READY_CURRENT: 'ready-current',
   READY_REFRESHED: 'ready-refreshed',
@@ -35,6 +38,10 @@ const ERRORS = Object.freeze({
     code: 'digest-mismatch',
     remedy: 'Rebuild the dictionary and metadata together, then retry.'
   }),
+  DIGEST_UNAVAILABLE: Object.freeze({
+    code: 'digest-unavailable',
+    remedy: 'Use a secure context or update the dictionary to revision-specific metadata, then retry.'
+  }),
   TRANSACTION_FAILED: Object.freeze({
     code: 'transaction-failed',
     remedy: 'Retry the dictionary update; the previous dictionary was preserved.'
@@ -61,6 +68,7 @@ function validateMetadata(metadata) {
     && metadata.schemaVersion === ZD_DICTIONARY_METADATA_SCHEMA_VERSION
     && typeof metadata.revision === 'string'
     && /^[a-f0-9]{64}$/u.test(metadata.revision)
+    && (metadata.payload === undefined || metadata.payload === `vnedict.${metadata.revision}.json`)
     && Number.isSafeInteger(metadata.entryCount)
     && metadata.entryCount >= 0;
   if (!valid) {
@@ -147,7 +155,7 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
   let current = null;
   let queuedForce = null;
 
-  async function run(force) {
+  async function run(force, metadataOverride, retriedLegacy = false) {
     let installed = null;
     try {
       installed = await adapter.readState();
@@ -157,7 +165,7 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
 
     let metadata;
     try {
-      metadata = validateMetadata(await fetchMetadata());
+      metadata = validateMetadata(metadataOverride || await fetchMetadata());
     } catch (error) {
       const failure = error instanceof RuntimeError
         ? error
@@ -178,7 +186,7 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
 
     let dictionaryText;
     try {
-      dictionaryText = await fetchDictionaryText();
+      dictionaryText = await fetchDictionaryText(metadata);
     } catch (error) {
       const failure = classifyFailure(error, ERRORS.PAYLOAD_FETCH);
       const state = installedStateIsUsable(installed) ? STATES.READY_STALE : STATES.UNAVAILABLE;
@@ -191,6 +199,9 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
     let verification = 'shape-and-count';
     try {
       entries = parseDictionary(dictionaryText, metadata);
+      if (!metadata.payload && typeof digest !== 'function') {
+        throw runtimeError(ERRORS.DIGEST_UNAVAILABLE, 'Cannot verify a mutable legacy dictionary without SHA-256');
+      }
       if (typeof digest === 'function') {
         const actualRevision = await digest(dictionaryText);
         if (actualRevision !== metadata.revision) {
@@ -199,6 +210,14 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
         verification = 'sha256';
       }
     } catch (error) {
+      // Legacy metadata names a mutable payload. If publication switched generations
+      // between the two reads, retry once only after observing a different pointer.
+      if (!metadata.payload && !retriedLegacy) {
+        try {
+          const latest = validateMetadata(await fetchMetadata());
+          if (latest.revision !== metadata.revision) return run(force, latest, true);
+        } catch (_retryError) { /* retain the original validation failure */ }
+      }
       const failure = error instanceof RuntimeError
         ? error
         : classifyFailure(error, ERRORS.PAYLOAD_INVALID);

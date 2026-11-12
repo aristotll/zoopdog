@@ -317,3 +317,38 @@
 
 /* Notes field: green text, same as the book-translator reader dialogs. */
 #zoopdog-nom-explain { color: #1a8a3c; }
+
+/* Google results: the hover pill of an uncoloured link (refresh / blacklist). Fixed, so it never moves Google's layout. */
+.zd-explored-tools {
+  position: fixed;
+  z-index: 2147483000;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: #fff;
+  border: 1px solid #dcdce0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.zd-explored-tools[hidden] { display: none; }
+/* The same buttons inline after each result title (always present, so the title line keeps its height). */
+.zd-explored-inline {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: middle;
+  text-decoration: none;
+}
+.zd-explored-tools-button {
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 400;
+  text-decoration: none;
+  background: #fff;
+  color: #0b62d0;
+  border: 1px solid #dcdce0;
+  cursor: pointer;
+}
+.zd-explored-tools-button:hover { border-color: #0b62d0; background: #f2f7fd; }
