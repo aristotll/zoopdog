@@ -277,6 +277,8 @@ __ZOOPDOG_RUNTIME_SOURCES__
   // A page can keep the selection alive through such a click; without this the mouseup handler
   // would re-show the bar for that same still-selected text.
   var zooNomReviewDismissedText = '';
+  var zooNomReviewCurrentText = '';
+  var zooNomReviewCollapsed = false;
 
   // Whether `range` covers more than `max` characters, decided by walking at most a few
   // hundred text nodes from the range start rather than calling selection.toString(): that
@@ -289,14 +291,15 @@ __ZOOPDOG_RUNTIME_SOURCES__
     if (start === end && start.nodeType === 3) {
       return (range.endOffset - range.startOffset) > max;
     }
-    var walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT);
+    var walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_ALL);
     var first = start.nodeType === 3 ? start : (start.childNodes[range.startOffset] || start);
     walker.currentNode = first;
-    var node = first.nodeType === 3 ? first : walker.nextNode();
+    var node = first;
     var total = 0;
     var visited = 0;
     while (node && range.intersectsNode(node)) {
       if (++visited > ZOO_NOM_REVIEW_SELECTION_MAX_NODES) return true;
+      if (node.nodeType !== 3) { node = walker.nextNode(); continue; }
       var from = node === start ? range.startOffset : 0;
       var to = node === end ? range.endOffset : node.data.length;
       total += Math.max(0, to - from);
@@ -330,6 +333,9 @@ __ZOOPDOG_RUNTIME_SOURCES__
     if (zooNomReviewSelectionBarEl) return zooNomReviewSelectionBarEl;
     var bar = document.createElement('div');
     bar.id = 'zoopdog-nom-review-selection-bar';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Đánh dấu Nôm');
+    bar.setAttribute('translate', 'no');
     bar.style.cssText = 'position:fixed;z-index:2147483647;display:none;' +
       'background:#1f1f24;border:1px solid #33333b;border-radius:0.5rem;padding:0.25rem;' +
       'box-shadow:0 2px 8px rgba(0,0,0,0.4);';
@@ -355,47 +361,90 @@ __ZOOPDOG_RUNTIME_SOURCES__
     if (zooNomReviewSelectionBarEl) zooNomReviewSelectionBarEl.style.display = 'none';
   }
 
+  function zooDismissNomReviewSelection() {
+    zooNomReviewDismissedText = zooNomReviewCurrentText;
+    zooNomReviewBarPressedUntil = 0;
+    zooHideNomReviewSelectionBar(true);
+    // Explicit close also releases accidental native selection, including select-all.
+    try { var selection = window.getSelection(); if (selection) selection.removeAllRanges(); } catch (e) {}
+  }
+
+  function zooPositionNomReviewBar(rect) {
+    var bar = zooNomReviewSelectionBarEl;
+    if (!bar || bar.style.display === 'none') return;
+    var view = window.visualViewport;
+    var left = view ? view.offsetLeft : 0;
+    var top = view ? view.offsetTop : 0;
+    var width = view ? view.width : window.innerWidth;
+    var height = view ? view.height : window.innerHeight;
+    bar.style.maxWidth = Math.max(0, width - 16) + 'px';
+    var box = bar.getBoundingClientRect();
+    bar.style.left = Math.max(left + 8, Math.min(rect.left, left + width - box.width - 8)) + 'px';
+    var y = rect.top - box.height - 12;
+    if (y < top + 8) y = rect.bottom + 12;
+    bar.style.top = Math.max(top + 8, Math.min(y, top + height - box.height - 8)) + 'px';
+  }
+
   function zooShowNomReviewSelectionBar(rect, text, contextNode) {
     var bar = zooEnsureNomReviewSelectionBar();
+    // Do not detach the control under a finger or recreate it for the same selection.
+    if (bar.style.display !== 'none' && zooNomReviewCurrentText === text) {
+      zooPositionNomReviewBar(rect);
+      return;
+    }
+    zooNomReviewCurrentText = text;
     bar.textContent = '';
-
+    function control(label, title, action) {
+      var el = document.createElement('button');
+      el.type = 'button'; el.textContent = label;
+      el.title = title; el.setAttribute('aria-label', title);
+      el.addEventListener('click', function(event) {
+        event.preventDefault(); event.stopPropagation(); action(el);
+      });
+      bar.appendChild(el);
+      return el;
+    }
     var queued = zooIsNomReviewQueued(text);
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.disabled = queued;
-    button.textContent = queued ? 'Đã đánh dấu ✓' : ('+ Đánh dấu Nôm: ' + text);
-    button.style.cssText = 'min-height:2.25rem;font:inherit;font-size:0.95rem;color:#f2f2f5;' +
-      'background:#2b2b33;border:1px solid #33333b;border-radius:0.4rem;cursor:pointer;' +
-      'padding:0 0.6rem;white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis;';
-    button.addEventListener('click', function(event) {
-      event.preventDefault();
-      zooQueueNomReview(text, zooExtractNomReviewContext(contextNode, text));
-      button.textContent = 'Đã đánh dấu ✓';
-      button.disabled = true;
-      zooNomReviewBarPressedUntil = 0;
-      window.setTimeout(function() { zooHideNomReviewSelectionBar(true); }, 700);
+    var button = control(queued ? 'Đã đánh dấu ✓' : '+ Đánh dấu Nôm: ' + text,
+      'Đánh dấu Nôm: ' + text, function(el) {
+        try {
+          // Never read an unbounded ancestor paragraph to capture context.
+          var context = contextNode && contextNode.nodeType === 3
+            ? contextNode.data.slice(0, ZOO_NOM_REVIEW_CONTEXT_MAX) : text;
+          zooQueueNomReview(text, context);
+          el.textContent = 'Đã đánh dấu ✓'; el.disabled = true;
+          zooNomReviewBarPressedUntil = 0;
+          window.setTimeout(function() {
+            if (zooNomReviewCurrentText === text) zooDismissNomReviewSelection();
+          }, 700);
+        } catch (error) {
+          el.textContent = 'Lưu lỗi — chạm để thử lại';
+          el.disabled = false;
+        }
+      });
+    button.className = 'zd-review-save'; button.disabled = queued;
+    var toggle = control(zooNomReviewCollapsed ? '＋' : '−', 'Thu gọn / mở rộng', function(el) {
+      zooNomReviewCollapsed = !zooNomReviewCollapsed;
+      bar.setAttribute('data-collapsed', String(zooNomReviewCollapsed));
+      el.textContent = zooNomReviewCollapsed ? '＋' : '−';
+      el.setAttribute('aria-expanded', String(!zooNomReviewCollapsed));
+      zooPositionNomReviewBar(rect);
     });
-    bar.appendChild(button);
-
-    bar.style.display = 'block';
-    bar.style.left = Math.max(8, rect.left) + 'px';
-    bar.style.top = Math.max(8, rect.top - 44) + 'px';
-    var barRect = bar.getBoundingClientRect();
-    if (barRect.right > window.innerWidth) {
-      bar.style.left = Math.max(8, window.innerWidth - barRect.width - 8) + 'px';
-    }
-    if (rect.top - 44 < 0) {
-      bar.style.top = (rect.bottom + 8) + 'px';
-    }
+    toggle.setAttribute('aria-expanded', String(!zooNomReviewCollapsed));
+    control('×', 'Đóng và bỏ chọn', zooDismissNomReviewSelection);
+    bar.setAttribute('data-collapsed', String(zooNomReviewCollapsed));
+    bar.style.display = 'flex';
+    zooPositionNomReviewBar(rect);
   }
 
   function zooHandleNomReviewSelectionChange() {
     // Defensive, same reasoning as the -local selection bar: this runs on arbitrary
     // third-party pages that may carry other scripts/extensions mutating the DOM around the
     // same selection mid-gesture.
+    if (Date.now() < zooNomReviewBarPressedUntil) return;
     try {
       var selection = window.getSelection ? window.getSelection() : null;
-      if (!selection || selection.rangeCount === 0 || (selection.isCollapsed && !selection.toString())) {
+      if (!selection || selection.rangeCount !== 1 || selection.isCollapsed) {
         zooHideNomReviewSelectionBar();
         return;
       }
@@ -478,9 +527,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
         return;
       }
       if (Math.abs(event.clientX - start.x) > 4 || Math.abs(event.clientY - start.y) > 4) return;
-      var selection = window.getSelection ? window.getSelection() : null;
-      var current = selection ? zooTrimNomReviewSelection(selection.toString()) : '';
-      if (current) zooNomReviewDismissedText = current;
+      zooNomReviewDismissedText = zooNomReviewCurrentText;
       debounced.cancel();
       zooNomReviewBarPressedUntil = 0;
       zooHideNomReviewSelectionBar(true);
@@ -491,6 +538,22 @@ __ZOOPDOG_RUNTIME_SOURCES__
       if (t) onPress({target: e.target, clientX: t.clientX, clientY: t.clientY});
     }, {capture: true, passive: true});
     document.addEventListener('mouseup', onRelease, true);
+    document.addEventListener('touchend', function(e) {
+      var t = e.changedTouches && e.changedTouches[0];
+      if (t) onRelease({clientX: t.clientX, clientY: t.clientY});
+    }, {capture: true, passive: true});
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { debounced.cancel(); zooDismissNomReviewSelection(); }
+    });
+    function hideOnViewportChange() {
+      debounced.cancel(); zooNomReviewBarPressedUntil = 0; zooHideNomReviewSelectionBar(true);
+    }
+    window.addEventListener('scroll', hideOnViewportChange, {passive: true});
+    window.addEventListener('resize', hideOnViewportChange);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', hideOnViewportChange);
+      window.visualViewport.addEventListener('scroll', hideOnViewportChange);
+    }
   }
 
   function addStyle(css) {

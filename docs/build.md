@@ -224,3 +224,17 @@ a kanji word also gets a katakana reading above it (Google Translate's public ke
 transliteration, converted from romaji) with the Jyutping under it (nested ruby); katakana words get
 their English original. Text inside any other `<ruby>`/`<rt>` (e.g. zoopdog-nom-ruby's Nom reading) is
 never touched, and an `data-last-hover`/`data-last-error` beacon on the popup helps diagnose hover problems.
+
+## Non-local Nôm review selection controls
+
+The published popup userscript shows a review toolbar for short text selections (up to
+60 characters / 8 words). The × button closes it and clears the native selection; Escape
+also closes it. The − / ＋ control switches between a wrapped label and a compact label.
+Controls have touch-sized targets and stay inside the visual viewport. Scrolling or resizing
+hides the toolbar; selecting text again shows it. Clicking or tapping elsewhere dismisses
+an existing toolbar without reading an unbounded page selection.
+
+Selection checks bound both element and text-node traversal before materializing selected
+text. Context capture is bounded too. A storage failure leaves the save button available to
+retry instead of displaying a successful save. These controls do not change local-mode
+reader endpoints or its separate entry/order forms.
