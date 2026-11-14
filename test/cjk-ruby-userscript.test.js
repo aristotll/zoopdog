@@ -71,3 +71,34 @@ test('the CJK Ruby runtime caches network labels between pages and falls back wh
   assert.equal(toRomaji('チェック'), 'Chekku');
   assert.equal(toRomaji('abc'), '');
 });
+
+test('a page framework that rewrites its text node does not make the ruby wrap pile up', () => {
+  const source = buildUserscript(VARIANTS[0]);
+  assert.match(source, /var built = new WeakMap\(\)/, 'what was built from a framework-owned text node is remembered');
+  assert.match(source, /function dropStale\(node\)/, 'a rewritten node first loses the rubies built from its previous text');
+  assert.match(source, /node\.nodeValue === rec\.left/, 'our own split is not mistaken for a rewrite');
+});
+
+test('rewriting a framework-owned text node keeps one ruby (jsdom behaviour)', async (t) => {
+  const fs = require('node:fs');
+  const jsdomPath = process.env.CDP_JSDOM_DIR || '/Users/cheng/mine/online-dict/node_modules/jsdom';
+  if (!fs.existsSync(jsdomPath)) return t.skip('jsdom not available');
+  const {JSDOM} = require(jsdomPath);
+  const source = buildUserscript(VARIANTS[0]).split('// ==/UserScript==')[1];
+  const dom = new JSDOM('<body><span id="fw"></span></body>', {runScripts: 'outside-only', url: 'https://www.youtube.com/'});
+  const w = dom.window;
+  w.ToJyutping = {getJyutpingList: (text) => [...text].map((c) => [c, 'zik6'])};
+  const holder = w.document.createTextNode('直播');
+  w.document.getElementById('fw').appendChild(holder);
+  w.eval(source);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const rubies = () => w.document.querySelectorAll('#fw ruby').length;
+  await sleep(1200);
+  assert.equal(rubies(), 1);
+  for (let i = 0; i < 3; i++) {
+    holder.nodeValue = '直播';
+    await sleep(1200);
+  }
+  assert.equal(rubies(), 1, 'each render of the page used to add one more');
+  w.close();
+});

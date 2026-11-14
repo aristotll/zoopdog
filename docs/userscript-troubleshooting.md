@@ -167,3 +167,9 @@ therefore split into a shared core and two renderers; a site picks one.
   `../book-translator/zoopdog-site-rules.json` (or `$ZOOPDOG_LOCAL_SITE_RULES`) and are injected at build time into the
   `(Local)` builds only (`readLocalSiteRules`, placeholder `__ZOOPDOG_LOCAL_SITE_RULES__`); the published builds get `[]`.
   Rule: `{"host": "<regex>", "scripts": ["nom-ruby","cjk-ruby"], "css", "maxRun", "perWord", "mode"}`.
+- **A label repeated many times (YouTube live badge `直播 直播 直播 ...`, found 2026-11-14 over CDP).** A framework-owned text node
+  (Lit/Polymer binding) was split by `wrapMatch`, which leaves the framework's node in place, empty; the framework writes the
+  whole text back on every render and the old code wrapped it again, one more ruby per render. Fix: `built` (WeakMap) records
+  what was made from a node and the value left in it; `dropStale` removes those nodes when the value differs (the owner
+  rewrote it) before wrapping again. Check: count `ruby` in the badge before and after setting the empty node's value to its
+  text; it must stay constant. Regression: `test/cjk-ruby-userscript.test.js` (jsdom from online-dict, skipped when absent).

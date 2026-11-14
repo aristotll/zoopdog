@@ -836,13 +836,30 @@
         return ruby;
     }
 
+    // What we built from a text node a page framework owns (YouTube's live badge, Lit/Polymer bindings):
+    // splitText leaves the framework's node in place holding only the head, and the framework writes the
+    // whole text back into it on every render. Without this record each render wrapped the same text
+    // once more (the badge grew 直播直播直播...). node -> { left: value we left, made: nodes we added }.
+    var built = new WeakMap();
+    var madeNow = null;
+
+    function dropStale(node) {
+        var rec = built.get(node);
+        if (!rec || node.nodeValue === rec.left) return;
+        built.delete(node);
+        rec.made.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+    }
+
     function wrapMatch(node, text, index, kinds) {
         var ruby = buildRuby(text, kinds);
         var after = node.splitText(index);
+        if (madeNow) madeNow.push(ruby);
         node.parentNode.insertBefore(ruby, after);
         // A ruby is one unbreakable box in WebKit; a line made of many of them must still be able to
         // wrap after each (a zero-width break opportunity), or it runs past the container edge.
-        node.parentNode.insertBefore(doc.createElement('wbr'), after);
+        var wbr = doc.createElement('wbr');
+        if (madeNow) madeNow.push(wbr, after);
+        node.parentNode.insertBefore(wbr, after);
         after.nodeValue = after.nodeValue.substring(text.length);
         return after;
     }
@@ -1062,9 +1079,16 @@ __ZOOPDOG_OVERLAY_LABELS__
                 if (mode !== 'ruby') {
                     overlayScanText(node);
                 } else {
+                    dropStale(node);
                     var next = node;
                     var guard = 0;
-                    while ((next = addRuby(next)) && guard++ < 10000) { /* keep splitting */ }
+                    madeNow = [];
+                    try {
+                        while ((next = addRuby(next)) && guard++ < 10000) { /* keep splitting */ }
+                    } finally {
+                        if (madeNow.length) built.set(node, { left: node.nodeValue, made: madeNow });
+                        madeNow = null;
+                    }
                 }
             } else if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
                 Array.from(node.childNodes).forEach(scanTextNodes);

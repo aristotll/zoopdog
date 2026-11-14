@@ -78,7 +78,8 @@ or discard a user's unsaved edits. Reloading creates a fresh context under the u
 ## Google results: explored sites in another colour
 
 On `google.<tld>/search` the `-local` build colours every link to a site book-translator has already explored: green = a
-dictionary plugin of `~/mine/online-dict`, yellow = a TTS engine, blue = a translator, purple = only a research note
+dictionary plugin of `~/mine/online-dict`, pink = a TTS engine or translator of book-translator (wins over green when a site is
+both; `SERVICE_COLOR` in `scripts/explored_sites.py`, server-side only), purple = only a research note
 (`docs/research/*`), grey = listed in book-translator's `docs/explored_sites_blacklist.json` as "no need to explore" (edit
 that file; hot reload, no restart).
 
