@@ -13,7 +13,7 @@ html
   body
     #zoopdog-popup-lock-icon 📌
     #zoopdog-popup-body
-    script(src="js/lib/handlebars.min.js")
+    script(src="js/lib/handlebars.min.js", defer)
     script(id="zoopdog-popup-template" type="text/x-handlebars-template").
       {{#each results}}
         <div class="zd-definition">
@@ -30,10 +30,10 @@ html
           </ul>
         </div>
       {{/each}}
-    script(src="js/lib/chroma.min.js")
-    script(src="js/zd-pron-data.js")
-    script(src="js/zd-pron-core.js")
-    script(src="js/zd-pron-drawtones.js")
-    script(src="js/zd-pron-functions.js")
-    script(src="js/zd-popup-protocol.js")
-    script(src="js/frame.js")
+    script(src="js/lib/chroma.min.js", defer)
+    script(src="js/zd-pron-data.js", defer)
+    script(src="js/zd-pron-core.js", defer)
+    script(src="js/zd-pron-drawtones.js", defer)
+    script(src="js/zd-pron-functions.js", defer)
+    script(src="js/zd-popup-protocol.js", defer)
+    script(src="js/frame.js", defer)

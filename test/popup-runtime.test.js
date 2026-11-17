@@ -746,8 +746,8 @@ test('popup endpoints use one-time MessageChannel transport and one frame source
   assert.match(protocol, /removeEventListener\(['"]message/u);
   assert.match(frame, /bindFramePort\(window, window\.parent/u);
   assert.doesNotMatch(frame, /window\.postMessage\(\{type:\s*['"]toggle-lock/u);
-  assert.match(jade, /script\(src=["']js\/zd-popup-protocol\.js["']\)/u);
-  assert.match(jade, /script\(src=["']js\/frame\.js["']\)/u);
+  assert.match(jade, /script\(src=["']js\/zd-popup-protocol\.js["'], defer\)/u);
+  assert.match(jade, /script\(src=["']js\/frame\.js["'], defer\)/u);
   assert.doesNotMatch(jade, /const sendSize|window\.addEventListener/u);
   assert.match(html, /src="js\/zd-popup-protocol\.js"/u);
   assert.match(html, /src="js\/frame\.js"/u);
@@ -821,6 +821,21 @@ test('browser runtime helper loads before every consumer', () => {
   for (const [relativePath, consumer] of pages) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     assert.ok(source.indexOf('zd-browser-runtime.js') < source.indexOf(consumer), relativePath);
+  }
+});
+
+test('website scripts are deferred in order, except Pace which must run before first paint', () => {
+  for (const relativePath of ['popupdict', 'pronunciation', 'homophones', 'pronguide', 'zd-extension/frame']) {
+    const html = fs.readFileSync(path.join(repoRoot, `${relativePath}.html`), 'utf8');
+    const external = html.match(/<script\b[^>]*\bsrc=[^>]*>/gu) || [];
+    assert.ok(external.length > 0, relativePath);
+    for (const tag of external) {
+      if (/pace\.min\.js/u.test(tag)) {
+        assert.doesNotMatch(tag, /\bdefer\b/u, relativePath);
+      } else {
+        assert.match(tag, /\bdefer\b/u, `${relativePath}: ${tag}`);
+      }
+    }
   }
 });
 

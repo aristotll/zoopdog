@@ -108,9 +108,15 @@ const homophoneMe = () => {
   })
 }
 
+// Re-rendering rebuilds the whole result, so typing is debounced: one render ~100 ms after the
+// last keystroke instead of one per key. The initial render below stays immediate.
+var zdInputTimer = null
 document.getElementById("input").addEventListener("input", function(){
-  if (isHomophonesPage) homophoneMe()
-  else pronounceMe()
+  clearTimeout(zdInputTimer)
+  zdInputTimer = setTimeout(function(){
+    if (isHomophonesPage) homophoneMe()
+    else pronounceMe()
+  }, 100)
 })
 
 function initializePronunciationPage() {
