@@ -342,17 +342,27 @@
     return tag in EXCLUDED_TAGS || element.isContentEditable;
   }
 
+  // Entry point for a scan root (a queued node or a shadow root). A mutation can queue a
+  // descendant directly, bypassing the tree walk from the body, so the ancestors are checked here --
+  // once per root -- and the recursive descent below only ever looks at the node it is on.
   function scanTextNodes(node) {
+    if (!node || !node.isConnected) {
+      return;
+    }
+
+    for (var ancestor = node.parentNode; ancestor; ancestor = ancestor.parentNode || ancestor.host) {
+      if (ancestor.nodeType === Node.ELEMENT_NODE && isExcludedElement(ancestor)) return;
+    }
+
+    scanNode(node);
+  }
+
+  function scanNode(node) {
     // `isConnected` is true for a node reachable from the document either directly or through
     // an attached shadow tree, unlike `doc.body.contains(node)` -- which a ShadowRoot always
     // fails, since a shadow tree is a separate root, not a descendant in the light-DOM sense.
     if (!node || !node.isConnected) {
       return;
-    }
-
-    // A mutation can queue a descendant directly, bypassing the initial tree walk.
-    for (var ancestor = node.parentNode; ancestor; ancestor = ancestor.parentNode || ancestor.host) {
-      if (ancestor.nodeType === Node.ELEMENT_NODE && isExcludedElement(ancestor)) return;
     }
 
     switch (node.nodeType) {
@@ -383,7 +393,7 @@
     var child = parent.firstChild;
     while (child) {
       var next = child.nextSibling;
-      scanTextNodes(child);
+      scanNode(child);
       child = next;
     }
   }

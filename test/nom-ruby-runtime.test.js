@@ -1066,3 +1066,31 @@ test('append to feeds of different sizes inspects only a bounded preceding regio
     assert.deepEqual(rubyAnnotations(added), ['伴']);
   }
 });
+
+test('the ancestor exclusion check runs once per scan root, not once per node', () => {
+  const reads = [];
+  for (const depth of [50, 200, 800]) {
+    const dom = runRuntime(NOM_MAP);
+    let count = 0;
+    const track = (el) => Object.defineProperty(el, 'tagName', {
+      get() { count++; return 'DIV'; }, configurable: true
+    });
+    const root = dom.document.createElement('div');
+    track(root);
+    let parent = root;
+    for (let i = 0; i < depth; i++) {
+      const child = dom.document.createElement('div');
+      track(child);
+      child.appendChild(dom.document.createTextNode('bạn'));
+      parent.appendChild(child);
+      parent = child;
+    }
+    dom.body.appendChild(root);
+    count = 0;
+    dom.tick();
+    reads.push(count);
+    // Every element is tested once by the descent; the root's own ancestor walk adds a constant.
+    assert.ok(count <= depth + 5, `depth ${depth}: ${count} tagName reads`);
+    assert.equal(rubyAnnotations(root).length, depth);
+  }
+});
