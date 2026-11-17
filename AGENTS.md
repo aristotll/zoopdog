@@ -15,7 +15,7 @@ is no browser extension: `zd-extension/` is a legacy directory name that now jus
 shared dictionary source data (`db_src/`) and the shared browser runtime (`js/`) the website
 and userscripts are built from.
 
-The repository intentionally tracks generated assets: `*.jade` compiles to a committed
+The repository intentionally tracks generated assets: `*.pug` compiles to a committed
 `*.html` and `css/*.styl` compiles to a committed `css/*.css`. The github-hosted userscripts
 (`zoopdog-*.user.js`) are built from `zd-extension/db_src/` and `scripts/userscript/` but are
 **not committed**: they are gitignored, minified into `dist/` by esbuild, and published as
@@ -33,7 +33,7 @@ make verify
 
 | Path | What it holds |
 | --- | --- |
-| `*.jade`, `*.html` | Website pages; `includes.jade` and `meta.jade` are shared markup |
+| `*.pug`, `*.html` | Website pages; `includes.pug` and `meta.pug` are shared markup |
 | `css/` | Website styles, `*.styl` compiled to `*.css` |
 | `js/` | Website behaviour |
 | `zd-extension/` | Legacy name; shared dictionary data (`db_src/`) and shared browser runtime/styles used by the website and userscripts |
@@ -51,7 +51,7 @@ make verify
 
 ## Editing Rules
 
-- Edit source before generated output: `.jade` before `.html`, `.styl` before `.css`, and
+- Edit source before generated output: `.pug` before `.html`, `.styl` before `.css`, and
   `scripts/userscript/` before the generated `*.user.js`.
 - If a generated file is affected, update and commit it too.
 - Preserve the existing lightweight style: plain JavaScript, no bundler, no transpilation, no

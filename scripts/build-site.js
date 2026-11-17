@@ -7,8 +7,8 @@ const pug = require('pug');
 const stylus = require('stylus');
 
 const pages = ['index', 'popupdict', 'pronunciation', 'homophones', 'pronguide']
-  .map(name => ({source: `${name}.jade`, output: `${name}.html`, type: 'pug'}));
-pages.push({source: 'zd-extension/frame.jade', output: 'zd-extension/frame.html', type: 'pug', pretty: true});
+  .map(name => ({source: `${name}.pug`, output: `${name}.html`, type: 'pug'}));
+pages.push({source: 'zd-extension/frame.pug', output: 'zd-extension/frame.html', type: 'pug', pretty: true});
 const styles = ['css/style', 'css/pronunciation', 'zd-extension/css/zoopdog',
   'zd-extension/css/zoopdog-frame', 'zd-extension/css/zd-pron']
   .map(name => ({source: `${name}.styl`, output: `${name}.css`, type: 'stylus'}));

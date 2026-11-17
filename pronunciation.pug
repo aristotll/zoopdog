@@ -1,4 +1,4 @@
-//- output: homophones.html, pretty: false
+//- output: pronunciation.html, pretty: false
 
 doctype html
 html
@@ -7,14 +7,14 @@ html
     link(rel='stylesheet', type='text/css', href='css/pronunciation.css')
     link(rel='stylesheet', type='text/css', href='zd-extension/css/zd-pron.css')
     link(rel='stylesheet', type='text/css', href='zd-extension/css/fonts/fonts.css')
-    title Zoopdog homophone generator for Vietnamese
-    include meta.jade
+    title Zoopdog pronunciation guide generator for Vietnamese
+    include meta.pug
     
   body
-    include includes.jade
+    include includes.pug
     #main
       #input-wrapper
-        textarea#input.textbox Giảm giá là gì? Nguyễn Hoàng là ai?
+        textarea#input.textbox Chào bạn! Bạn có khoẻ không?
       #toggle-row
         .button(dialect="hanoi") Hà Nội
         .button(dialect="quangnam") Quảng Nam
@@ -22,16 +22,17 @@ html
       #output-row
         .block(dialect="hanoi")
           h1 Hà Nội
-          .pron.homophones
+          .pron
         .block(dialect="quangnam")
           h1 Quảng Nam
-          .pron.homophones
+          .pron
         .block(dialect="saigon")
           h1 Sài Gòn
-          .pron.homophones
+          .pron
+    script(type="text/javascript", src="zd-extension/js/lib/chroma.min.js", defer)
     script(type="text/javascript", src="zd-extension/js/zd-pron-data.js", defer)
-    script(type="text/javascript", src="zd-extension/js/realwords.js", defer)
     script(type="text/javascript", src="zd-extension/js/zd-pron-core.js", defer)
     script(type="text/javascript", src="zd-extension/js/zd-pron-functions.js", defer)
+    script(type="text/javascript", src="zd-extension/js/zd-pron-drawtones.js", defer)
     script(type="text/javascript", src="zd-extension/js/zd-browser-runtime.js", defer)
     script(type="text/javascript", src="js/zd-pron.js", defer)

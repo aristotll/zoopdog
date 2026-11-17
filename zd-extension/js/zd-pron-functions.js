@@ -7,7 +7,7 @@
 // All the actual logic, including the String.prototype-mutation-free, total-result-contract
 // implementation, lives in zd-pron-core.js; this file only re-exposes it under those names.
 //
-// Load order (see pronunciation.jade, pronguide.jade, homophones.jade, zd-extension/frame.jade):
+// Load order (see pronunciation.pug, pronguide.pug, homophones.pug, zd-extension/frame.pug):
 // zd-pron-data.js, [realwords.js, only where homophones are used], zd-pron-core.js, this file.
 const pronunciationGuide      = ZDPronCore.pronunciationGuide
 const getHomophones           = ZDPronCore.getHomophones

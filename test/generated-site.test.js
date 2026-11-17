@@ -10,9 +10,9 @@ test('generated-site check detects drift without modifying tracked output', asyn
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'zoopdog-site-'));
   try {
     fs.mkdirSync(path.join(root, 'css'));
-    fs.writeFileSync(path.join(root, 'page.jade'), 'doctype html\nhtml\n  body Hello\n');
+    fs.writeFileSync(path.join(root, 'page.pug'), 'doctype html\nhtml\n  body Hello\n');
     fs.writeFileSync(path.join(root, 'css', 'page.styl'), 'body\n  color red\n');
-    const inputs = [{source: 'page.jade', output: 'page.html', type: 'pug'},
+    const inputs = [{source: 'page.pug', output: 'page.html', type: 'pug'},
       {source: 'css/page.styl', output: 'css/page.css', type: 'stylus'}];
     await buildSite({root, inputs});
     assert.deepEqual(await buildSite({root, inputs, check: true}), []);

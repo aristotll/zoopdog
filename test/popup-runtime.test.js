@@ -619,7 +619,7 @@ test('Dexie adapter replaces entries and metadata atomically', async () => {
 });
 
 test('website source and generated page load dictionary runtime before popup logic', () => {
-  for (const relativePath of ['popupdict.jade', 'popupdict.html']) {
+  for (const relativePath of ['popupdict.pug', 'popupdict.html']) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
     const runtime = source.indexOf('zd-extension/js/zd-dictionary-runtime.js');
     const popup = source.indexOf('js/popupdict.js');
@@ -724,7 +724,7 @@ test('frame port binder accepts one initializer, ignores ambient traffic and clo
 
 test('Handlebars popup template escapes dictionary-controlled markup', () => {
   const Handlebars = require('../zd-extension/js/lib/handlebars.min.js');
-  const templateSource = fs.readFileSync(path.join(repoRoot, 'zd-extension/frame.jade'), 'utf8');
+  const templateSource = fs.readFileSync(path.join(repoRoot, 'zd-extension/frame.pug'), 'utf8');
   assert.doesNotMatch(templateSource, /\{\{\{/u);
   const rendered = Handlebars.compile('{{vn}} {{def}}')({vn: '<img src=x>', def: '<script>x</script>'});
   assert.equal(rendered, '&lt;img src&#x3D;x&gt; &lt;script&gt;x&lt;/script&gt;');
@@ -734,7 +734,7 @@ test('popup endpoints use one-time MessageChannel transport and one frame source
   const showframe = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/showframe.js'), 'utf8');
   const frame = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/frame.js'), 'utf8');
   const protocol = fs.readFileSync(path.join(repoRoot, 'zd-extension/js/zd-popup-protocol.js'), 'utf8');
-  const jade = fs.readFileSync(path.join(repoRoot, 'zd-extension/frame.jade'), 'utf8');
+  const pug = fs.readFileSync(path.join(repoRoot, 'zd-extension/frame.pug'), 'utf8');
   const html = fs.readFileSync(path.join(repoRoot, 'zd-extension/frame.html'), 'utf8');
 
   assert.match(showframe, /new MessageChannel\(\)/u);
@@ -746,9 +746,9 @@ test('popup endpoints use one-time MessageChannel transport and one frame source
   assert.match(protocol, /removeEventListener\(['"]message/u);
   assert.match(frame, /bindFramePort\(window, window\.parent/u);
   assert.doesNotMatch(frame, /window\.postMessage\(\{type:\s*['"]toggle-lock/u);
-  assert.match(jade, /script\(src=["']js\/zd-popup-protocol\.js["'], defer\)/u);
-  assert.match(jade, /script\(src=["']js\/frame\.js["'], defer\)/u);
-  assert.doesNotMatch(jade, /const sendSize|window\.addEventListener/u);
+  assert.match(pug, /script\(src=["']js\/zd-popup-protocol\.js["'], defer\)/u);
+  assert.match(pug, /script\(src=["']js\/frame\.js["'], defer\)/u);
+  assert.doesNotMatch(pug, /const sendSize|window\.addEventListener/u);
   assert.match(html, /src="js\/zd-popup-protocol\.js"/u);
   assert.match(html, /src="js\/frame\.js"/u);
 });
@@ -813,10 +813,10 @@ test('browser entry points initialize additively and lookup sources use epochs',
 
 test('browser runtime helper loads before every consumer', () => {
   const pages = [
-    ['popupdict.jade', 'js/popupdict.js'],
-    ['pronunciation.jade', 'js/zd-pron.js'],
-    ['homophones.jade', 'js/zd-pron.js'],
-    ['pronguide.jade', 'zd-extension/js/zd-pronguide.js']
+    ['popupdict.pug', 'js/popupdict.js'],
+    ['pronunciation.pug', 'js/zd-pron.js'],
+    ['homophones.pug', 'js/zd-pron.js'],
+    ['pronguide.pug', 'zd-extension/js/zd-pronguide.js']
   ];
   for (const [relativePath, consumer] of pages) {
     const source = fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');

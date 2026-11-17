@@ -421,9 +421,9 @@ test('no browser source calls the retired global word character class', () => {
 });
 
 test('the website loads the shared primitives before every script that uses them', () => {
-  const source = fs.readFileSync(path.join(repoRoot, 'popupdict.jade'), 'utf8');
+  const source = fs.readFileSync(path.join(repoRoot, 'popupdict.pug'), 'utf8');
   const shared = source.indexOf('zd-extension/js/zd-words.js');
-  assert.notEqual(shared, -1, 'popupdict.jade loads the shared source');
+  assert.notEqual(shared, -1, 'popupdict.pug loads the shared source');
 
   for (const relative of sharedConsumers()) {
     if (!relative.startsWith('zd-extension/js/')) {
@@ -434,7 +434,7 @@ test('the website loads the shared primitives before every script that uses them
       continue; // not loaded by this page; nothing to order
     }
     assert.ok(shared < position,
-      `zd-words.js must precede ${relative} in popupdict.jade`);
+      `zd-words.js must precede ${relative} in popupdict.pug`);
   }
 });
 
@@ -442,7 +442,7 @@ test('the website page loads the shared primitives before every script that uses
   const consumers = sharedConsumers()
     .map((relative) => relative.replace(/^zd-extension\/js\//, 'zd-extension/js/'));
 
-  for (const file of ['popupdict.jade', 'popupdict.html']) {
+  for (const file of ['popupdict.pug', 'popupdict.html']) {
     const source = fs.readFileSync(path.join(repoRoot, file), 'utf8');
     const shared = source.indexOf('zd-extension/js/zd-words.js');
     assert.notEqual(shared, -1, `${file} references the shared source`);

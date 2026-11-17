@@ -5,7 +5,7 @@ html
   head
     link(rel='stylesheet', type='text/css', href='css/style.css')
     link(rel='stylesheet', type='text/css', href='css/pace.css')
-    include meta.jade
+    include meta.pug
     script(src='zd-extension/js/lib/dexie.min.js', defer)
     script(src='zd-extension/js/lib/handlebars.min.js', defer)
     script(type='text/javascript').
@@ -18,7 +18,7 @@ html
     title Zoopdog, a Vietnamese-English popup dictionary
 
   body
-    include includes.jade
+    include includes.pug
     #container.pace
       #loading-message
         p Downloading dictionary database. Please wait...

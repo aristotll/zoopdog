@@ -27,7 +27,7 @@ function createPronunciationCore(pronData, allPossibleRealWords) {
     , wordUnitsRegex = pronData.wordUnitsRegex
 
   // The real-word lexicon is only required by getHomophones/getMultiWordHomophones, and not
-  // every page that loads this core needs homophones (pronunciation.jade and pronguide.jade
+  // every page that loads this core needs homophones (pronunciation.pug and pronguide.pug
   // never call them). Building the Set lazily, on first actual use, means a page that omits
   // realwords.js still loads cleanly -- exactly like the pre-refactor code, which only ever
   // dereferenced the bare `allPossibleRealWords` global inside getHomophones's body.

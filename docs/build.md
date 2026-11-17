@@ -110,7 +110,7 @@ declarations. It writes nothing and needs no prior build.
 
 ## Compiling sources
 
-Root pages are authored in `*.jade` and committed as matching `*.html`; root styles are
+Root pages are authored in `*.pug` and committed as matching `*.html`; root styles are
 authored in `css/*.styl` and committed as matching `css/*.css`. `zd-extension/` pages and
 styles (the sandboxed popup frame the website embeds) follow the same pattern.
 
@@ -126,8 +126,9 @@ Check committed outputs without modifying them:
 make check-generated
 ```
 
-The frame page retains its pretty output; the other pages are compact. Pug emits deprecation
-warnings for the existing `.jade` include names. Always edit sources before generated files.
+The frame page retains its pretty output; the other pages are compact. The templates use the `.pug`
+extension (they were `.jade`, which Pug deprecated and warned about on every include); the generated
+`.html` is byte-identical across that rename. Always edit sources before generated files.
 
 ## Rebuilding the userscripts
 

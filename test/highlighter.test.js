@@ -8,7 +8,7 @@ const {textNode, elementNode, linkChildren, rubyWord, rubyPageStyle} = require('
 
 // highlighter.js expects zdIsWordChar / zdContainerBoundary / zdNextTextNode and `Range` as
 // ambient globals -- exactly what a browser sees once the page has loaded zd-words.js first
-// (see popupdict.jade). Wiring the real functions in here, rather than re-implementing fakes
+// (see popupdict.pug). Wiring the real functions in here, rather than re-implementing fakes
 // for them, is what keeps this test honest about what the shipped class actually calls.
 global.zdIsWordChar = words.zdIsWordChar;
 global.zdContainerBoundary = words.zdContainerBoundary;

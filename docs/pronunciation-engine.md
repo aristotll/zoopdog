@@ -18,7 +18,7 @@ popup userscript.
 
 Script load order matters: `zd-pron-data.js` (and `realwords.js`, on pages using homophones)
 must load *before* `zd-pron-core.js`, which must load before `zd-pron-functions.js`. See
-`pronunciation.jade`, `pronguide.jade`, `homophones.jade`, and `zd-extension/frame.jade` for
+`pronunciation.pug`, `pronguide.pug`, `homophones.pug`, and `zd-extension/frame.pug` for
 the exact `<script>` ordering (and their generated `.html`).
 
 ## Result contract
