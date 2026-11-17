@@ -1586,7 +1586,9 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     var shiftRelay = zdCreateShiftRelay(window, function() {
-      ensureUi();
+      // Shift is pressed constantly while typing and is relayed to every frame; with no popup
+      // built yet there is nothing shown to pin, so the UI must not be created for it.
+      if (!popup) return;
       highlighter.toggleLock();
       popup.toggleLock();
     });

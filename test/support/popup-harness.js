@@ -111,6 +111,7 @@ function createPopupHarness({
   const window = sandbox;
   window.window = window;
   window.innerWidth = 800;
+  window.frames = []; // no child frames for the Shift relay to forward to
   window.innerHeight = 600;
   window.addEventListener = (type, listener) => { (windowListeners[type] || (windowListeners[type] = [])).push(listener); };
   window.setTimeout = () => 0;

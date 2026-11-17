@@ -130,3 +130,10 @@ test('the website mousemove handler coalesces moves per animation frame', () => 
   assert.match(handler, /typeof window\.requestAnimationFrame !== 'function'/);
   assert.doesNotMatch(handler, /getWordAndContext|elementFromPoint/);
 });
+
+test('a Shift press before any hover does not build the popup UI', () => {
+  const harness = createPopupHarness();
+  const ids = () => harness.paragraph.parentNode.children.map((child) => child.id).filter(Boolean);
+  harness.dispatch('keydown', {type: 'keydown', which: 16, key: 'Shift', repeat: false});
+  assert.deepEqual(ids(), [], 'typing a capital letter must not create the canvas and popup');
+});
