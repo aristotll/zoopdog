@@ -143,6 +143,10 @@ function buildUserscript(nomMap, caseSensitiveNomMap, variant) {
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
     '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
     '__ZOOPDOG_USERSCRIPT_COMMON__': readRuntime('zd-userscript-common.js'),
+    // Moved out of nom-ruby.runtime.js verbatim; each sits at its original position (docs/runtime-boundaries.md).
+    '__ZOOPDOG_NOM_SCAN__': readRuntime('nom-ruby-scan.js'),
+    '__ZOOPDOG_NOM_ANNOTATE__': readRuntime('nom-ruby-annotate.js'),
+    '__ZOOPDOG_NOM_LIFECYCLE__': readRuntime('nom-ruby-lifecycle.js'),
     '__ZOOPDOG_LOCAL_SITE_RULES__': JSON.stringify(readLocalSiteRules('nom-ruby', variant.targetKey === 'nomLocalUserscript')),
     '{"__ZOOPDOG_NOM_MAP__": true}': jsonStringLiteral(nomMap),
     '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': jsonStringLiteral(caseSensitiveNomMap),

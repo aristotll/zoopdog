@@ -141,7 +141,9 @@ test('builders assemble the runtime instead of inlining it', () => {
     'popup-render.js', 'popup-highlighter.js', 'popup-result.js', 'popup-nom-review.js',
     'local-server.js', 'local-explored-engines.js', 'local-explored-highlight.js', 'local-requests.js',
     'local-form-helpers.js', 'local-modal.js', 'local-selection-bar.js', 'local-nom-form.js',
-    'local-nom-order-form.js', 'local-modal-build.js'
+    'local-nom-order-form.js', 'local-modal-build.js',
+    // Split out of nom-ruby.runtime.js and inlined by build-nom-userscript.js at placeholders.
+    'nom-ruby-scan.js', 'nom-ruby-annotate.js', 'nom-ruby-lifecycle.js'
   ]) {
     const fragment = fs.readFileSync(path.join(scriptsDir, 'userscript', name), 'utf8');
     assert.doesNotMatch(fragment, /==UserScript==/, `${name} is a fragment, not a standalone userscript`);
@@ -161,6 +163,17 @@ test('every popup fragment on disk is concatenated by the popup builder', () => 
   for (const name of fragments) {
     assert.equal(builder.split(`'scripts/userscript/${name}'`).length - 1, 1,
       `${name} is listed exactly once in the popup builder's source lists`);
+  }
+});
+
+test('every nom-ruby fragment is inlined by the nom builder at exactly one placeholder', () => {
+  const builder = fs.readFileSync(path.join(scriptsDir, 'build-nom-userscript.js'), 'utf8');
+  const runtime = fs.readFileSync(path.join(scriptsDir, 'userscript', 'nom-ruby.runtime.js'), 'utf8');
+  const fragments = fs.readdirSync(path.join(scriptsDir, 'userscript')).filter((name) => /^nom-ruby-.*\.js$/.test(name));
+  assert.equal(fragments.length, 3);
+  for (const name of fragments) {
+    assert.equal(builder.split(`readRuntime('${name}')`).length - 1, 1, `${name} is read once by the nom builder`);
+    assert.equal(runtime.split(`scripts/userscript/${name} =====`).length - 1, 1, `${name} has one slot in the runtime`);
   }
 });
 
