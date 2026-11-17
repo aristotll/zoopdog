@@ -20,6 +20,27 @@ const GROUPED_SCHEMA_VERSION = 1;
 
 /** @typedef {{def: string, pos: string, headword?: string}} GroupedSense */
 /** @typedef {{key: string, headwords: string[], en: GroupedSense[]}} GroupedEntry */
+/**
+ * One sense of a source row (`vnedict2.json`, hand-maintained entries): English gloss and part of speech.
+ * @typedef {{def: string, pos: string}} SourceSense
+ */
+/**
+ * A validated source row: Vietnamese headword and its senses.
+ * @typedef {{vn: string, en: SourceSense[]}} SourceEntry
+ */
+/**
+ * A sense while it is being grouped; `headword` is always set here and trimmed off later when it equals the primary.
+ * @typedef {{def: string, pos: string, headword: string}} KeptSense
+ */
+/**
+ * The per-key accumulator `groupEntries` builds before it emits `{key, headwords, en}`.
+ * @typedef {{key: string, headwordOrder: string[], headwordSeen: Set<string>, senseOrder: KeptSense[], senseSeen: Set<string>}} SenseGroupState
+ */
+/**
+ * `buildCollisionReport`'s result: counts per colliding key, no definitions.
+ * @typedef {{key: string, headwordCount: number, senseCount: number}} Collision
+ */
+/** @typedef {{schemaVersion: number, totalKeys: number, collisionCount: number, collisions: Collision[]}} CollisionReport */
 
 const {cleanText, normalizeTerm} = require('./text');
 const {definitionKey} = require('./sources');
@@ -29,6 +50,7 @@ const {definitionKey} = require('./sources');
 // "boundary" for the containment check below, which would otherwise treat one Nom candidate as
 // a redundant "variant" of another merely because their characters overlap, silently dropping a
 // hand-maintained rendering that a downstream consumer expects to find verbatim.
+/** @param {string} str */
 function isAsciiText(str) {
   return /^[\x00-\x7f]*$/.test(str);
 }
@@ -42,6 +64,7 @@ function isAsciiText(str) {
 // like it contains the real, unrelated sense "corn" as a plain word, which previously caused a
 // standalone "corn" sense to be wrongly folded away entirely. Only commas outside both `()` and
 // `[]` count as separators.
+/** @param {string} def */
 function synonymTokens(def) {
   const tokens = [];
   let parenDepth = 0;
@@ -71,6 +94,7 @@ function synonymTokens(def) {
 // Strips a leading English infinitive marker ("to ") so "to smile" and "smile" compare equal --
 // vnedict2.json glosses a verb as "to <verb>" while a hand-maintained explain column tends to
 // give the bare word.
+/** @param {string} word */
 function stripToPrefix(word) {
   return word.replace(/^to\s+/i, '');
 }
@@ -79,6 +103,7 @@ function stripToPrefix(word) {
 // a hand-maintained explain value is sometimes phrased as a full sentence, and every containment
 // and suffix check in this module anchors on the exact end of the string (`$`), so a stray period
 // silently defeats them all otherwise.
+/** @param {string} word */
 function stripTrailingPunctuation(word) {
   return word.replace(/[.!?]+\s*$/, '').trim();
 }
@@ -86,6 +111,7 @@ function stripTrailingPunctuation(word) {
 // Drops parenthesis characters (keeping their contents in place) and collapses the resulting
 // whitespace, so "English (language)" and "English language" compare equal -- a parenthetical
 // note is usually just a clarifying aside on the same headword, not a different gloss.
+/** @param {string} word */
 function stripParens(word) {
   return word.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -95,6 +121,7 @@ function stripParens(word) {
 // "English (language)" should compare equal to "English language" (content kept), while
 // "user (person)" should still compare equal to "Users" via the plural suffix on its bare head
 // word (content dropped). `parenVariants` below tries both.
+/** @param {string} word */
 function dropParens(word) {
   return word.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -102,6 +129,7 @@ function dropParens(word) {
 // Every way a token's parenthetical (if any) is worth reading for comparison purposes: with its
 // content folded in ("user (person)" -> "user person") and with it dropped entirely
 // ("user (person)" -> "user"). A token with no parens has just the one reading.
+/** @param {string} word @returns {string[]} */
 function parenVariants(word) {
   const kept = stripParens(word);
   const dropped = dropParens(word);
@@ -113,6 +141,7 @@ function parenVariants(word) {
 // is often the first word of an unrelated, longer phrase ("go away (imperative)"), so a lone
 // single-word needle instead goes through the narrower, repetition-gated check in
 // `isRedundantVariant`.
+/** @param {string} token */
 function isMultiWord(token) {
   return /\s/.test(token.trim());
 }
@@ -121,6 +150,7 @@ function isMultiWord(token) {
 // one or more whole words (bounded by non-alphanumeric characters or the string ends),
 // optionally followed by a plural "s"/"es" suffix -- e.g. "on the side" is contained in
 // "on the side of".
+/** @param {string} haystack @param {string} needle */
 function containsAsPhrase(haystack, needle) {
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(^|[^a-zA-Z0-9])${escaped}(es|s)?($|[^a-zA-Z0-9])`, 'i');
@@ -133,6 +163,7 @@ function containsAsPhrase(haystack, needle) {
 // `containsAsSuffixWord` below additionally try its hyphen-parts on their own (see
 // `hyphenPartsOf`) without this function itself tearing every "left-handed" into "left" + "handed"
 // -- doing that here breaks whole-compound matches like "left-handed" against "Left-handed".
+/** @param {string} phrase */
 function wordsOf(phrase) {
   return phrase.split(/\s+/).filter(Boolean);
 }
@@ -140,6 +171,7 @@ function wordsOf(phrase) {
 // Splits a single word on internal hyphens -- "ratio-score" -> ["ratio", "score"] -- so a needle
 // like "Ratio" can still recognize itself as the first half of a hyphenated compound, without
 // requiring the whole compound to match.
+/** @param {string} word */
 function hyphenPartsOf(word) {
   return word.split('-').filter(Boolean);
 }
@@ -147,6 +179,7 @@ function hyphenPartsOf(word) {
 // True when `word` and `boundaryWord` (the first or last word of some phrase) are the same word
 // modulo case, or one is a regular suffixed form of the other (see `isSuffixedFormOf`) -- so
 // "call" recognizes "calling" as its own edge word, not just literal "call"/"calls".
+/** @param {string} word @param {string} boundaryWord */
 function isSameEdgeWord(word, boundaryWord) {
   return word === boundaryWord
     || isSuffixedFormOf(word, boundaryWord)
@@ -159,6 +192,7 @@ function isSameEdgeWord(word, boundaryWord) {
 // while a needle that matches the WHOLE compound (e.g. "left-handed" against "Left-handed")
 // still works via the plain `isSameEdgeWord` check first, so a genuinely single compound word is
 // never forced apart just because it happens to contain a hyphen.
+/** @param {string} needle @param {string} boundaryWord */
 function isSameEdgeWordOrHyphenPart(needle, boundaryWord) {
   if (isSameEdgeWord(needle, boundaryWord)) {
     return true;
@@ -176,6 +210,7 @@ function isSameEdgeWordOrHyphenPart(needle, boundaryWord) {
 // phrase like "rescue from danger" is headed by its leading verb; so is a phrase like
 // "until when"), so `isEdgeWordOf` below trusts a single prefix hit outright, unlike a suffix hit
 // (see `containsAsSuffixWord`).
+/** @param {string} haystack @param {string} needle */
 function containsAsPrefixWord(haystack, needle) {
   return isSameEdgeWordOrHyphenPart(needle, wordsOf(haystack)[0] || '');
 }
@@ -190,6 +225,7 @@ function containsAsPrefixWord(haystack, needle) {
 // alone, so `isEdgeWordOf` only trusts a suffix hit once it repeats across at least two of the
 // other side's alternate glosses (strong independent corroboration that the word really is the
 // shared core, not one phrase's specific modifier).
+/** @param {string} haystack @param {string} needle */
 function containsAsSuffixWord(haystack, needle) {
   const words = wordsOf(haystack);
   return isSameEdgeWordOrHyphenPart(needle, words[words.length - 1] || '');
@@ -200,6 +236,7 @@ function containsAsSuffixWord(haystack, needle) {
 // of an unrelated phrase is the weakest position of the three (neither the phrase's likely head
 // nor even its most prominent modifier), so `isEdgeWordOf` always requires it to repeat across
 // two sibling glosses, regardless of whether the word itself is on the risky list.
+/** @param {string} haystack @param {string} needle */
 function containsAsMiddleWord(haystack, needle) {
   const words = wordsOf(haystack);
   return words
@@ -220,6 +257,7 @@ const SILENT_E_SUFFIXES = ['ing', 'ed'];
 
 // True when `root` plus a suffix from `RELATED_WORD_SUFFIXES` equals `variant`, including the
 // silent-"e" spelling (see `SILENT_E_SUFFIXES`) that plain concatenation alone would miss.
+/** @param {string} root @param {string} variant */
 function isSuffixedFormOf(root, variant) {
   if (RELATED_WORD_SUFFIXES.some((suffix) => `${root}${suffix}` === variant)) {
     return true;
@@ -236,6 +274,7 @@ function isSuffixedFormOf(root, variant) {
 // "base on" / "based on" (word 0 differs by "-ed"; "on" matches). `isSuffixedFormOf` alone only
 // compares two whole tokens, so it cannot see this: "base on" as a whole is not a suffixed form
 // of "based on" as a whole, only its first word is.
+/** @param {string} a @param {string} b */
 function isPhraseSuffixVariant(a, b) {
   const wordsA = wordsOf(a);
   const wordsB = wordsOf(b);
@@ -263,6 +302,7 @@ function isPhraseSuffixVariant(a, b) {
 // "on the side of"). A single-word needle is deliberately NOT checked here at all -- see
 // `isEdgeWordOf` for why it needs a stricter, repetition-gated check instead of plain
 // containment.
+/** @param {string} nx @param {string} ny */
 function coreSynonymMatch(nx, ny) {
   if (nx === ny || isSuffixedFormOf(nx, ny) || isSuffixedFormOf(ny, nx)) {
     return true;
@@ -281,6 +321,7 @@ function coreSynonymMatch(nx, ny) {
 // kept) and "user (person)" == "Users" via the plural suffix on its bare head word "user"
 // (content dropped) -- after stripping a leading "to " infinitive marker from both sides (see
 // `coreSynonymMatch` for the comparison itself).
+/** @param {string} x @param {string} y */
 function isSynonymMatch(x, y) {
   const variantsX = parenVariants(stripTrailingPunctuation(stripToPrefix(x.toLowerCase())));
   const variantsY = parenVariants(stripTrailingPunctuation(stripToPrefix(y.toLowerCase())));
@@ -297,6 +338,7 @@ const RISKY_SUFFIX_WORDS = new Set([
   'by', 'up', 'in', 'out', 'on', 'off', 'over', 'away', 'through', 'along', 'about'
 ]);
 
+/** @param {string} word */
 function isRiskySuffixWord(word) {
   return word.endsWith('ly') || RISKY_SUFFIX_WORDS.has(word);
 }
@@ -312,6 +354,7 @@ const GENERIC_VERBS_BEFORE_ADVERB = new Set(['act', 'do', 'be', 'get', 'become',
 // verb being modified, so the adverb is the phrase's core meaning here too.
 const PRONOUNS_BEFORE_ADVERB = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they']);
 
+/** @param {string} word @param {string} sibling */
 function isSuffixRiskyIn(word, sibling) {
   if (!word.endsWith('ly')) {
     return RISKY_SUFFIX_WORDS.has(word);
@@ -331,6 +374,7 @@ function isSuffixRiskyIn(word, sibling) {
 // clearly" (a real content verb) or "by" closing "pass by" (a phrasal verb) needs two independent
 // hits instead). A lone unbundled def can never reach two sibling suffix hits at all, so a
 // coincidental last-word match on a single, unrelated phrase never folds a risky word either way.
+/** @param {string} word @param {string[]} siblingTokens */
 function isEdgeWordOf(word, siblingTokens) {
   if (isMultiWord(word)) {
     return false;
@@ -373,6 +417,7 @@ function isEdgeWordOf(word, siblingTokens) {
 // head word to test ("appeal" from "appeal (legal)"), and treating the parenthetical's content as
 // extra trailing words here would make the whole token look multi-word and disqualify it from
 // single-word matching entirely, even when the head word alone is a perfectly good match.
+/** @param {string} token */
 function normalizeForEdge(token) {
   return dropParens(stripTrailingPunctuation(stripToPrefix(token.toLowerCase())));
 }
@@ -382,6 +427,7 @@ function normalizeForEdge(token) {
 // risky word (see `isRiskySuffixWord`) is never trusted here even once. Used only by
 // `isFullyCoveredBundle`, where the corroboration comes from every OTHER word of the candidate
 // bundle independently finding a home too, not from this one word repeating.
+/** @param {string} word @param {string} hostToken */
 function isEdgeWordOfSingleToken(word, hostToken) {
   if (isMultiWord(word)) {
     return false;
@@ -402,6 +448,7 @@ function isEdgeWordOfSingleToken(word, hostToken) {
 // casing): either as a whole synonym match (see `isSynonymMatch`) or, if `token` is a single
 // word, as a trusted single-occurrence edge/middle word of some host token (see
 // `isEdgeWordOfSingleToken`).
+/** @param {string} token @param {string[]} hostTokens */
 function isTokenCoveredByBundle(token, hostTokens) {
   if (hostTokens.some((host) => isSynonymMatch(token, host))) {
     return true;
@@ -420,6 +467,7 @@ function isTokenCoveredByBundle(token, hostTokens) {
 // but a candidate bundle where every single word finds a home is redundant as a whole even
 // though no individual word repeats twice -- each word covering a *different* host token is
 // itself the corroboration that isolated single-word matching alone cannot see.
+/** @param {string[]} candidateTokens @param {string[]} hostTokens */
 function isFullyCoveredBundle(candidateTokens, hostTokens) {
   return candidateTokens.length >= 2
     && candidateTokens.every((token) => isTokenCoveredByBundle(token, hostTokens));
@@ -435,6 +483,7 @@ function isFullyCoveredBundle(candidateTokens, hostTokens) {
 // because every token on one side, taken together, is covered by the other side even without any
 // single word repeating (see `isFullyCoveredBundle`). Restricted to plain ASCII text (see
 // `isAsciiText`) so Chu Nom/CJK renderings are never folded.
+/** @param {string} a @param {string} b */
 function isRedundantVariant(a, b) {
   if (!isAsciiText(a) || !isAsciiText(b)) {
     return false;
@@ -456,6 +505,7 @@ function isRedundantVariant(a, b) {
     || normB.some((word) => isEdgeWordOf(word, normA));
 }
 
+/** @param {string} host @param {string} candidate */
 function coversDefinition(host, candidate) {
   const tokens = synonymTokens(candidate);
   if (host === candidate) return true;
@@ -470,10 +520,16 @@ function coversDefinition(host, candidate) {
 // must not block folding a bare hand-maintained gloss (pos "") into vnedict2.json's tagged one
 // (e.g. "smile" folds into the existing "to smile" (pos "verb")). Two distinct non-empty tags
 // (e.g. "n" vs "v") still keep their senses apart.
+/** @param {string} a @param {string} b */
 function posCompatible(a, b) {
   return a === b || a === '' || b === '';
 }
 
+/**
+ * Rejects anything that is not an array of `{vn: string, en: {def: string, pos: string}[]}` rows.
+ * @param {unknown} entries
+ * @returns {asserts entries is SourceEntry[]}
+ */
 function assertSourceEntries(entries) {
   if (!Array.isArray(entries)) {
     throw new TypeError('Dictionary source rows must be an array');
@@ -488,7 +544,7 @@ function assertSourceEntries(entries) {
     if (!Array.isArray(entry.en)) {
       throw new TypeError(`Dictionary source row ${index} must have an "en" array`);
     }
-    entry.en.forEach((definition, definitionIndex) => {
+    entry.en.forEach((/** @type {any} */ definition, /** @type {number} */ definitionIndex) => {
       if (!definition || typeof definition !== 'object'
           || typeof definition.def !== 'string'
           || typeof definition.pos !== 'string') {
@@ -501,10 +557,13 @@ function assertSourceEntries(entries) {
 }
 
 // Pure grouping transform. Never mutates its input, never touches the filesystem.
+/** @param {SourceEntry[]} sourceEntries @returns {GroupedEntry[]} */
 function groupEntries(sourceEntries) {
   assertSourceEntries(sourceEntries);
 
+  /** @type {string[]} */
   const order = [];
+  /** @type {Map<string, SenseGroupState>} */
   const byKey = new Map();
 
   for (const entry of sourceEntries) {
@@ -546,6 +605,7 @@ function groupEntries(sourceEntries) {
       // unrelated-looking "supply (in a market)" via "supply" and the earlier, exact "provide"
       // sense via "provide"); folding only into the first match would silently leave the second
       // one behind as an orphaned duplicate.
+      /** @type {number[]} */
       const matchIndices = [];
       group.senseOrder.forEach((sense, index) => {
         if (sense.headword === headword && posCompatible(sense.pos, pos) && isRedundantVariant(sense.def, def)) {
@@ -613,7 +673,7 @@ function groupEntries(sourceEntries) {
   }
 
   const groups = order.map((key) => {
-    const group = byKey.get(key);
+    const group = /** @type {SenseGroupState} */ (byKey.get(key));
     const headwords = group.headwordOrder;
     const primary = headwords[0];
     const en = group.senseOrder.map((sense) => {
@@ -634,7 +694,9 @@ function groupEntries(sourceEntries) {
 // normalized key must still be reachable from that key's grouped senses, either by identity or
 // because a kept sense is a case/plural variant that subsumes it (see `isRedundantVariant`) --
 // that intentional folding is what keeps generated userscripts smaller.
+/** @param {SourceEntry[]} sourceEntries @param {GroupedEntry[]} groups */
 function verifyLossless(sourceEntries, groups) {
+  /** @type {Map<string, KeptSense[]>} */
   const expected = new Map();
   for (const entry of sourceEntries) {
     const key = normalizeTerm(entry.vn);
@@ -654,7 +716,7 @@ function verifyLossless(sourceEntries, groups) {
     for (const {def, pos, headword} of expectedList) {
       const senseKey = definitionKey(def, pos);
       const suitable = actualList.filter((sense) =>
-        (sense.headword || group.headwords[0]) === headword && (!pos || sense.pos === pos));
+        (sense.headword || /** @type {GroupedEntry} */ (group).headwords[0]) === headword && (!pos || sense.pos === pos));
       const reachable = suitable.some(sense => definitionKey(sense.def, sense.pos) === senseKey) ||
         (isAsciiText(def) && synonymTokens(def).every(token => suitable.some((sense) => {
           if (!isAsciiText(sense.def)) return false;
@@ -672,6 +734,7 @@ function verifyLossless(sourceEntries, groups) {
   }
 }
 
+/** @param {any} entry An unvalidated row. @param {number} index @returns {GroupedEntry} */
 function validateGroupedEntry(entry, index) {
   const valid = entry
     && typeof entry === 'object'
@@ -680,9 +743,9 @@ function validateGroupedEntry(entry, index) {
     && entry.key.length > 0
     && Array.isArray(entry.headwords)
     && entry.headwords.length > 0
-    && entry.headwords.every((headword) => typeof headword === 'string' && headword.length > 0)
+    && entry.headwords.every((/** @type {unknown} */ headword) => typeof headword === 'string' && headword.length > 0)
     && Array.isArray(entry.en)
-    && entry.en.every((sense) => sense
+    && entry.en.every((/** @type {any} */ sense) => sense
       && typeof sense === 'object'
       && typeof sense.def === 'string'
       && typeof sense.pos === 'string'
@@ -694,6 +757,7 @@ function validateGroupedEntry(entry, index) {
   return entry;
 }
 
+/** @param {unknown} entries @returns {GroupedEntry[]} */
 function validateGroupedEntries(entries) {
   if (!Array.isArray(entries)) {
     throw new TypeError('Grouped dictionary rows must be an array');
@@ -704,6 +768,7 @@ function validateGroupedEntries(entries) {
 
 // Compact, deterministic collision diagnostics: counts only, no definitions dumped. Order is
 // by normalized key so output (and therefore the report's bytes) is stable across reruns.
+/** @param {GroupedEntry[]} groups @returns {CollisionReport} */
 function buildCollisionReport(groups) {
   const collisions = groups
     .filter((group) => group.headwords.length > 1)
@@ -724,6 +789,7 @@ function buildCollisionReport(groups) {
 
 // One `key=headwordCount/senseCount` line per collision, sorted -- never the definitions
 // themselves, so this is safe to print by default.
+/** @param {CollisionReport} report @returns {string[]} */
 function formatCollisionDiagnostics(report) {
   return report.collisions.map((collision) => `${collision.key}=${collision.headwordCount}/${collision.senseCount}`);
 }

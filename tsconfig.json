@@ -1,13 +1,14 @@
 {
   // Type-checks the modules that need no heavy DOM typing, from their JSDoc annotations. Grow this
   // list one module at a time: a module joins only once it passes without `@ts-nocheck`.
-  // Not yet covered: scripts/lib/{dictionary-identity,nom-entries-store,release-manifest}.js
-  // (many untyped object shapes) and every runtime that is mostly DOM code
-  // (popupdict*.runtime.js, nom-ruby.runtime.js, cjk-ruby.runtime.js, overlay-labels.js, ...).
+  // Not yet covered: scripts/lib/lint-config.js and every runtime that is mostly DOM code
+  // (popupdict*.runtime.js, nom-ruby.runtime.js, cjk-ruby.runtime.js, overlay-labels.js,
+  // zd-words.js, ...). `resolveJsonModule` lets release-manifest.js read the toolchain's package.json.
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
+    "resolveJsonModule": true,
     "strict": true,
     "target": "es2022",
     "module": "commonjs",
@@ -29,12 +30,15 @@
     "zd-extension/js/zd-nom-match.js",
     "scripts/lib/chunom-standard.js",
     "scripts/lib/cjk.js",
+    "scripts/lib/dictionary-identity.js",
     "scripts/lib/fsutil.js",
     "scripts/lib/jsonc-strip.js",
     "scripts/lib/minify.js",
+    "scripts/lib/nom-entries-store.js",
     "scripts/lib/nom-entries-csv.js",
     "scripts/lib/nom-merge.js",
     "scripts/lib/paths.js",
+    "scripts/lib/release-manifest.js",
     "scripts/lib/shard-path.js",
     "scripts/lib/sources.js",
     "scripts/lib/text.js",

@@ -37,7 +37,10 @@ userscript-manager, Trusted Types or browser layout compatibility by itself.
 
 `make check-types` runs strict TypeScript (`tsc -p tsconfig.json`) over the JSDoc contract of the
 modules listed in `tsconfig.json`: the offline review store, the pure local-mode helpers, the shared
-dictionary/popup-protocol/nom-match modules and most of `scripts/lib/`. It checks the existing
+dictionary/popup-protocol/nom-match modules and every `scripts/lib/` module except `lint-config.js`
+(the entry shapes of `dictionary-identity.js`, `nom-entries-store.js` and `release-manifest.js` are
+`@typedef`s in those files). It checks the existing
 JavaScript without transpiling or adding a runtime dependency; `make verify` runs the same check.
-The DOM-heavy runtimes are not listed yet; add a module to the `files` array once it passes
+The DOM-heavy runtimes (and `overlay-labels.js` / `zd-words.js`, ~40 untyped DOM parameters each)
+are not listed yet; add a module to the `files` array once it passes
 without `@ts-nocheck`.
