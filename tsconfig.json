@@ -1,0 +1,42 @@
+{
+  // Type-checks the modules that need no heavy DOM typing, from their JSDoc annotations. Grow this
+  // list one module at a time: a module joins only once it passes without `@ts-nocheck`.
+  // Not yet covered: scripts/lib/{dictionary-identity,nom-entries-store,release-manifest}.js
+  // (many untyped object shapes) and every runtime that is mostly DOM code
+  // (popupdict*.runtime.js, nom-ruby.runtime.js, cjk-ruby.runtime.js, overlay-labels.js, ...).
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["es2022", "dom"],
+    "types": ["node"]
+  },
+  "files": [
+    "scripts/userscript/nom-review-store.js",
+    "scripts/userscript/local-transport.js",
+    "scripts/userscript/local-entry-diff.js",
+    "scripts/userscript/local-modal-guard.js",
+    "scripts/userscript/local-modal-geometry.js",
+    "scripts/userscript/local-selection.js",
+    "scripts/userscript/safe-html.js",
+    "zd-extension/js/zd-dictionary-runtime.js",
+    "zd-extension/js/zd-popup-protocol.js",
+    "zd-extension/js/zd-browser-runtime.js",
+    "zd-extension/js/zd-nom-match.js",
+    "scripts/lib/chunom-standard.js",
+    "scripts/lib/cjk.js",
+    "scripts/lib/fsutil.js",
+    "scripts/lib/jsonc-strip.js",
+    "scripts/lib/minify.js",
+    "scripts/lib/nom-entries-csv.js",
+    "scripts/lib/nom-merge.js",
+    "scripts/lib/paths.js",
+    "scripts/lib/shard-path.js",
+    "scripts/lib/sources.js",
+    "scripts/lib/text.js",
+    "scripts/lib/userscript.js"
+  ]
+}

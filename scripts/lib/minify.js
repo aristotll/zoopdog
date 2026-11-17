@@ -9,6 +9,7 @@ const HEADER_END = '// ==/UserScript==';
 // userscript manager reads it as plain text, and esbuild would drop its comments -- and only the
 // code after it is minified. esbuild is a devDependency, so it is required lazily: the readable
 // build and the test suite never need it.
+/** @param {string} source */
 function minifyUserscript(source) {
   const end = source.indexOf(HEADER_END);
   if (end < 0) {
@@ -32,6 +33,7 @@ function minifyUserscript(source) {
 }
 
 // Writes the minified copy of an already-written userscript into dist/ under the same name.
+/** @param {string} sourcePath @param {string} distFile */
 function writeMinifiedUserscript(sourcePath, distFile) {
   const source = fs.readFileSync(sourcePath, 'utf8');
   const minified = minifyUserscript(source);

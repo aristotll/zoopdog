@@ -16,6 +16,7 @@ const STANDARD_LIST_URL = 'https://chunom.org/pages/standard-list/?max=2000';
 
 // One tab-separated row -> {rank, code, frequency, nom, term, english, isCharacter}; null for the header, a blank line or a
 // row with no Nom text or no reading. The `口` nhay mark that decorates a phonetic loan stays part of the Nom text.
+/** @param {string} line */
 function parseStandardRow(line) {
   const cells = line.split('\t');
   if (cells.length < 5 || /^#/.test(cells[0])) {
@@ -39,10 +40,12 @@ function parseStandardRow(line) {
   };
 }
 
+/** @param {unknown} text */
 function parseStandardList(text) {
   return String(text).split(/\r?\n/).map(parseStandardRow).filter(Boolean);
 }
 
+/** @param {string[]} list @param {string} value */
 function pushUnique(list, value) {
   if (!list.includes(value)) {
     list.push(value);
@@ -55,9 +58,13 @@ function pushUnique(list, value) {
 //   entries   every term (character readings and compounds) -> its Nom forms, in the list's order (frequency first)
 //   meanings  term -> English glosses (each distinct gloss once)
 //   standard  Quoc ngu reading -> the standard character(s), by frequency: only the rows of the list that are characters
+/** @param {{term: string, nom: string, english?: string, isCharacter?: boolean}[]} rows @param {{source?: string}} [options] */
 function buildPayload(rows, {source = STANDARD_LIST_URL} = {}) {
+  /** @type {Record<string, string[]>} */
   const entries = {};
+  /** @type {Record<string, string[]>} */
   const meanings = {};
+  /** @type {Record<string, string[]>} */
   const standard = {};
   for (const row of rows) {
     pushUnique(entries[row.term] = entries[row.term] || [], row.nom);

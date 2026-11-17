@@ -16,6 +16,11 @@ const DEFAULT_SEPARATORS = /[|/,;，、]+/u;
 //   stripParentheticals  drop "(...)" / "（...）" glosses before matching
 //   separators           split on these before matching, or null to skip splitting
 // The defaults reproduce scripts/build-nom-userscript.js, the strictest existing caller.
+/**
+ * @param {unknown} value
+ * @param {{requireCjk?: boolean, stripParentheticals?: boolean, separators?: RegExp | null, cleanOptions?: {stripNul?: boolean}}} [options]
+ * @returns {string[]}
+ */
 function extractNomCandidates(value, options = {}) {
   const {
     requireCjk = true,
@@ -44,6 +49,7 @@ function extractNomCandidates(value, options = {}) {
 
 // A term is embedded in NOM_MAP only if it is long enough or non-ASCII; short ASCII words
 // would otherwise annotate ordinary English prose.
+/** @param {string} term */
 function isEmbeddableTerm(term) {
   return Boolean(term) && (
     Array.from(term.replace(/\s/g, '')).length >= 2 ||

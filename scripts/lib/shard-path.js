@@ -14,11 +14,13 @@ const FILES_PER_FOLDER = SHARD_COUNT / FOLDERS_PER_ROOT;
 // the shared fixture in `zd-extension/db_src/user_nom_entries/SHARDING.md` -- changing it here
 // without updating that fixture and the Python side breaks cross-repo agreement on which shard a
 // term belongs to.
+/** @param {string} vi */
 function shardIndexFor(vi) {
   const digest = crypto.createHash('sha256').update(normalizeTerm(vi), 'utf8').digest('hex');
   return parseInt(digest.slice(0, 4), 16) % SHARD_COUNT;
 }
 
+/** @param {string} vi */
 function shardComponentsFor(vi) {
   const index = shardIndexFor(vi);
   const folder = String(Math.floor(index / FILES_PER_FOLDER)).padStart(2, '0');
@@ -27,6 +29,7 @@ function shardComponentsFor(vi) {
 }
 
 // Relative to the shard root directory, e.g. "03/07.csv".
+/** @param {string} vi */
 function shardPathFor(vi) {
   const {folder, file} = shardComponentsFor(vi);
   return `${folder}/${file}.csv`;
@@ -35,6 +38,7 @@ function shardPathFor(vi) {
 // Every shard path that must exist, in order -- the fixed enumeration the store relies on
 // instead of a directory listing (see design.md Decision 2).
 function allShardPaths() {
+  /** @type {string[]} */
   const paths = [];
   for (let folder = 0; folder < FOLDERS_PER_ROOT; folder++) {
     for (let file = 0; file < FILES_PER_FOLDER; file++) {

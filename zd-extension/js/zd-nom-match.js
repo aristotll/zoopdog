@@ -18,6 +18,7 @@ var ZD_NOM_VIETNAMESE_SIGNAL_PATTERN = /[ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨ�
 
 // Short/common English words to skip even when they would otherwise pass the length check in
 // zdNomShouldAnnotateMatch -- see the comment there.
+/** @type {Record<string, boolean>} */
 var ZD_NOM_ASCII_BLOCKLIST = {
   a: true, am: true, an: true, as: true, at: true, be: true, by: true, can: true, do: true,
   go: true, he: true, in: true, is: true, it: true, me: true, no: true, on: true, or: true,
@@ -41,6 +42,7 @@ var ZD_NOM_WHITESPACE_TABLE = new Uint8Array(ZD_NOM_CLASS_TABLE_SIZE);
 })();
 
 // `code` is a UTF-16 code unit (NaN, from charCodeAt past either end, is in neither class).
+/** @param {number} code */
 function zdNomIsWordCode(code) {
   if (code < ZD_NOM_CLASS_TABLE_SIZE) {
     return ZD_NOM_WORD_TABLE[code] === 1;
@@ -48,6 +50,7 @@ function zdNomIsWordCode(code) {
   return code === code && ZD_NOM_WORD_CHAR_PATTERN.test(String.fromCharCode(code));
 }
 
+/** @param {number} code */
 function zdNomIsWhitespaceCode(code) {
   if (code < ZD_NOM_CLASS_TABLE_SIZE) {
     return ZD_NOM_WHITESPACE_TABLE[code] === 1;
@@ -55,16 +58,19 @@ function zdNomIsWhitespaceCode(code) {
   return code === code && ZD_NOM_WHITESPACE_PATTERN.test(String.fromCharCode(code));
 }
 
+/** @param {string} text @param {number} index */
 function zdNomIsContractionApostrophe(text, index) {
   var code = text.charCodeAt(index);
   return (code === 39 || code === 0x2019) && zdNomIsWordCode(text.charCodeAt(index - 1)) &&
     zdNomIsWordCode(text.charCodeAt(index + 1));
 }
 
+/** @param {string} ch */
 function zdNomIsWordChar(ch) {
   return !!ch && zdNomIsWordCode(ch.charCodeAt(0));
 }
 
+/** @param {string} ch */
 function zdNomIsWhitespace(ch) {
   return !!ch && zdNomIsWhitespaceCode(ch.charCodeAt(0));
 }
@@ -74,6 +80,7 @@ var ZD_NOM_LOWER_UNSAFE_PATTERN = /[\u03a3\ud800-\udfff]/;
 var ZD_NOM_WHITESPACE_RUN_PATTERN = /\s/g;
 // Invisible joiners that page translators (Immersive Translate) sprinkle between words. `\s`
 // does not cover them, so without this a gap like " \u200b\u200b" ended every run.
+/** @param {number} code */
 function zdNomIsZeroWidthCode(code) {
   return (code >= 0x200b && code <= 0x200d) || code === 0x2060 || code === 0xfeff;
 }
@@ -82,6 +89,7 @@ function zdNomIsZeroWidthCode(code) {
 // whole-string toLowerCase() agrees with that for everything except the Greek capital sigma
 // (whose lowercase depends on its position in the word) and astral letters (a per-character
 // walk sees only their halves), so those alone take the slow path.
+/** @param {string} str */
 function zdNomLower(str) {
   if (!ZD_NOM_LOWER_UNSAFE_PATTERN.test(str)) {
     return str.toLowerCase();
@@ -103,6 +111,7 @@ function zdNomLower(str) {
 // match at all when the caller wants Chu Nom (non-ASCII) terms exclusively; otherwise the caller's
 // map is used as it is. Lookups go through hasOwnProperty so a word such as "constructor" is not
 // mistaken for a term.
+/** @param {Record<string, any>} map @param {boolean | string | undefined} annotateAsciiTerms */
 function zdNomBuildIndex(map, annotateAsciiTerms) {
   var terms = map;
   if (annotateAsciiTerms === false) {
@@ -114,33 +123,38 @@ function zdNomBuildIndex(map, annotateAsciiTerms) {
     });
   }
 
+  /** @type {Set<string> | null} */
   var prefixes = null;
 
   return {
     // The Chu Nom value of `key`, or undefined when `key` is not a term.
+    /** @param {string} key */
     get: function(key) {
       return ZD_NOM_HAS_OWN.call(terms, key) ? terms[key] : undefined;
     },
+    /** @param {string} key */
     has: function(key) {
       return ZD_NOM_HAS_OWN.call(terms, key);
     },
     // Built on first use: a page with nothing to match never pays for it.
+    /** @param {string} key */
     hasPrefix: function(key) {
       if (!prefixes) {
         prefixes = new Set();
         Object.keys(terms).forEach(function(term) {
           var at = term.indexOf(' ');
           while (at >= 0) {
-            prefixes.add(term.substring(0, at));
+            /** @type {Set<string>} */ (prefixes).add(term.substring(0, at));
             at = term.indexOf(' ', at + 1);
           }
         });
       }
-      return prefixes.has(key);
+      return /** @type {Set<string>} */ (prefixes).has(key);
     }
   };
 }
 
+/** @param {string} text @param {number} start @param {number} end */
 function zdNomHasVietnameseContext(text, start, end) {
   var contextStart = Math.max(0, start - 80);
   var contextEnd = Math.min(text.length, end + 80);
@@ -152,6 +166,7 @@ function zdNomHasVietnameseContext(text, start, end) {
 // the run. Mirrors reader.nom's `_split_runs` in the book-translator project's Python engine,
 // and is what the term index is walked against: the two engines segment the same class of text
 // the same way, even though one is fed pre-tokenized words and the other raw text.
+/** @param {string} text @param {number} start */
 function zdNomRunWords(text, start) {
   var words = [];
   var i = start;
@@ -185,6 +200,7 @@ function zdNomRunWords(text, start) {
 // this exists to fix: two genuine dictionary phrases can overlap on a shared word, and only
 // comparing the whole run's total cost, not just what is longest at one position, tells which
 // one should give way.
+/** @param {any} termIndex @param {string} text @param {any[]} words @param {number} index @param {any} annotateAsciiTerms @param {any} englishRun */
 function zdNomWordMatchesAt(termIndex, text, words, index, annotateAsciiTerms, englishRun) {
   var matches = [];
   var key = '';
@@ -211,6 +227,7 @@ function zdNomWordMatchesAt(termIndex, text, words, index, annotateAsciiTerms, e
 // exposing its first, arbitrary-source-order candidate); a word with no entry at all costs
 // nothing and is simply skipped. Ties are broken toward the longest match at the earliest
 // position, reproducing the old greedy-matchAt result whenever no real overlap exists.
+/** @param {any} termIndex @param {string} text @param {any[]} words @param {any} annotateAsciiTerms */
 function zdNomBestSegmentation(termIndex, text, words, annotateAsciiTerms) {
   var choice = zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms);
   var n = words.length;
@@ -229,6 +246,7 @@ function zdNomBestSegmentation(termIndex, text, words, annotateAsciiTerms) {
 }
 
 // Number of ' / '-separated candidates in a Chu Nom value, without allocating the split array.
+/** @param {any} value */
 function zdNomCandidateCount(value) {
   var count = 1;
   var at = value.indexOf(' / ');
@@ -244,6 +262,7 @@ function zdNomCandidateCount(value) {
 // depends only on the words after it, `choice` answers "what matches starting here?" for every
 // word of the run at once -- zdCreateNomMatcher computes it once per run and reads it for each
 // start position instead of re-running the DP from every word.
+/** @param {any} termIndex @param {string} text @param {any[]} words @param {any} annotateAsciiTerms */
 function zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms) {
   var n = words.length;
   var englishRun = annotateAsciiTerms === 'safe' && zdNomLooksEnglish(termIndex, text, words);
@@ -283,6 +302,7 @@ function zdNomSegmentationChoices(termIndex, text, words, annotateAsciiTerms) {
 // ("the", "day"). A lone word has no rate to speak of and is never called English here.
 var ZD_NOM_VIETNAMESE_HIT_RATE = 0.75;
 
+/** @param {any} termIndex @param {string} text @param {any[]} words */
 function zdNomLooksEnglish(termIndex, text, words) {
   if (words.length < 2) {
     return false;
@@ -304,6 +324,7 @@ function zdNomLooksEnglish(termIndex, text, words) {
 // `annotateAsciiTerms` says so: `true` always, `false` never, and `'safe'` (the default)
 // annotates longer words (3+ letters, skipping a small blocklist of common short English
 // words) or a short word sitting next to visible Vietnamese diacritics.
+/** @param {string} text @param {number} start @param {number} end @param {any} annotateAsciiTerms @param {any} englishRun */
 function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms, englishRun) {
   var matchedText = text.substring(start, end);
 
@@ -343,6 +364,7 @@ function zdNomShouldAnnotateMatch(text, start, end, annotateAsciiTerms, englishR
 // isn't an exact hit and never touches zdNomBestSegmentation's cost model. Mirrors
 // `reader.nom.NomAnnotator.annotate`'s identical per-occurrence check in the book-translator
 // project's Python engine.
+/** @param {Record<string, any>} nomMap @param {{annotateAsciiTerms?: any} | undefined} [options] @param {Record<string, any>} [caseSensitiveMap] */
 function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   var annotateAsciiTerms = options && 'annotateAsciiTerms' in options
     ? options.annotateAsciiTerms
@@ -355,9 +377,12 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   // on the words after them, and every input to zdNomShouldAnnotateMatch is read from the full
   // text), so one analysis answers every start inside the run. Recomputing it from each word
   // start, as this used to, made a run of n words cost O(n^2).
+  /** @type {string | null} */
   var cachedText = null;
+  /** @type {any} */
   var cachedRun = null;
 
+  /** @param {string} text @param {number} start */
   function analyseRun(text, start) {
     var words = zdNomRunWords(text, start);
     if (!words.length) {
@@ -375,6 +400,7 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   // The DP choice for the word starting at `start`, as {run, index}, or null when no run starts
   // there. `start` normally is a word start; anything else (a caller may pass any offset) gets a
   // private, uncached analysis so the answer is the same as a fresh run from that offset.
+  /** @param {string} text @param {number} start */
   function locate(text, start) {
     if (cachedText !== text) {
       cachedText = text;
@@ -411,6 +437,7 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   // segmentation of the run from there (see zdNomBestSegmentation for why this can differ from
   // simply walking for the single longest match starting here -- two real dictionary phrases can
   // overlap on a shared word). Null when the best segmentation skips that word.
+  /** @param {string} text @param {number} start */
   function matchAt(text, start) {
     var located = locate(text, start);
     if (!located) {
@@ -437,6 +464,7 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
     return {index: start, length: length, nom: nom};
   }
 
+  /** @param {string} text @param {number} offset */
   function findNomMatch(text, offset) {
     var len = text.length;
     for (var i = offset; i < len; i++) {
@@ -457,6 +485,7 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   // prefix of an entry that has more words after it. A caller whose text is split over several
   // DOM nodes asks this before paying to read the following nodes -- nearly every text node ends
   // in a word that no entry continues, and those never need the lookahead.
+  /** @param {string} text */
   function canContinuePast(text) {
     // The start offsets of the last 16 words, found from the end so a long text costs no more
     // than its tail.
@@ -488,6 +517,7 @@ function zdCreateNomMatcher(nomMap, options, caseSensitiveMap) {
   // Whether `text` is a lone word whose ASCII-only dictionary hit zdNomLooksEnglish cannot judge
   // (a single word has no hit rate), so a caller whose text is split over several DOM nodes -- one
   // word per node, as the reader does -- should read on and let the words after it decide.
+  /** @param {string} text */
   function needsEnglishContext(text) {
     if (annotateAsciiTerms !== 'safe' || ZD_NOM_VIETNAMESE_SIGNAL_PATTERN.test(text)) {
       return false;

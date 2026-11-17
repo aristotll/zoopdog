@@ -4,6 +4,7 @@
 // handed to `JSON.parse`. Split out of `user-nom-entries.js` when that file stopped being
 // JSONC-backed (see openspec/changes/shard-user-nom-entries-csv) -- `user_nom_order.jsonc` is
 // still a single hand-maintained JSONC file and is this function's only remaining caller.
+/** @param {string} source */
 function stripJsonComments(source) {
   let result = '';
   let inString = false;

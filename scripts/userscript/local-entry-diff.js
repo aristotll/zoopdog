@@ -1,5 +1,7 @@
 // Renders server-provided preview rows using an injected document.
+/** @param {Document} document */
 function createZooEntryDiffRenderer(document) {
+  /** @param {string} tag @param {string} [className] @param {string} [text] */
   function zooDiffEl(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -7,6 +9,7 @@ function createZooEntryDiffRenderer(document) {
     return node;
   }
 
+  /** @param {string} kind @param {string} mark @param {{changed?: boolean, text: string}[]} segments */
   function zooDiffLine(kind, mark, segments) {
     var line = zooDiffEl('div', 'zd-entry-diff-line zd-entry-diff-' + kind);
     var markEl = zooDiffEl('span', 'zd-entry-diff-mark', mark);
@@ -21,6 +24,7 @@ function createZooEntryDiffRenderer(document) {
     return line;
   }
 
+  /** @param {any} row */
   function zooEntryDiffRow(row) {
     var item = zooDiffEl('li', 'zd-entry-diff-row');
     var head = zooDiffEl('div', 'zd-entry-diff-field', row.field);
@@ -47,6 +51,7 @@ function createZooEntryDiffRenderer(document) {
     return item;
   }
 
+  /** @param {HTMLElement} list */
   function zooScrollEntryDiffToHead(list) {
     list.scrollTop = 0;
     var modal = list.closest ? list.closest('.zd-modal') : null;
@@ -55,10 +60,11 @@ function createZooEntryDiffRenderer(document) {
   }
 
   // Returns the number of *changes* drawn; neither the key nor a context row is something to confirm.
+  /** @param {HTMLElement} list @param {any} diff */
   function zooRenderEntryDiff(list, diff) {
     list.textContent = '';
     var rows = diff && Array.isArray(diff.rows) ? diff.rows : [];
-    rows.forEach(function(row) { list.appendChild(zooEntryDiffRow(row)); });
+    rows.forEach(function(/** @type {any} */ row) { list.appendChild(zooEntryDiffRow(row)); });
     list.hidden = !list.childElementCount;
     zooScrollEntryDiffToHead(list);
     return diff && diff.changed ? diff.changed : 0;

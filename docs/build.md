@@ -1,6 +1,6 @@
 # Build and Verification
 
-Use Node 24 (see `.nvmrc`) and run `npm ci`. The lockfile pins esbuild, Pug, Stylus and TypeScript; all
+Use Node 24 (see `.nvmrc`) and run `npm ci`. The lockfile pins esbuild, Pug, Stylus, TypeScript and `@types/node`; all
 are development dependencies, and the shipped website has no runtime npm dependency.
 
 ## Quickstart
@@ -27,7 +27,8 @@ make verify
 userscripts and dictionary there, runs every suite under `test/`, minifies the userscripts and
 checks generated page/style drift in that same temporary directory. It also syntax-checks
 first-party JavaScript under `scripts/`, `js/`, and `zd-extension/js/` (third-party `lib/`
-files are excluded) and checks the JSDoc types of the review store. It never retries a failed
+files are excluded) and type-checks the modules listed in `tsconfig.json` from their JSDoc
+(`make check-types`). It never retries a failed
 test or writes generated artifacts to the checkout. The
 direct command below is useful during development, but may use or refresh shared artifacts:
 

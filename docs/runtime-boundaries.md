@@ -24,6 +24,9 @@ IIFEs. Local-only helpers and grants are not included in the public popup build.
 these boundaries in isolation and through the generated scripts; a DOM harness cannot establish
 userscript-manager, Trusted Types or browser layout compatibility by itself.
 
-`make check-types` pilots strict TypeScript checking of the JSDoc contract on the offline
-review store. It checks the existing JavaScript without transpiling or adding a runtime
-dependency; `make verify` runs the same check.
+`make check-types` runs strict TypeScript (`tsc -p tsconfig.json`) over the JSDoc contract of the
+modules listed in `tsconfig.json`: the offline review store, the pure local-mode helpers, the shared
+dictionary/popup-protocol/nom-match modules and most of `scripts/lib/`. It checks the existing
+JavaScript without transpiling or adding a runtime dependency; `make verify` runs the same check.
+The DOM-heavy runtimes are not listed yet; add a module to the `files` array once it passes
+without `@ts-nocheck`.

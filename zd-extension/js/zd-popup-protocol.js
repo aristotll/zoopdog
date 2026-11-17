@@ -11,6 +11,7 @@ const FRAME_BOUNDS = Object.freeze({
   maxHeight: 340
 });
 
+/** @param {any} value @param {string[]} keys */
 function hasOnlyKeys(value, keys) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const actual = Object.keys(value).sort();
@@ -18,6 +19,7 @@ function hasOnlyKeys(value, keys) {
     && keys.slice().sort().every((key, index) => key === actual[index]);
 }
 
+/** @param {any} value */
 function isBoundedText(value) {
   return typeof value === 'string' && value.length <= MAX_TEXT_LENGTH;
 }
@@ -25,6 +27,7 @@ function isBoundedText(value) {
 // A sense's `headword` is present only when it differs from the result's primary headword
 // (`headwords[0]`) -- see scripts/lib/dictionary-identity.js -- so both the 2- and 3-key
 // shapes are valid.
+/** @param {any} value */
 function isDefinition(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value);
@@ -39,6 +42,7 @@ function isDefinition(value) {
   return isBoundedText(value.def) && isBoundedText(value.pos);
 }
 
+/** @param {any} value */
 function isResult(value) {
   return hasOnlyKeys(value, ['en', 'headwords', 'key'])
     && isBoundedText(value.key)
@@ -46,12 +50,13 @@ function isResult(value) {
     && Array.isArray(value.headwords)
     && value.headwords.length > 0
     && value.headwords.length <= MAX_DEFINITIONS
-    && value.headwords.every((headword) => isBoundedText(headword) && headword.length > 0)
+    && value.headwords.every((/** @type {any} */ headword) => isBoundedText(headword) && headword.length > 0)
     && Array.isArray(value.en)
     && value.en.length <= MAX_DEFINITIONS
     && value.en.every(isDefinition);
 }
 
+/** @param {any} message */
 function validateParentMessage(message) {
   if (!message || message.version !== PROTOCOL_VERSION) return false;
   if (message.type === 'lock' || message.type === 'unlock') {
@@ -67,10 +72,12 @@ function validateParentMessage(message) {
   return message.results.every(isResult);
 }
 
+/** @param {any} value */
 function isDimension(value) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+/** @param {any} message */
 function validateFrameMessage(message) {
   if (!message || message.version !== PROTOCOL_VERSION) return false;
   if (message.type === 'toggle-lock' || message.type === 'drag-end') {
@@ -91,6 +98,7 @@ function validateFrameMessage(message) {
   return Object.values(message.dimensions).every(isDimension);
 }
 
+/** @param {{height: number, width: number, verticalPadding: number, horizontalPadding: number}} dimensions */
 function clampDimensions(dimensions) {
   const height = Math.min(
     FRAME_BOUNDS.maxHeight,
@@ -103,6 +111,7 @@ function clampDimensions(dimensions) {
   return {height, width};
 }
 
+/** @param {any} event @param {any} parentWindow */
 function validateInitEvent(event, parentWindow) {
   if (!event || event.source !== parentWindow
       || !hasOnlyKeys(event.data, ['type', 'version'])
@@ -117,15 +126,18 @@ function validateInitEvent(event, parentWindow) {
   return event.ports[0];
 }
 
+/** @param {any} target @param {any} parentWindow @param {(data: any) => void} onMessage */
 function bindFramePort(target, parentWindow, onMessage) {
+  /** @type {any} */
   let port = null;
+  /** @param {any} event */
   function initialize(event) {
     if (port) return;
     const candidate = validateInitEvent(event, parentWindow);
     if (!candidate) return;
     port = candidate;
     target.removeEventListener('message', initialize);
-    port.onmessage = (portEvent) => onMessage(portEvent.data);
+    port.onmessage = (/** @type {any} */ portEvent) => onMessage(portEvent.data);
     if (port.start) port.start();
   }
   target.addEventListener('message', initialize);
@@ -154,7 +166,7 @@ const zdPopupProtocol = {
 };
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.zdPopupProtocol = zdPopupProtocol;
+  /** @type {any} */ (globalThis).zdPopupProtocol = zdPopupProtocol;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

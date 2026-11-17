@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const runtimeDir = path.resolve(__dirname, '../userscript');
 
+/** @param {string} name */
 function readRuntime(name) {
   return fs.readFileSync(path.join(runtimeDir, name), 'utf8');
 }
@@ -13,6 +14,7 @@ function readRuntime(name) {
 // exactly once: a missing one means the runtime drifted from the builder, and a repeated one
 // means the substitution would be ambiguous. Either way the build should fail loudly rather
 // than emit a userscript with an unreplaced `__ZOOPDOG_*__` token in it.
+/** @param {string} source @param {Record<string, any>} replacements */
 function renderRuntime(source, replacements) {
   let output = source;
   for (const [placeholder, value] of Object.entries(replacements)) {
@@ -25,7 +27,7 @@ function renderRuntime(source, replacements) {
     output = parts.join(String(value));
   }
   if (/__ZOOPDOG_[A-Z_]+__/.test(output)) {
-    throw new Error(`Unreplaced runtime placeholder: ${output.match(/__ZOOPDOG_[A-Z_]+__/)[0]}`);
+    throw new Error(`Unreplaced runtime placeholder: ${/** @type {RegExpMatchArray} */ (output.match(/__ZOOPDOG_[A-Z_]+__/))[0]}`);
   }
   return output;
 }
@@ -36,6 +38,7 @@ function renderRuntime(source, replacements) {
 // and deferring the parse keeps pages that never need the data from paying for it at all. The
 // literal is a valid JS string whose value is valid JSON, so `extractAssignedJson` below reads
 // it back with the JSON primitives it already has.
+/** @param {unknown} value */
 function jsonStringLiteral(value) {
   return JSON.stringify(JSON.stringify(value));
 }
@@ -43,6 +46,7 @@ function jsonStringLiteral(value) {
 // Generic JS-source-value-span scanning, used by `extractAssignedJson` to find where a
 // `var NOM_MAP_JSON = "..."` / `var ZOO_DICTIONARY_JSON = "..."` assignment's value ends inside a
 // generated userscript.
+/** @param {string} source @param {number} start */
 function skipJsoncTrivia(source, start) {
   let index = start;
   while (index < source.length) {
@@ -66,6 +70,7 @@ function skipJsoncTrivia(source, start) {
   return index;
 }
 
+/** @param {string} source @param {number} start */
 function readJsonStringEnd(source, start) {
   let escaped = false;
   for (let index = start + 1; index < source.length; index++) {
@@ -81,6 +86,7 @@ function readJsonStringEnd(source, start) {
   throw new Error('Unterminated JSON string.');
 }
 
+/** @param {string} source @param {number} start */
 function readJsonValueEnd(source, start) {
   if (source[start] === '"') {
     return readJsonStringEnd(source, start);
@@ -119,6 +125,7 @@ function readJsonValueEnd(source, start) {
 // Reads back a generated `var <variableName>_JSON = "<json text>";` assignment (written with
 // `jsonStringLiteral`) or, failing that, a plain `var <variableName> = {...};` object literal
 // from generated userscript source.
+/** @param {string} source @param {string} variableName */
 function extractAssignedJson(source, variableName) {
   let markerIndex = source.indexOf(`var ${variableName}_JSON =`);
   let marker = `var ${variableName}_JSON =`;
@@ -145,14 +152,16 @@ const VERSION_PLACEHOLDER = '__ZOOPDOG_VERSION__';
 const PENDING_VERSION = '0.0.0';
 const VERSION_LINE = /^(\/\/ @version[ \t]+)(\S+)([ \t]*)$/m;
 
+/** @param {string} source */
 function readUserscriptVersion(source) {
   const match = source.match(VERSION_LINE);
   return match ? match[2] : null;
 }
 
+/** @param {string} source @param {string} version */
 function setUserscriptVersion(source, version) {
   let seen = 0;
-  const output = source.replace(new RegExp(VERSION_LINE.source, 'gm'), (whole, prefix, _old, suffix) => {
+  const output = source.replace(new RegExp(VERSION_LINE.source, 'gm'), (/** @type {string} */ whole, /** @type {string} */ prefix, /** @type {string} */ _old, /** @type {string} */ suffix) => {
     seen += 1;
     return `${prefix}${version}${suffix}`;
   });
@@ -164,6 +173,7 @@ function setUserscriptVersion(source, version) {
 
 // Dotted numeric comparison, the subset of Tampermonkey's version ordering these stamps use.
 // A missing segment counts as 0, so 2026.09.05.1 sorts above 2026.09.05.
+/** @param {string} left @param {string} right */
 function compareVersions(left, right) {
   const a = String(left).split('.');
   const b = String(right).split('.');
@@ -181,12 +191,13 @@ function compareVersions(left, right) {
 }
 
 function versionDatestamp(now = new Date()) {
-  const pad = (value) => String(value).padStart(2, '0');
+  const pad = (/** @type {unknown} */ value) => String(value).padStart(2, '0');
   return `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
 }
 
 // The build date is the readable stamp; a trailing counter only appears when a date is already
 // taken, which keeps a second rebuild on the same day strictly newer than the first.
+/** @param {string | null | undefined} previousVersion @param {string} datestamp */
 function nextUserscriptVersion(previousVersion, datestamp) {
   if (!previousVersion || compareVersions(datestamp, previousVersion) > 0) {
     return datestamp;
@@ -201,16 +212,18 @@ function nextUserscriptVersion(previousVersion, datestamp) {
 
 // Stamps the rendered userscript and writes it. The draft carries PENDING_VERSION, so the
 // comparison against the committed file is a comparison of everything except the stamp.
+/** @param {string} targetPath @param {string} draft @param {Date} [now] */
 function writeVersionedUserscript(targetPath, draft, now = new Date()) {
   const previous = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : null;
   const previousVersion = previous ? readUserscriptVersion(previous) : null;
   const changed = !previousVersion ||
-    setUserscriptVersion(previous, PENDING_VERSION) !== setUserscriptVersion(draft, PENDING_VERSION);
+    setUserscriptVersion(/** @type {string} */ (previous), PENDING_VERSION) !== setUserscriptVersion(draft, PENDING_VERSION);
   const version = changed
     ? nextUserscriptVersion(previousVersion, versionDatestamp(now))
     : previousVersion;
 
-  fs.writeFileSync(targetPath, setUserscriptVersion(draft, version), 'utf8');
+  // `version` is non-null: either freshly stamped, or the previous file's own version when unchanged.
+  fs.writeFileSync(targetPath, setUserscriptVersion(draft, /** @type {string} */ (version)), 'utf8');
   return {version, changed};
 }
 
@@ -220,17 +233,18 @@ function writeVersionedUserscript(targetPath, draft, now = new Date()) {
 //   {"rules": [{"host": "<regex source>", "scripts": ["nom-ruby", "cjk-ruby"] (optional),
 //               "css": "...", "maxRun": 3, "perWord": true, "mode": "ruby|overlay"}]}
 // A missing file means no rules; a malformed one fails the build. The published build always gets [].
+/** @param {string} script @param {boolean} local @param {NodeJS.ProcessEnv} [env] */
 function readLocalSiteRules(script, local, env = process.env) {
   if (!local) return [];
   const file = env.ZOOPDOG_LOCAL_SITE_RULES || path.resolve(__dirname, '../../../book-translator/zoopdog-site-rules.json');
   if (!fs.existsSync(file)) return [];
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   const rules = Array.isArray(data.rules) ? data.rules : [];
-  return rules.filter((rule) => {
+  return rules.filter((/** @type {any} */ rule) => {
     if (!rule || typeof rule.host !== 'string') throw new Error(`${file}: every rule needs a host regex string`);
     new RegExp(rule.host);
     return !rule.scripts || rule.scripts.includes(script);
-  }).map(({scripts, ...rule}) => rule);
+  }).map((/** @type {any} */ {scripts, ...rule}) => rule);
 }
 
 module.exports = {

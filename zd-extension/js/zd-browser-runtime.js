@@ -1,5 +1,9 @@
 'use strict';
 
+/**
+ * @param {{readyState: string, addEventListener: Function}} documentTarget
+ * @param {() => void} initialize
+ */
 function runWhenReady(documentTarget, initialize) {
   let started = false;
   function start() {
@@ -21,6 +25,7 @@ function createLatestTask() {
   return {
     begin() { epoch += 1; return epoch; },
     invalidate() { epoch += 1; return epoch; },
+    /** @param {number} candidate */
     isCurrent(candidate) { return candidate === epoch; }
   };
 }
@@ -28,7 +33,7 @@ function createLatestTask() {
 const zdBrowserRuntime = {createLatestTask, runWhenReady};
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.zdBrowserRuntime = zdBrowserRuntime;
+  /** @type {any} */ (globalThis).zdBrowserRuntime = zdBrowserRuntime;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

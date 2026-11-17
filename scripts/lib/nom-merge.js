@@ -4,12 +4,15 @@
 // (scripts/merge-mdx-nom-into-vnedict2.js) and the chunom layer (scripts/chunom-standard-layer.js), plus the normalized-key index of
 // entries those and the extension's user-entry merge all need. Entries are `{vn, en: [{def, pos}]}`.
 
+/** @typedef {{vn: string, en?: {def: string, pos: string}[]}} NomEntry */
+
 const {cleanText, normalizeTerm} = require('./text');
 const {CJK_PATTERN: cjkPattern, extractNomCandidates} = require('./cjk');
 const {definitionKey} = require('./sources');
 
 // This merge treats every CJK run in a definition as an existing token, including runs
 // inside parentheticals and without separator splitting.
+/** @param {unknown} value */
 function cjkTokens(value) {
   return extractNomCandidates(value, {
     requireCjk: false,
@@ -18,7 +21,9 @@ function cjkTokens(value) {
   });
 }
 
+/** @param {NomEntry} entry */
 function existingTokens(entry) {
+  /** @type {Set<string>} */
   const tokens = new Set();
   for (const item of entry.en || []) {
     for (const token of cjkTokens(item.def)) {
@@ -29,11 +34,13 @@ function existingTokens(entry) {
 }
 
 // Inserts the candidates an entry lacks after its leading Nom definitions (before the glosses); returns how many were added.
+/** @param {NomEntry} entry @param {string[]} candidates */
 function insertNomDefinitions(entry, candidates) {
   entry.en = entry.en || [];
 
   const seenTokens = existingTokens(entry);
   const seenDefinitions = new Set(entry.en.map((item) => cleanText(item.def)));
+  /** @type {{def: string, pos: string}[]} */
   const additions = [];
 
   for (const candidate of candidates) {
@@ -60,7 +67,9 @@ function insertNomDefinitions(entry, candidates) {
   return additions.length;
 }
 
+/** @param {NomEntry} entry */
 function dedupeDefinitions(entry) {
+  /** @type {Set<string>} */
   const seen = new Set();
   const originalLength = (entry.en || []).length;
 
@@ -77,7 +86,9 @@ function dedupeDefinitions(entry) {
 }
 
 // Map<normalized headword, entry[]>, skipping an entry whose headword normalizes to nothing.
+/** @param {NomEntry[]} entries */
 function indexEntriesByKey(entries) {
+  /** @type {Map<string, NomEntry[]>} */
   const byKey = new Map();
   for (const entry of entries) {
     const key = normalizeTerm(entry.vn);
@@ -87,7 +98,7 @@ function indexEntriesByKey(entries) {
     if (!byKey.has(key)) {
       byKey.set(key, []);
     }
-    byKey.get(key).push(entry);
+    /** @type {NomEntry[]} */ (byKey.get(key)).push(entry);
   }
   return byKey;
 }
@@ -95,6 +106,11 @@ function indexEntriesByKey(entries) {
 // Folds `termToForms` (term -> Nom forms) into `entries`, in place. A term an entry already has gets the forms it lacks (behind its own
 // Nom forms, see `insertNomDefinitions`); a new term becomes an entry with its forms followed by `extraDefsFor(term)` (glosses, if any).
 // A non-array value counts as malformed; a term with an empty key, or no forms left after cleaning, is skipped (never an entry).
+/**
+ * @param {NomEntry[]} entries
+ * @param {Record<string, any>} termToForms
+ * @param {{index?: Map<string, NomEntry[]>, extraDefsFor?: (term: string) => string[] | undefined}} [options]
+ */
 function mergeNomFormsIntoEntries(entries, termToForms, {index = indexEntriesByKey(entries), extraDefsFor} = {}) {
   let updatedEntries = 0;
   let addedDefinitions = 0;
@@ -107,7 +123,7 @@ function mergeNomFormsIntoEntries(entries, termToForms, {index = indexEntriesByK
       skippedMalformed++;
       continue;
     }
-    const candidates = Array.from(new Set(forms.map(cleanText).filter(Boolean)));
+    const candidates = Array.from(new Set(forms.map((/** @type {unknown} */ form) => cleanText(form)).filter(Boolean)));
     if (!key || !candidates.length) {
       continue;
     }

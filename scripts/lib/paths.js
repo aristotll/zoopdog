@@ -6,6 +6,7 @@ const rootDir = path.resolve(__dirname, '../..');
 
 // Repository-relative locations, kept as relative strings so callers that operate on an
 // alternate root (tests, isolated fixtures) can resolve them against their own base.
+/** @type {Readonly<Record<string, string>>} */
 const relative = Object.freeze({
   baseDictionarySource: 'zd-extension/db_src/vnedict.txt',
   baseDictionary: 'zd-extension/db_src/vnedict.json',
@@ -31,12 +32,14 @@ const relative = Object.freeze({
   openspecSpecs: 'openspec/specs'
 });
 
+/** @param {string} key */
 function assertKnown(key) {
   if (!Object.hasOwn(relative, key)) {
     throw new Error(`Unknown repository path: ${key}`);
   }
 }
 
+/** @param {string} base @param {string} key */
 function resolveIn(base, key) {
   assertKnown(key);
   return path.join(base, relative[key]);
@@ -48,6 +51,7 @@ function resolveIn(base, key) {
 // installed copies keep updating. The asset name is the built file's basename.
 const releaseBaseUrl = 'https://github.com/aristotll/zoopdog/releases/latest/download';
 
+/** @param {string} key */
 function releaseUrl(key) {
   assertKnown(key);
   return `${releaseBaseUrl}/${path.basename(relative[key])}`;
@@ -55,6 +59,7 @@ function releaseUrl(key) {
 
 // Minified release builds live here (gitignored); the readable build at the repository root
 // stays the contract for the tests.
+/** @param {string} key @param {string} [base] */
 function distPath(key, base = rootDir) {
   assertKnown(key);
   return path.join(base, relative.distDir, path.basename(relative[key]));
@@ -62,6 +67,7 @@ function distPath(key, base = rootDir) {
 
 // The -local userscripts never publish to github: they update from their own built file on
 // this machine, so Violentmonkey's "track local file" polling picks up a rebuild directly.
+/** @param {string} key */
 function localFileUrl(key) {
   assertKnown(key);
   return `file://${resolveIn(rootDir, key)}`;

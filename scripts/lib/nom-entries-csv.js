@@ -9,14 +9,17 @@ const {cleanText, normalizeTerm} = require('./text');
 const HEADER = ['vi', 'nom', 'explain'];
 const LIST_SEPARATOR = '|';
 
+/** @param {string} field */
 function needsQuoting(field) {
   return field.includes(',') || field.includes('"') || field.includes('\n') || field.includes('\r');
 }
 
+/** @param {string} field */
 function quoteField(field) {
   return needsQuoting(field) ? `"${field.replace(/"/g, '""')}"` : field;
 }
 
+/** @param {string[]} fields */
 function serializeRow(fields) {
   return fields.map(quoteField).join(',');
 }
@@ -25,14 +28,17 @@ function serializeRow(fields) {
 // `""` escapes, and commas/newlines embedded inside quotes -- a plain `line.split(',')` would
 // break on any of those, which this format's `explain` column already exercises today (e.g.
 // "manager, manage, administer").
+/** @param {string} text @returns {string[][]} */
 function parseCsv(text) {
+  /** @type {string[][]} */
   const rows = [];
+  /** @type {string[]} */
   let row = [];
   let field = '';
   let inQuotes = false;
   let closedQuote = false;
   let i = 0;
-  const fail = (message) => {
+  const fail = (/** @type {string} */ message) => {
     const before = text.slice(0, i);
     const lines = before.split(/\r\n|\r|\n/);
     const line = lines.length;
@@ -102,10 +108,12 @@ function parseCsv(text) {
   return rows;
 }
 
+/** @param {string[] | null | undefined} values */
 function joinList(values) {
   return (values || []).join(LIST_SEPARATOR);
 }
 
+/** @param {string} value */
 function splitList(value) {
   return value === '' ? [] : value.split(LIST_SEPARATOR);
 }
@@ -113,6 +121,7 @@ function splitList(value) {
 // Throws rather than silently joining two values into one ambiguous cell -- no `nom`/`explain`
 // value has ever contained `|` in this dataset (see design.md Decision 3), so this only fires on
 // genuinely new, unexpected input.
+/** @param {string[] | null | undefined} values @param {string} field @param {string} vi */
 function assertNoListSeparator(values, field, vi) {
   for (const value of values || []) {
     if (value.includes(LIST_SEPARATOR)) {
@@ -127,8 +136,10 @@ function assertNoListSeparator(values, field, vi) {
 // One shard file's rows -> entries, sorted by normalized `vi` (the order shards are always
 // written in). Blank lines and the header are skipped so a hand-created empty file (header only)
 // parses to an empty array.
+/** @param {unknown} text */
 function parseShardCsv(text) {
   const rows = parseCsv(String(text || ''));
+  /** @type {{vi: string, nom: string[], explain: string[]}[]} */
   const entries = [];
   for (const row of rows) {
     if (!row.length || (row.length === 1 && row[0] === '')) continue;
@@ -136,8 +147,8 @@ function parseShardCsv(text) {
     if (vi === HEADER[0] && nom === HEADER[1] && explain === HEADER[2]) continue;
     entries.push({
       vi: cleanText(vi),
-      nom: splitList(nom).map((value) => cleanText(value)),
-      explain: splitList(explain).map((value) => cleanText(value))
+      nom: splitList(nom).map((/** @type {string} */ value) => cleanText(value)),
+      explain: splitList(explain).map((/** @type {string} */ value) => cleanText(value))
     });
   }
   return entries;
@@ -150,6 +161,7 @@ function parseShardCsv(text) {
 // that one insertion is a one-line diff (design.md Decision 4); it was never meant to be
 // linguistically correct Vietnamese alphabetical order, so there is nothing to lose by pinning
 // it to something that can never depend on the environment.
+/** @param {{vi: string}} a @param {{vi: string}} b */
 function compareNormalized(a, b) {
   const left = normalizeTerm(a.vi);
   const right = normalizeTerm(b.vi);
@@ -158,6 +170,7 @@ function compareNormalized(a, b) {
   return 0;
 }
 
+/** @param {{vi: string, nom?: string[], explain?: string[]}[]} entries */
 function serializeShardCsv(entries) {
   const sorted = [...entries].sort(compareNormalized);
   const lines = [serializeRow(HEADER)];

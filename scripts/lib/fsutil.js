@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+/** @param {string} target @param {string | NodeJS.ArrayBufferView} content */
 function atomicWrite(target, content) {
   fs.mkdirSync(path.dirname(target), {recursive: true});
   const temporary = `${target}.tmp-${process.pid}`;

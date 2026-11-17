@@ -112,9 +112,9 @@ check-generated:
 # literal never was.
 verify: verify-scripts verify-browser check-types
 
-# Pilot static checking on an isolated adapter before extending it to browser runtimes.
+# JSDoc type check of the modules listed in tsconfig.json (pure modules; DOM-heavy runtimes are not covered yet).
 check-types:
-	./node_modules/.bin/tsc --allowJs --checkJs --noEmit --strict --target es2022 scripts/userscript/nom-review-store.js
+	./node_modules/.bin/tsc -p tsconfig.json
 
 # Report the first failure directly; rebuilding and retrying can hide a regression or flake.
 verify-scripts:

@@ -4,6 +4,10 @@
   // disabled while its promise is pending and a re-entry is ignored. Every
   // action button is covered (Save and Confirm write the same entry); Cancel
   // stays usable. Mirrors ReaderShared.modal.guard (shared/modal.js).
+  /**
+   * @param {(this: any, event?: any) => any} handler
+   * @returns {(this: any, event?: any) => any}
+   */
   function zooGuard(handler) {
     return function(event) {
       var origin = event && (event.currentTarget || event.target);

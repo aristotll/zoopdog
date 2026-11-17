@@ -9,6 +9,7 @@ const ZD_DICTIONARY_METADATA_SCHEMA_VERSION = 2;
 
 /** @typedef {{schemaVersion: number, revision: string, entryCount: number, payload?: string}} DictionaryMetadata */
 /** @typedef {{state: string, revision?: string, entryCount?: number, verification?: string, error?: {code: string, message: string, remedy: string}}} DictionaryReadiness */
+/** @typedef {{code: string, remedy: string}} ErrorDefinition */
 
 const STATES = Object.freeze({
   READY_CURRENT: 'ready-current',
@@ -49,6 +50,7 @@ const ERRORS = Object.freeze({
 });
 
 class RuntimeError extends Error {
+  /** @param {ErrorDefinition} definition @param {string} [message] @param {unknown} [cause] */
   constructor(definition, message, cause) {
     super(message || definition.code, cause ? {cause} : undefined);
     this.name = 'RuntimeError';
@@ -57,10 +59,12 @@ class RuntimeError extends Error {
   }
 }
 
+/** @param {ErrorDefinition} definition @param {string} [message] @param {unknown} [cause] */
 function runtimeError(definition, message, cause) {
   return new RuntimeError(definition, message, cause);
 }
 
+/** @param {any} metadata @returns {DictionaryMetadata} */
 function validateMetadata(metadata) {
   const valid = metadata
     && typeof metadata === 'object'
@@ -81,6 +85,7 @@ function validateMetadata(metadata) {
 // single definition of this schema shared between the Node build tooling and this browser
 // runtime. A row still carrying the old per-headword `{vn, en}` shape (no `key`/`headwords`)
 // is rejected here rather than silently accepted, so old and new schemas can never mix.
+/** @param {any} entry @param {number} index */
 function validateDictionaryEntry(entry, index) {
   const valid = entry
     && typeof entry === 'object'
@@ -89,14 +94,14 @@ function validateDictionaryEntry(entry, index) {
     && entry.key.length > 0
     && Array.isArray(entry.headwords)
     && entry.headwords.length > 0
-    && entry.headwords.every((headword) => typeof headword === 'string' && headword.length > 0)
+    && entry.headwords.every((/** @type {any} */ headword) => typeof headword === 'string' && headword.length > 0)
     && Array.isArray(entry.en)
-    && entry.en.every((sense) => sense
+    && entry.en.every((/** @type {any} */ sense) => sense
       && typeof sense === 'object'
       && typeof sense.def === 'string'
       && typeof sense.pos === 'string'
       && (sense.headword === undefined || typeof sense.headword === 'string')
-      && Object.keys(sense).every((prop) => prop === 'def' || prop === 'pos' || prop === 'headword'));
+      && Object.keys(sense).every((/** @type {string} */ prop) => prop === 'def' || prop === 'pos' || prop === 'headword'));
   if (!valid) {
     throw runtimeError(
       ERRORS.PAYLOAD_INVALID,
@@ -105,6 +110,7 @@ function validateDictionaryEntry(entry, index) {
   }
 }
 
+/** @param {string} dictionaryText @param {any} metadata */
 function parseDictionary(dictionaryText, metadata) {
   validateMetadata(metadata);
   let entries;
@@ -120,6 +126,7 @@ function parseDictionary(dictionaryText, metadata) {
   return entries;
 }
 
+/** @param {{entryCount: number, metadata?: any} | null | undefined} installed */
 function installedStateIsUsable(installed) {
   if (!installed || installed.entryCount < 0) return false;
   try {
@@ -130,7 +137,14 @@ function installedStateIsUsable(installed) {
   }
 }
 
+/**
+ * @param {string} state
+ * @param {DictionaryMetadata | null | undefined} metadata
+ * @param {string | null} [verification]
+ * @param {{code: string, message: string, remedy: string} | null} [error]
+ */
 function resultFor(state, metadata, verification, error) {
+  /** @type {DictionaryReadiness} */
   const result = {state};
   if (metadata) {
     result.revision = metadata.revision;
@@ -143,18 +157,30 @@ function resultFor(state, metadata, verification, error) {
   return result;
 }
 
+/** @param {any} error @param {ErrorDefinition} definition */
 function classifyFailure(error, definition) {
   if (error instanceof RuntimeError) return error;
   return runtimeError(definition, error && error.message ? error.message : definition.code, error);
 }
 
+/**
+ * @param {object} options
+ * @param {any} options.adapter
+ * @param {() => Promise<any>} options.fetchMetadata
+ * @param {(metadata: DictionaryMetadata) => Promise<string>} options.fetchDictionaryText
+ * @param {((text: string) => Promise<string>) | undefined} [options.digest]
+ * @param {(state: DictionaryReadiness) => void} [options.onState]
+ */
 function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest, onState = () => {}}) {
   if (!adapter || typeof adapter.readState !== 'function' || typeof adapter.replace !== 'function') {
     throw new TypeError('Dictionary coordinator requires a database adapter');
   }
+  /** @type {{promise: Promise<DictionaryReadiness>, forced: boolean} | null} */
   let current = null;
+  /** @type {Promise<DictionaryReadiness> | null} */
   let queuedForce = null;
 
+  /** @param {boolean} force @param {any} [metadataOverride] @param {boolean} [retriedLegacy] @returns {Promise<DictionaryReadiness>} */
   async function run(force, metadataOverride, retriedLegacy = false) {
     let installed = null;
     try {
@@ -242,6 +268,7 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
     return result;
   }
 
+  /** @param {boolean} force */
   function startRun(force) {
     const promise = run(force);
     current = {promise, forced: force};
@@ -269,6 +296,7 @@ function createCoordinator({adapter, fetchMetadata, fetchDictionaryText, digest,
   return {ensureReady};
 }
 
+/** @param {any} db */
 function createDexieAdapter(db) {
   return {
     async readState() {
@@ -278,6 +306,7 @@ function createDexieAdapter(db) {
       ]);
       return {metadata, entryCount};
     },
+    /** @param {any[]} entries @param {DictionaryMetadata} metadata */
     replace(entries, metadata) {
       return db.transaction('rw', db.entries, db.metadata, async () => {
         await db.entries.clear();
@@ -305,7 +334,7 @@ const zdDictionaryRuntime = {
 };
 
 if (typeof globalThis !== 'undefined') {
-  globalThis.zdDictionaryRuntime = zdDictionaryRuntime;
+  /** @type {any} */ (globalThis).zdDictionaryRuntime = zdDictionaryRuntime;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

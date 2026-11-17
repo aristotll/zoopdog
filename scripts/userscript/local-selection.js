@@ -1,10 +1,21 @@
 // Selection helpers are independent of popup state and receive the page document explicitly.
+/**
+ * @typedef {object} ZooSelectionOptions
+ * @property {Document} document
+ * @property {number} scanLimit
+ * @property {(point: {x: number, y: number}) => ({node: Node, offset: number} | null | undefined)} caretFromPoint
+ * @property {() => Selection} getSelection
+ */
+/** @param {ZooSelectionOptions} options */
 function createZooSelectionTools(options) {
+  /** @param {unknown} value */
   function trim(value) {
     return String(value || '').trim().replace(/\p{Cf}/gu, '')
       .replace(/^\p{P}+|\p{P}+$/gu, '').trim().normalize('NFC');
   }
+  /** @param {any} node */
   function collectRoots(node) {
+    /** @type {any[]} */
     var roots = [];
     if (!node) return roots;
     var start = node.nodeType === 1 ? node : node.parentElement;
@@ -22,6 +33,7 @@ function createZooSelectionTools(options) {
     }
     return roots;
   }
+  /** @param {any} selection @param {any} container */
   function composed(selection, container) {
     if (typeof selection.getComposedRanges !== 'function') return null;
     try {
@@ -45,6 +57,7 @@ function createZooSelectionTools(options) {
   // The term of a selection is the page's own words: Chu Nom <rt>/<rp> annotations are dropped even
   // when the browser reports them in toString() (user-select:none is not honoured everywhere, and
   // a page rule can override it). A selection without annotations keeps toString() untouched.
+  /** @param {any} selection */
   function plainText(selection) {
     var raw = selection ? selection.toString() : '';
     try {
@@ -63,7 +76,7 @@ function createZooSelectionTools(options) {
   var BLOCKER = /disable_copy|wccp|disableselect|nocontext/;
   function unblockSelection() {
     var doc = options.document;
-    [doc, doc.body, doc.documentElement].forEach(function(target) {
+    /** @type {any[]} */ ([doc, doc.body, doc.documentElement]).forEach(function(target) {
       if (!target) return;
       ['onselectstart', 'onmousedown', 'ondragstart'].forEach(function(name) {
         var handler = target[name];
@@ -71,8 +84,10 @@ function createZooSelectionTools(options) {
       });
     });
   }
+  /** @param {number} x @param {number} y */
   function annotationInLinkAt(x, y) {
     var caret = options.caretFromPoint({x: x, y: y});
+    /** @type {any} */
     var node = caret && caret.node;
     if (!node) return null;
     var element = node.nodeType === 1 ? node : node.parentElement;
@@ -80,6 +95,7 @@ function createZooSelectionTools(options) {
     var ruby = element.closest('ruby.zoopdog-nom-ruby');
     return ruby && ruby.closest('a[href]') ? ruby : null;
   }
+  /** @param {{node: Node, offset: number}} start @param {{node: Node, offset: number}} end */
   function rangeBetween(start, end) {
     var range = options.document.createRange();
     try {
@@ -88,6 +104,7 @@ function createZooSelectionTools(options) {
     } catch (error) { return null; }
     return range.collapsed ? null : range;
   }
+  /** @param {{x: number, y: number}} from @param {{x: number, y: number}} to */
   function selectBetweenPoints(from, to) {
     var start = options.caretFromPoint({x: from.x, y: from.y});
     var end = options.caretFromPoint({x: to.x, y: to.y});
