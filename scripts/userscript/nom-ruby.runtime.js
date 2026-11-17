@@ -42,7 +42,10 @@
     annotateAsciiTerms: 'safe',
     // False shows only the first known Chu Nom candidate as ruby; all candidates stay in title.
     showAllVariants: false,
+    // The safety-net poll runs this often while pages keep changing, and backs off to
+    // rescanIdleMaxMs while consecutive polls find nothing to do.
     rescanIntervalMs: 500,
+    rescanIdleMaxMs: 5000,
     // A scan that runs longer than this yields to the page and continues in a later task.
     scanSliceMs: 12,
     scanIdleTimeoutMs: 100
@@ -82,6 +85,7 @@
   // Set by main(); the toggle button drives these.
   var rescanNow = null;
   var rescanTimer = null;
+  var pollDelay = SETTINGS.rescanIntervalMs;
   var enabled = true;
   // A big scan runs in time slices (see runScanJob). `scanJob` is the scan in flight; bumping
   // `scanGeneration` supersedes it (disable, re-render); `scanPasses` counts the queue
@@ -485,6 +489,36 @@
   // A ShadowRoot is itself a DocumentFragment, so scanTextNodes already knows how to walk its
   // childNodes once handed one -- what it does not get for free is future observation, which
   // needs its own explicit observe() call per shadow root (see the comment on `observer` above).
+  // The safety net behind the MutationObserver and the frame callback: a self-rescheduling timer
+  // for what they miss (a hidden tab never runs frame callbacks, leftovers of a bounded pass, text a
+  // page translator rewrites where nothing is observed). It starts at rescanIntervalMs, doubles up
+  // to rescanIdleMaxMs while polls find nothing, and drops back as soon as a poll finds work or a
+  // mutation is observed (wakePoll).
+  function pollRescan() {
+    var worked = rescanNow();
+    pollDelay = worked ? SETTINGS.rescanIntervalMs : Math.min(pollDelay * 2, SETTINGS.rescanIdleMaxMs);
+    rescanTimer = enabled ? window.setTimeout(pollRescan, pollDelay) : null;
+  }
+
+  function startPoll() {
+    window.clearTimeout(rescanTimer);
+    pollDelay = SETTINGS.rescanIntervalMs;
+    rescanTimer = window.setTimeout(pollRescan, pollDelay);
+  }
+
+  function stopPoll() {
+    window.clearTimeout(rescanTimer);
+    rescanTimer = null;
+  }
+
+  // A backed-off poll would leave a mutation waiting for seconds; one already at the short
+  // interval is left alone, so a steady stream of mutations cannot keep postponing it.
+  function wakePoll() {
+    if (rescanTimer !== null && pollDelay > SETTINGS.rescanIntervalMs) {
+      startPoll();
+    }
+  }
+
   function watchShadowRoot(root) {
     if (watchShadowRootFor(root)) {
       scanTextNodes(root);
@@ -1016,7 +1050,7 @@
     // A caption widget replaces its whole line for every cue. Waiting for the interval tick
     // paints the plain line first and swaps in the ruby up to rescanIntervalMs later, which
     // shows as flicker. A frame callback runs before the next paint, so the line is annotated
-    // before it is ever shown; the interval stays as the fallback (hidden tabs pause frames).
+    // before it is ever shown; the poll stays as the fallback (hidden tabs pause frames).
     function scheduleFrameScan() {
       if (frameScheduled || typeof window.requestAnimationFrame !== 'function') {
         return;
@@ -1031,30 +1065,34 @@
     observer = new MutationObserver(function(mutationList) {
       mutationHandler(mutationList);
       scheduleFrameScan();
+      wakePoll();
     });
     observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
 
-    // One failing pass (a page-specific node that trips the scanner) must not stop the interval, the
+    // One failing pass (a page-specific node that trips the scanner) must not stop the poll, the
     // toggle button or later passes: the error is recorded on <html data-zoopdog-nom-error> for
     // diagnosis (a userscript's console is not reachable from the page or a phone) and retried.
+    // Returns whether the pass found anything to do (a failed one counts, so it is retried soon).
     function rescanTextNodes() {
       try {
-        rescanTextNodesUnsafe();
+        return rescanTextNodesUnsafe();
       } catch (error) {
         try {
           doc.documentElement.dataset.zoopdogNomError = String(error && error.stack || error).slice(0, 400);
           console.error('[Zoopdog Nom]', error);
         } catch (ignored) { /* nothing more to do */ }
+        return true;
       }
     }
 
     function rescanTextNodesUnsafe() {
       if (!enabled) {
-        return;
+        return false;
       }
       // This call supersedes a continuation that is still waiting for its turn.
       cancelScanContinuation();
       mutationHandler(observer.takeRecords());
+      var worked = changedNodes.size > 0 || newNodes.size > 0 || scanJob !== null;
 
       if (changedNodes.size) {
         var changed = [...changedNodes];
@@ -1090,6 +1128,7 @@
       observer.takeRecords();
       if (overlay) overlay.schedule(); // page layout may have moved the words
       if (paused) scheduleScanContinuation();
+      return worked;
     }
 
     rescanNow = rescanTextNodes;
@@ -1099,7 +1138,7 @@
         doc.documentElement.dataset.zoopdogNomError = String(error && error.stack || error).slice(0, 400);
       }
     }
-    rescanTimer = window.setInterval(rescanTextNodes, SETTINGS.rescanIntervalMs);
+    startPoll();
     rescanTextNodes();
   }
 
@@ -1159,8 +1198,7 @@
     enabled = false;
     cancelScan();
     observer.disconnect();
-    window.clearInterval(rescanTimer);
-    rescanTimer = null;
+    stopPoll();
     hideAnnotations();
     removalTimer = window.setTimeout(function() {
       removalTimer = null;
@@ -1182,9 +1220,7 @@
     newNodes.add(doc.body);
     shadowRootList.forEach(function(root) { newNodes.add(root); });
     rescanNow();
-    if (rescanTimer === null) {
-      rescanTimer = window.setInterval(rescanNow, SETTINGS.rescanIntervalMs);
-    }
+    startPoll();
   }
 
   // A small fixed button in a closed shadow root (page CSS cannot restyle it, and the

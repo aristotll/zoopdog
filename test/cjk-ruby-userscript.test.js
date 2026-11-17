@@ -102,3 +102,86 @@ test('rewriting a framework-owned text node keeps one ruby (jsdom behaviour)', a
   assert.equal(rubies(), 1, 'each render of the page used to add one more');
   w.close();
 });
+
+// Runs the built script in a vm against just enough DOM for its first pass (an empty page), with
+// timers that only queue so the rescan timer can be observed.
+function runCjkRuntime() {
+  const timers = [];
+  const listeners = {};
+  let nextId = 1;
+  const documentStub = {
+    body: {},
+    documentElement: {dataset: {}},
+    head: {appendChild() {}},
+    querySelectorAll: () => [],
+    createElement: () => ({style: {}, dataset: {}}),
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    dispatchEvent() {}
+  };
+  const state = {observerCallback: null};
+  const context = {
+    document: documentStub,
+    location: {hostname: 'example.test', href: 'https://example.test/'},
+    CustomEvent: function CustomEvent() {},
+    MutationObserver: class {
+      constructor(callback) { state.observerCallback = callback; }
+      observe() {}
+      takeRecords() { return []; }
+    },
+    setTimeout: (fn, delay) => { const id = nextId++; timers.push({id, fn, delay}); return id; },
+    clearTimeout: (id) => {
+      const at = timers.findIndex((timer) => timer.id === id);
+      if (at !== -1) timers.splice(at, 1);
+    },
+    console: {warn() {}, error() {}, log() {}}
+  };
+  context.window = Object.assign(context, {
+    addEventListener: (type, fn) => { listeners['window:' + type] = fn; },
+    localStorage: {getItem: () => null}
+  });
+  vm.createContext(context);
+  vm.runInContext(buildUserscript(VARIANTS[0]), context);
+  return {
+    delays: () => timers.map((timer) => timer.delay),
+    // Fires the pending rescan timer once.
+    fire: () => { const timer = timers.shift(); timer.fn(); },
+    mutate: () => state.observerCallback([]),
+    pageshow: () => listeners['window:pageshow'](),
+    rescanEvent: () => listeners['zoopdog-cjk-ruby-rescan']()
+  };
+}
+
+test('the CJK Ruby rescan timer backs off while the page is quiet and wakes on a mutation', () => {
+  const run = runCjkRuntime();
+  assert.deepEqual(run.delays(), [500]);
+  const seen = [];
+  for (let i = 0; i < 6; i++) {
+    run.fire();
+    seen.push(...run.delays());
+  }
+  assert.deepEqual(seen, [1000, 2000, 4000, 5000, 5000, 5000]);
+
+  run.mutate();
+  assert.deepEqual(run.delays(), [500], 'the long wait was replaced by the short one');
+  run.mutate();
+  assert.deepEqual(run.delays(), [500], 'a mutation at the short interval leaves its timer alone');
+  run.fire();
+  assert.deepEqual(run.delays(), [1000], 'quiet again, so it backs off again');
+});
+
+test('the CJK Ruby rescan timer stays short after a page event that queues work', () => {
+  const run = runCjkRuntime();
+  for (let i = 0; i < 4; i++) run.fire();
+  assert.deepEqual(run.delays(), [5000]);
+
+  run.pageshow();
+  assert.deepEqual(run.delays(), [500], 'a restored page is rescanned soon');
+  run.fire();
+  assert.deepEqual(run.delays(), [500], 'the pass found the queued body, so it keeps the short interval');
+  run.fire();
+  assert.deepEqual(run.delays(), [1000], 'then nothing is left and it backs off');
+
+  run.fire();
+  run.rescanEvent();
+  assert.deepEqual(run.delays(), [500]);
+});

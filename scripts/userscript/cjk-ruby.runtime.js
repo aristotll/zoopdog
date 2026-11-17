@@ -58,6 +58,7 @@
     var ENDPOINT_COOLDOWN_MS = 60000;
     var RETRY_DELAYS_MS = [3000, 10000, 30000, 120000];
     var SCAN_INTERVAL_MS = 500;
+    var SCAN_IDLE_MAX_MS = 5000; // the rescan timer backs off to this while nothing is going on
     var SEPARATOR = ' | '; // survives Google's romanization, which keeps one block per request
 
     var KATAKANA = /[ァ-ヺヽ-ヿ][゙゚ァ-ヿ]*[゙゚ァ-ヺー-ヿ]|[ｦ-ｯｱ-ﾝ][･-ﾟ]*[ｦ-ﾟ]/;
@@ -1180,6 +1181,7 @@ __ZOOPDOG_OVERLAY_LABELS__
     // ruby, right behind it. Bounded per ruby so a translator that moves it back cannot loop forever.
     var HOIST_LIMIT = 6;
     function hoistForeign() {
+        var moved = 0;
         doc.querySelectorAll('ruby.zd-cjk-ruby > :not(rt):not(wbr):not(ruby)').forEach(function (child) {
             var ruby = child.parentNode;
             var count = Number(ruby.dataset.zdHoisted || 0);
@@ -1194,13 +1196,18 @@ __ZOOPDOG_OVERLAY_LABELS__
             var anchor = ruby.nextSibling;
             while (anchor && anchor.nodeName === 'WBR') anchor = anchor.nextSibling;
             ruby.parentNode.insertBefore(child, anchor);
+            moved++;
         });
+        return moved;
     }
 
+    // Returns whether this pass had anything to do: nodes to scan, a foreign child hoisted, or labels
+    // still on their way (a request in flight or waiting out its retry delay). A failed pass counts too.
     function rescan() {
         try {
             record(observer.takeRecords());
-            if (mode === 'ruby') hoistForeign();
+            var worked = newNodes.length > 0;
+            if (mode === 'ruby' && hoistForeign()) worked = true;
             if (newNodes.length) {
                 var nodes = newNodes;
                 newNodes = [];
@@ -1208,9 +1215,36 @@ __ZOOPDOG_OVERLAY_LABELS__
             }
             translatePending();
             if (mode !== 'ruby') overlay.schedule();
+            return worked || queue.size > 0;
         } catch (error) {
             console.warn('Zoopdog CJK Ruby: scan failed:', error && error.message);
+            return true;
         }
+    }
+
+    // The timer doubles as the rate limiter for requests and as the retry clock for failed ones, so it
+    // keeps its short interval while labels are pending. It backs off only while a page is quiet, and
+    // wakeRescan (a mutation or page event) brings it back.
+    var scanTimer = null;
+    var scanDelay = SCAN_INTERVAL_MS;
+
+    function pollRescan() {
+        scanDelay = rescan() ? SCAN_INTERVAL_MS : Math.min(scanDelay * 2, SCAN_IDLE_MAX_MS);
+        scanTimer = setTimeout(pollRescan, scanDelay);
+    }
+
+    // A timer already at the short interval is left alone, so a steady stream of mutations cannot
+    // keep postponing it.
+    function wakeRescan() {
+        if (scanTimer === null || scanDelay <= SCAN_INTERVAL_MS) return;
+        clearTimeout(scanTimer);
+        scanDelay = SCAN_INTERVAL_MS;
+        scanTimer = setTimeout(pollRescan, scanDelay);
+    }
+
+    function queueRoot() {
+        newNodes.push(doc.body || doc.documentElement);
+        wakeRescan();
     }
 
     function main() {
@@ -1222,14 +1256,16 @@ __ZOOPDOG_OVERLAY_LABELS__
             window.addEventListener('resize', overlay.schedule, { passive: true });
         }
         registerModeMenu();
-        observer = new MutationObserver(record);
+        observer = new MutationObserver(function (mutations) {
+            record(mutations);
+            wakeRescan();
+        });
         observer.observe(doc.documentElement, { childList: true, subtree: true, characterData: true });
         newNodes.push(doc.body || doc.documentElement);
-        doc.addEventListener(RESCAN_EVENT, function () { newNodes.push(doc.body || doc.documentElement); });
-        window.addEventListener('pageshow', function () { newNodes.push(doc.body || doc.documentElement); });
+        doc.addEventListener(RESCAN_EVENT, queueRoot);
+        window.addEventListener('pageshow', queueRoot);
         rescan();
-        // Doubles as the rate limiter for requests and as the retry clock for failed ones.
-        setInterval(rescan, SCAN_INTERVAL_MS);
+        scanTimer = setTimeout(pollRescan, scanDelay);
     }
 
     if (doc.body) main();

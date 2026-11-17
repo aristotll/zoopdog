@@ -15,6 +15,7 @@ const {readRuntime, renderRuntime} = require('../scripts/lib/userscript');
 const nomMatchEnginePath = path.join(__dirname, '..', 'zd-extension/js/zd-nom-match.js');
 const wordsPath = path.join(__dirname, '..', 'zd-extension/js/zd-words.js');
 
+const POLL_MS = 500; // the shortest delay of the safety-net poll (SETTINGS.rescanIntervalMs)
 const ELEMENT_NODE = 1;
 const TEXT_NODE = 3;
 const DOCUMENT_FRAGMENT_NODE = 11;
@@ -299,11 +300,14 @@ function displayOf(el) {
   return {display: 'inline'};
 }
 
-// Options beyond the page itself: `timers` queues window.setTimeout instead of running it at once
-// (drive it with runTimers), `clockStep` gives the runtime a fake performance.now() that moves that
-// many milliseconds per read (0 = frozen, so a scan never runs out of time), and `toggle` makes the
+// window.setTimeout only queues; nothing runs by itself. `tick()` fires the safety-net poll (a timer of
+// at least POLL_MS) once, `runTimers()` drains the short tasks (scan continuations, the removal after
+// turning off, the click delay), `pollDelays()` the delays the pending poll timers were armed
+// with, `notifyMutations()` delivers the pending records to the runtime's MutationObserver callback.
+// Options beyond the page itself: `clockStep` gives the runtime a fake performance.now() that moves that
+// many milliseconds per read (the default 0 freezes it, so a scan never runs out of time), and `toggle` makes the
 // frame the top window with a <html> element so the toggle button exists (dom.button).
-function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false, parseCalls = null, timers = false, clockStep = null, toggle = false} = {}) {
+function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false, parseCalls = null, clockStep = 0, toggle = false} = {}) {
   const dom = createDom();
   dom.flags.challengeMarkup = challengeMarkup;
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
@@ -330,7 +334,9 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
     Node: {ELEMENT_NODE, TEXT_NODE, DOCUMENT_FRAGMENT_NODE},
     NodeList: {prototype: {forEach: Array.prototype.forEach}},
     MutationObserver: class {
-      constructor() {}
+      constructor(callback) {
+        dom.observerCallback = callback;
+      }
       observe(root) {
         dom.observe(root);
       }
@@ -353,9 +359,7 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
   let nextTimerId = 1;
   context.window = {
     location: {hostname},
-    setTimeout: timers === 'absent' ? undefined : timers
-      ? (fn, delay) => { const id = nextTimerId++; timerQueue.push({id, fn, delay}); return id; }
-      : (fn) => fn(),
+    setTimeout: (fn, delay = 0) => { const id = nextTimerId++; timerQueue.push({id, fn, delay}); return id; },
     clearTimeout: (id) => {
       const at = timerQueue.findIndex((timer) => timer.id === id);
       if (at !== -1) timerQueue.splice(at, 1);
@@ -366,7 +370,7 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
       if (at !== -1) intervals.splice(at, 1);
     }
   };
-  if (clockStep !== null) {
+  {
     let clock = 0;
     context.performance = {now: () => (clock += clockStep)};
   }
@@ -386,14 +390,25 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
   return Object.assign(dom, {
     attachShadowFn: () => dom.MiniElement.prototype.attachShadow,
     attachShadowPatched: () => dom.MiniElement.prototype.attachShadow !== originalAttachShadow,
-    tick: () => intervals.forEach((fn) => fn()),
-    pendingTimers: () => timerQueue.length,
-    // Runs queued timers in order, including ones they queue, until none is left or `limit` ran.
+    tick: () => {
+      intervals.forEach((fn) => fn());
+      timerQueue.filter((timer) => timer.delay >= POLL_MS).forEach((timer) => {
+        const at = timerQueue.indexOf(timer);
+        if (at !== -1) {
+          timerQueue.splice(at, 1);
+          timer.fn();
+        }
+      });
+    },
+    notifyMutations: () => dom.observerCallback(dom.takeRecords()),
+    pendingTimers: () => timerQueue.filter((timer) => timer.delay < POLL_MS).length,
+    pollDelays: () => timerQueue.filter((timer) => timer.delay >= POLL_MS).map((timer) => timer.delay),
+    // Runs the short tasks in order, including ones they queue, until none is left or `limit` ran.
     runTimers: (limit = 100000) => {
       let ran = 0;
-      while (timerQueue.length && ran < limit) {
-        timerQueue.shift().fn();
-        ran++;
+      for (let next; ran < limit && (next = timerQueue.find((timer) => timer.delay < POLL_MS)); ran++) {
+        timerQueue.splice(timerQueue.indexOf(next), 1);
+        next.fn();
       }
       return ran;
     },
@@ -1213,12 +1228,12 @@ function fillParagraphs(dom, count, text = 'của bạn và tình cảm', silent
 }
 
 test('a large scan is sliced yet annotates exactly what an unsliced scan does', () => {
-  const whole = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 0});
+  const whole = runRuntime(NOM_MAP, {}, {});
   fillParagraphs(whole, 400);
   whole.tick();
   assert.equal(whole.pendingTimers(), 0, 'a frozen clock never pauses a scan');
 
-  const sliced = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1});
+  const sliced = runRuntime(NOM_MAP, {}, {clockStep: 1});
   fillParagraphs(sliced, 400);
   sliced.tick();
   assert.equal(sliced.pendingTimers(), 1, 'the scan yielded and queued its continuation');
@@ -1231,15 +1246,8 @@ test('a large scan is sliced yet annotates exactly what an unsliced scan does', 
   assert.equal(serialize(sliced.body), serialize(whole.body));
 });
 
-test('a scan without a clock or timers stays synchronous', () => {
-  const dom = runRuntime(NOM_MAP, {}, {timers: 'absent', clockStep: 1});
-  fillParagraphs(dom, 200);
-  dom.tick();
-  assert.equal(rubyAnnotations(dom.body).length, 200 * 3);
-});
-
 test('mutations that arrive between slices are not lost and nothing is annotated twice', () => {
-  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  const dom = runRuntime(NOM_MAP, {}, {clockStep: 1, toggle: true});
   const paragraphs = fillParagraphs(dom, 300, 'của bạn và tình cảm', true);
   dom.button().dispatch('click');
   dom.runTimers(1); // the click's own delay; the body scan it starts pauses and queues a continuation
@@ -1270,7 +1278,7 @@ test('mutations that arrive between slices are not lost and nothing is annotated
 });
 
 test('turning the script off during a sliced scan leaves no annotation behind', () => {
-  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  const dom = runRuntime(NOM_MAP, {}, {clockStep: 1, toggle: true});
   fillParagraphs(dom, 300);
   dom.tick();
   assert.equal(dom.pendingTimers(), 1);
@@ -1287,7 +1295,7 @@ test('turning the script off during a sliced scan leaves no annotation behind', 
 });
 
 test('rendering again during a sliced scan supersedes it without double annotation', () => {
-  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  const dom = runRuntime(NOM_MAP, {}, {clockStep: 1, toggle: true});
   fillParagraphs(dom, 300);
   dom.tick();
   assert.equal(dom.pendingTimers(), 1);
@@ -1298,4 +1306,67 @@ test('rendering again during a sliced scan supersedes it without double annotati
   assert.equal(dom.pendingTimers(), 0);
   assert.equal(rubyAnnotations(dom.body).length, 300 * 3);
   assert.equal(visibleText(dom.body), 'của bạn và tình cảm'.repeat(300));
+});
+
+test('the safety-net poll backs off while it finds nothing and is capped', () => {
+  const dom = runRuntime(NOM_MAP);
+  assert.deepEqual(dom.pollDelays(), [500]);
+  const delays = [];
+  for (let i = 0; i < 6; i++) {
+    dom.tick();
+    delays.push(...dom.pollDelays());
+  }
+  assert.deepEqual(delays, [1000, 2000, 4000, 5000, 5000, 5000]);
+});
+
+test('a poll that finds work goes back to the short interval and still annotates', () => {
+  const dom = runRuntime(NOM_MAP);
+  for (let i = 0; i < 4; i++) dom.tick();
+  assert.deepEqual(dom.pollDelays(), [5000]);
+
+  // Added without the observer callback: only the poll can notice it.
+  const [p] = fillParagraphs(dom, 1, 'của bạn');
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(p), ['𧵑', '伴']);
+  assert.deepEqual(dom.pollDelays(), [500]);
+  dom.tick();
+  assert.deepEqual(dom.pollDelays(), [1000], 'idle again, so it backs off again');
+});
+
+test('an observed mutation brings a backed-off poll back to the short interval', () => {
+  const dom = runRuntime(NOM_MAP);
+  for (let i = 0; i < 4; i++) dom.tick();
+  assert.deepEqual(dom.pollDelays(), [5000]);
+
+  const [p] = fillParagraphs(dom, 1, 'của bạn');
+  dom.notifyMutations();
+  assert.deepEqual(dom.pollDelays(), [500], 'the pending long wait was replaced, not added to');
+  dom.tick();
+  assert.deepEqual(rubyAnnotations(p), ['𧵑', '伴']);
+
+  // A mutation while already polling at the short interval leaves that timer alone.
+  const before = dom.pollDelays();
+  fillParagraphs(dom, 1, 'bạn');
+  dom.notifyMutations();
+  assert.deepEqual(dom.pollDelays(), before);
+});
+
+test('turning the script off stops the poll and re-rendering restarts it at the short interval', () => {
+  const dom = runRuntime(NOM_MAP, {}, {toggle: true});
+  for (let i = 0; i < 3; i++) dom.tick();
+  assert.deepEqual(dom.pollDelays(), [4000]);
+
+  dom.button().dispatch('dblclick');
+  assert.deepEqual(dom.pollDelays(), [], 'no poll while off');
+  dom.runTimers();
+  dom.tick();
+  assert.deepEqual(dom.pollDelays(), []);
+
+  dom.button().dispatch('click');
+  dom.runTimers(); // the click delay: render again, which restarts the poll
+  assert.deepEqual(dom.pollDelays(), [500]);
+  const [p] = fillParagraphs(dom, 1, 'của bạn');
+  dom.tick();
+  assert.deepEqual(rubyAnnotations(p), ['𧵑', '伴']);
 });
