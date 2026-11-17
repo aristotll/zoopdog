@@ -53,9 +53,13 @@ function createPopupHarness({
   maxWords = 3,
   debug = false,
   animationFrames = false,
-  pointerEvents = true
+  pointerEvents = true,
+  // A frame (window.top is another window) of this size; the top window by default.
+  frame = null,
+  localMode = false
 } = {}) {
-  const calls = {caret: 0, elementFromPoint: 0};
+  const calls = {caret: 0, elementFromPoint: 0, addStyle: 0};
+  const documentListeners = {};
   const state = {caretMiss: false};
   const parsed = []; // every text the runtime passed to JSON.parse
   const windowListeners = {};
@@ -72,7 +76,7 @@ function createPopupHarness({
     createTextNode: (data) => ({nodeType: 3, data}),
     getElementById: () => null,
     getElementsByTagName: () => [fakeElement('HEAD')],
-    addEventListener() {},
+    addEventListener(type, listener) { (documentListeners[type] || (documentListeners[type] = [])).push(listener); },
     querySelectorAll: () => [],
     caretRangeFromPoint() {
       calls.caret += 1;
@@ -102,7 +106,7 @@ function createPopupHarness({
     Object, Array, String, Number, Math, Date, Set, Map, WeakMap, Promise, Error, isFinite, parseInt,
     setTimeout() { return 0; },
     clearTimeout() {},
-    GM_addStyle() {},
+    GM_addStyle() { calls.addStyle += 1; },
     localStorage: {
       getItem: (key) => (debug && key === 'zoopdogDebug' ? '1' : null),
       setItem() {}
@@ -110,10 +114,19 @@ function createPopupHarness({
   };
   const window = sandbox;
   window.window = window;
-  window.innerWidth = 800;
+  window.innerWidth = frame ? frame.width : 800;
   window.frames = []; // no child frames for the Shift relay to forward to
-  window.innerHeight = 600;
+  window.innerHeight = frame ? frame.height : 600;
+  if (localMode) window.location = {hostname: 'example.test', pathname: '/', search: '', href: 'https://example.test/'};
+  window.top = frame ? {} : window;
+  const parentMessages = [];
+  window.parent = frame ? {postMessage(message) { parentMessages.push(message); }} : window;
   window.addEventListener = (type, listener) => { (windowListeners[type] || (windowListeners[type] = [])).push(listener); };
+  window.removeEventListener = (type, listener) => {
+    const list = windowListeners[type] || [];
+    const at = list.indexOf(listener);
+    if (at !== -1) list.splice(at, 1);
+  };
   window.setTimeout = () => 0;
   window.getComputedStyle = () => ({display: 'block'});
   if (pointerEvents) window.PointerEvent = function PointerEvent() {};
@@ -122,8 +135,8 @@ function createPopupHarness({
   }
 
   const context = vm.createContext(sandbox);
-  const source = buildUserscript(dictionary, maxWords, readRuntimeSources(false), {
-    targetKey: 'popupUserscript', nameSuffix: '', localMode: false
+  const source = buildUserscript(dictionary, maxWords, readRuntimeSources(localMode), {
+    targetKey: localMode ? 'popupLocalUserscript' : 'popupUserscript', nameSuffix: localMode ? ' (Local)' : '', localMode
   });
   vm.runInContext(source, context);
 
@@ -147,6 +160,18 @@ function createPopupHarness({
     pointerMove,
     popupElement,
     paragraph,
+    parentMessages,
+    windowListenerCount: (type) => (windowListeners[type] || []).length,
+    documentListeners,
+    // Event types with a listener on the window / the document, as a sorted list.
+    windowListenerTypes: () => Object.keys(windowListeners).filter((type) => windowListeners[type].length).sort(),
+    documentListenerTypes: () => Object.keys(documentListeners).filter((type) => documentListeners[type].length).sort(),
+    // Resizes the window and tells its listeners, as a browser does.
+    resize(width, height) {
+      window.innerWidth = width;
+      window.innerHeight = height;
+      (windowListeners.resize || []).slice().forEach((listener) => listener({}));
+    },
     // Dispatches an event of any type to the window listeners the runtime registered.
     dispatch(type, event) {
       (windowListeners[type] || []).forEach((listener) => listener(event));

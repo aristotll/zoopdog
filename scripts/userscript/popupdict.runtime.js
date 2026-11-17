@@ -1241,11 +1241,59 @@ __ZOOPDOG_RUNTIME_SOURCES__
     return '<li>' + prefix + definition + '</li>';
   }
 
+  // Set by startPopup once the popup exists, so a Shift press relayed to this frame can pin it.
+  var zooPinPopup = null;
+  var zooPopupStarted = false;
+
+  // A frame of a few pixels (tracking pixel, ad slot, hidden widget) can never show a popup, yet
+  // would still parse the dictionary on its first pointer event and wire a dozen listeners.
+  var ZOO_MIN_FRAME_PX = 50;
+
+  function zooIsTinyFrame() {
+    try {
+      if (window.top === window) return false;
+    } catch (error) { /* a cross-origin top is still a different window: this is a frame */ }
+    return window.innerWidth < ZOO_MIN_FRAME_PX || window.innerHeight < ZOO_MIN_FRAME_PX;
+  }
+
   function main() {
     if (!document.body) {
       window.setTimeout(main, 50);
       return;
     }
+
+    // The Shift relay is wired in every frame, tiny ones included: it also forwards a press to the
+    // parent and to child frames, and a tiny middle frame must not cut that chain.
+    var shiftRelay = zdCreateShiftRelay(window, function() {
+      if (zooPinPopup) zooPinPopup();
+    });
+
+    // Capture phase, registered on window: other extensions (and pages) stop keydown from
+    // propagating, and a bubble-phase listener then never sees Shift -- the pin silently fails.
+    // `repeat` skips the auto-repeat of a held key, which would toggle the pin on and off.
+    window.addEventListener('keydown', function(event) {
+      if (event.which === 16 && !event.repeat) {
+        shiftRelay.press();
+      }
+    }, true);
+
+    if (!zooIsTinyFrame()) {
+      startPopup();
+      return;
+    }
+
+    // A frame can be resized after it loaded (an ad slot that opens): start once it is usable.
+    var onFrameResize = function() {
+      if (zooIsTinyFrame()) return;
+      window.removeEventListener('resize', onFrameResize);
+      startPopup();
+    };
+    window.addEventListener('resize', onFrameResize);
+  }
+
+  function startPopup() {
+    if (zooPopupStarted) return;
+    zooPopupStarted = true;
 
     addStyle("__ZOOPDOG_CSS__");
     if (typeof zooProbeLocalMode === 'function') zooProbeLocalMode();
@@ -1585,22 +1633,13 @@ __ZOOPDOG_RUNTIME_SOURCES__
       window.addEventListener('click', clickListener);
     }
 
-    var shiftRelay = zdCreateShiftRelay(window, function() {
+    zooPinPopup = function() {
       // Shift is pressed constantly while typing and is relayed to every frame; with no popup
       // built yet there is nothing shown to pin, so the UI must not be created for it.
       if (!popup) return;
       highlighter.toggleLock();
       popup.toggleLock();
-    });
-
-    // Capture phase, registered on window: other extensions (and pages) stop keydown from
-    // propagating, and a bubble-phase listener then never sees Shift -- the pin silently fails.
-    // `repeat` skips the auto-repeat of a held key, which would toggle the pin on and off.
-    window.addEventListener('keydown', function(event) {
-      if (event.which === 16 && !event.repeat) {
-        shiftRelay.press();
-      }
-    }, true);
+    };
   }
 
   main();
