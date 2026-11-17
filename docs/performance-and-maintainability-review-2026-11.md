@@ -337,10 +337,33 @@ Việt, 33 000 `<ruby>`):
       `nom-entries-store.js`, `release-manifest.js` (nhiều hình dạng object chưa có kiểu), `lint-config.js` và các
       runtime nặng DOM. ESLint chỉ có luật bắt lỗi; `no-unused-vars` để mức cảnh báo (10 cảnh báo
       còn lại là mã chết hoặc biến chưa dùng, chưa sửa).
+      Cập nhật: đã xoá hết mã chết đó, `make lint` không còn cảnh báo và `no-unused-vars` là lỗi.
 - [ ] M2: trích `zd-scan-scheduler.js` và `zd-userscript-common.js`, chuyển `nom-ruby` trước rồi
       `cjk-ruby`; so sánh đầu ra build trước/sau.
-- [ ] M1: tách `popupdict.runtime.js` thành 4–5 module theo danh sách ở M1; thay các phép thử
+      Ghi chú: làm một phần, nên chưa đánh dấu. Đã có `zd-userscript-common.js` với
+      `zdCreateBackoffPoll` (nhịp rescan thích ứng của cả hai runtime, có test đơn vị riêng và nằm
+      trong `tsconfig.json`); hai bản cũ được thay bằng một lời gọi, các test hẹn giờ giả của cả hai
+      runtime giữ nguyên. Cố ý chưa làm: `zd-scan-scheduler.js` (hàng đợi, `MutationObserver`, ngân sách
+      thời gian, shadow root) vì `nom-ruby` quét đồng bộ theo lát thời gian và theo dõi quyền sở hữu
+      node, còn `cjk-ruby` bất đồng bộ quanh yêu cầu mạng, cache và thử lại, và test DOM của `cjk-ruby`
+      bị bỏ qua khi thiếu jsdom nên không kiểm chứng được một bản hợp nhất. Cũng chưa gộp: `addStyle`
+      (ba bản khác nhau: popup có nhánh `GM.addStyle`, `cjk-ruby` dùng `installStyle` có try/catch),
+      `chooseMode` (`cjk-ruby` có thêm điều kiện `mobileOnly`, dùng `location` thay vì
+      `window.location`), `registerModeMenu` (chỉ khác nhãn/khoá nhưng truy cập `location` khác nhau,
+      lợi ích quá nhỏ), chính sách Trusted Types và debounce. `EXCLUDED_TAGS` của hai runtime khác
+      nhau (`nom-ruby` thêm rp, button, option, code, pre, kbd, samp; `cjk-ruby` thêm template) nên
+      giữ riêng, mỗi bên có chú thích trỏ sang bên kia.
+- [x] M1: tách `popupdict.runtime.js` thành 4–5 module theo danh sách ở M1; thay các phép thử
       `typeof zooX` bằng một điểm mở rộng; rút gọn `readRuntimeSources`.
+      Ghi chú: `popupdict.runtime.js` còn 571 dòng (từ 1 646), tách ra `popup-render.js` (152),
+      `popup-highlighter.js` (150), `popup-result.js` (282), `popup-nom-review.js` (531); mã được
+      chuyển nguyên văn, không đổi tên. `zooLocal` (khai báo `null` trước các nguồn runtime, build
+      local gán vào cuối `popupdict-local.runtime.js`) thay năm phép thử `typeof`; lint của build công
+      khai không còn danh sách global riêng cho local. `readRuntimeSources` dùng hai danh sách có
+      thứ tự. Chưa làm: `main`/`startPopup` (hơn 300 dòng) giữ nguyên thân hàm vì chia nhỏ nó không
+      còn là phép chuyển nguyên văn; `popupdict-local.runtime.js` vẫn 2 071 dòng; `nom-ruby.runtime.js`
+      1 290 và `cjk-ruby.runtime.js` 1 271 dòng, chưa chạm tới. Mục tiêu "không tệp nào quá ~800 dòng"
+      chưa đạt với ba tệp này.
 - [x] M4: `make test-fast`; đưa kịch bản Playwright của giai đoạn 0 vào CI như job riêng, không
       chặn merge cho tới khi ổn định.
       Ghi chú: job CI chạy `scripts/browser-smoke.js` (kiểm tra website và userscript trong
