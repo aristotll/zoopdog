@@ -31,15 +31,6 @@ const GREASEMONKEY_GLOBALS = {
 // Names that exist only in some builds or only in a worker, declared explicitly instead of turning
 // no-undef off. `module` is read in the shared sources only behind a `typeof module` guard.
 const SHARED_SOURCE_GLOBALS = {module: 'readonly'};
-// The public popup build omits the local-mode runtime; its call sites test `typeof` first, or are
-// reachable only from buttons that zooRenderLocalActions (local build only) renders.
-const LOCAL_ONLY_POPUP_GLOBALS = {
-  zooRenderLocalActions: 'readonly',
-  zooProbeLocalMode: 'readonly',
-  zooWireSelectionBar: 'readonly',
-  zooOpenNomModal: 'readonly',
-  zooOpenNomOrderModal: 'readonly'
-};
 // cjk-ruby.runtime.js stringifies a function that runs in a Worker (importScripts, ToJyutping from
 // the library it loads), and reads the ToJyutping library global behind a `typeof` guard.
 const CJK_RUBY_GLOBALS = {importScripts: 'readonly', ToJyutping: 'readonly'};
@@ -58,7 +49,7 @@ function renderAll() {
     rendered.push({
       name: variant.targetKey,
       text: popupBuilder.buildUserscript(popupDictionary, 3, sources, variant),
-      globals: variant.localMode ? {} : LOCAL_ONLY_POPUP_GLOBALS
+      globals: {}
     });
   }
   for (const variant of cjkBuilder.VARIANTS) {

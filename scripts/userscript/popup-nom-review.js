@@ -5,13 +5,13 @@
 // the popup userscript's single IIFE (PUBLIC_RUNTIME_SOURCES), so it shares that scope. It relies
 // on these names declared elsewhere in the build: createZooNomReviewStore (nom-review-store.js),
 // zdContainerBoundary (zd-words.js), escapeHtml (popup-render.js), isExcludedTarget
-// (popupdict.runtime.js), zooRenderLocalActions (-local build only, read behind typeof), and the
-// GM_getValue/GM_setValue grants. Moved verbatim out of popupdict.runtime.js; see
-// docs/runtime-boundaries.md.
+// (popupdict.runtime.js), zooLocal (popupdict.runtime.js: the local runtime's extension object,
+// null in the public build), and the GM_getValue/GM_setValue grants. Moved out of
+// popupdict.runtime.js; see docs/runtime-boundaries.md.
 
   // Offline Nom-review queue -- see
   // docs/superpowers/specs/2026-09-23-offline-nom-review-queue-design.md. This runs in BOTH
-  // builds but only does anything when zooRenderLocalActions is absent (the non-local build):
+  // builds but only does anything when zooLocal is null (the non-local build):
   // the -local build already has a real add-entry flow against the reader server and doesn't
   // need an offline queue. It needs no network grant -- flagging just writes to GM storage, and
   // exporting only ever runs as a same-origin fetch from the reader's own /control page.
@@ -218,7 +218,7 @@
   }
 
   function zooMaybeRenderNomReviewExportPanel() {
-    if (typeof zooRenderLocalActions === 'function') return;
+    if (zooLocal) return;
     if (!zooOnReaderControlPage()) return;
     var queue = zooReadNomReviewQueue();
     if (!queue.length) return;
@@ -459,9 +459,9 @@
 
   function zooWireNomReviewSelectionBar() {
     // Non-local build only -- the -local build already has its own richer selection bar
-    // (add/set-order straight against the reader server) wired by zooWireSelectionBar, and
+    // (add/set-order straight against the reader server) wired by zooLocal.wireSelectionBar, and
     // showing a second, different one alongside it would just be confusing.
-    if (typeof zooRenderLocalActions === 'function') return;
+    if (zooLocal) return;
     var debounced = zooNomReviewDebounce(zooHandleNomReviewSelectionChange, 180);
     document.addEventListener('selectionchange', debounced);
     // Same reasoning as the -local build's own listener pair: the gesture's end event

@@ -36,9 +36,11 @@ concatenates it inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
 `__ZOOPDOG_RUNTIME_SOURCES__`, the same mechanism used for the other inlined browser sources),
 so it shares scope with the core runtime. The separately testable `local-transport.js` factory
 is inlined ahead of the fragment and receives the userscript manager request function explicitly;
-it preserves the same local routes, payloads, timeouts and error responses. The core file calls into it through three
-`typeof x === 'function'` guarded call sites (`zooRenderLocalActions`, `zooProbeLocalMode`,
-`zooWireSelectionBar`) that are silent no-ops when this fragment isn't built in. Matching styles
+it preserves the same local routes, payloads, timeouts and error responses. The core file reaches it through one
+object: `popupdict.runtime.js` declares `var zooLocal = null` ahead of the runtime sources and the fragment ends by
+assigning `zooLocal = {renderActions, probe, wireSelectionBar, openNomModal, openNomOrderModal}` (so it stays
+`null` when this fragment isn't built in, which makes every local call site a no-op). The public build's lint run (`scripts/lint-userscripts.js`)
+declares no local-only globals, so it proves the public script never names those functions. Matching styles
 are concatenated the same way from `popupdict-local.css` (`zd-local-*`, `zd-modal-*`,
 `zd-entry-diff-*`, `zd-selection-bar`, `zd-toast`).
 

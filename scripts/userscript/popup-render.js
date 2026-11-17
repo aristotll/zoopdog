@@ -3,8 +3,9 @@
 // A fragment, not a standalone script: scripts/build-popupdict-userscript.js concatenates it into
 // the popup userscript's single IIFE (PUBLIC_RUNTIME_SOURCES), so it shares that scope. It relies
 // on ZOO_SETTINGS (popupdict.runtime.js), zooBuildSafeFragment (safe-html.js),
-// zooRenderNomReviewAction (popup-nom-review.js) and zooRenderLocalActions (-local build only,
-// read behind typeof). Moved verbatim out of popupdict.runtime.js; see docs/runtime-boundaries.md.
+// zooRenderNomReviewAction (popup-nom-review.js) and zooLocal (popupdict.runtime.js: the local
+// runtime's extension object, null in the public build). Moved out of popupdict.runtime.js;
+// see docs/runtime-boundaries.md.
 
   var ZOO_CJK_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]/u;
   var ZOO_CJK_SEQUENCE_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\u{20000}-\u{323AF}]+/gu;
@@ -69,7 +70,7 @@
       '<ul>',
       renderDefinitionItems(definitions),
       '</ul>',
-      typeof zooRenderLocalActions === 'function' ? zooRenderLocalActions(vn) : zooRenderNomReviewAction(vn),
+      zooLocal ? zooLocal.renderActions(vn) : zooRenderNomReviewAction(vn),
       '</div>'
     ].join('');
   }
