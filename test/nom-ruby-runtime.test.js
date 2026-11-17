@@ -1277,6 +1277,35 @@ test('mutations that arrive between slices are not lost and nothing is annotated
   assert.equal(visibleText(added), 'tình cảm');
 });
 
+test('a sibling moved within its parent between slices does not hide the ones after it', () => {
+  const dom = runRuntime(NOM_MAP, {}, {clockStep: 1, toggle: true});
+  const paragraphs = fillParagraphs(dom, 300, 'của bạn và tình cảm', true);
+  dom.button().dispatch('click');
+  dom.runTimers(1);
+  assert.equal(dom.pendingTimers(), 1);
+  const firstUnvisited = paragraphs.findIndex((p) => rubyAnnotations(p).length === 0);
+  assert.ok(firstUnvisited > 0 && firstUnvisited < 100, `paused after ${firstUnvisited} paragraphs`);
+
+  // The page moves the very paragraph the scan would resume at to the end of the same parent:
+  // it is still a child of that parent, but its next sibling is no longer the unvisited rest.
+  dom.body.appendChild(paragraphs[firstUnvisited]);
+  dom.runTimers();
+
+  assert.equal(dom.pendingTimers(), 0);
+  paragraphs.forEach((p, index) => {
+    assert.deepEqual(rubyAnnotations(p), ['𧵑', '伴', '情感'], `paragraph ${index}`);
+  });
+});
+
+test('a hidden document is scanned in one go instead of in throttled slices', () => {
+  const dom = runRuntime(NOM_MAP, {}, {clockStep: 1});
+  dom.document.hidden = true;
+  fillParagraphs(dom, 300);
+  dom.tick();
+  assert.equal(dom.pendingTimers(), 0);
+  assert.equal(rubyAnnotations(dom.body).length, 300 * 3);
+});
+
 test('turning the script off during a sliced scan leaves no annotation behind', () => {
   const dom = runRuntime(NOM_MAP, {}, {clockStep: 1, toggle: true});
   fillParagraphs(dom, 300);

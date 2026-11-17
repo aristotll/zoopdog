@@ -231,6 +231,17 @@
         }
       }
       Array.prototype.forEach.call(mutationRecord.removedNodes || [], markRemoved);
+      // A paused scan resumes from a saved "next sibling". When the page takes a child out of a
+      // parent the scan is inside (a removal, or a move within that same parent), that pointer
+      // may now skip siblings that were never visited, so the parent is scanned again.
+      if (scanJob && mutationRecord.removedNodes && mutationRecord.removedNodes.length) {
+        for (var depth = 0; depth < scanJob.stack.length; depth++) {
+          if (scanJob.stack[depth].parent === mutationRecord.target) {
+            newNodes.add(mutationRecord.target);
+            break;
+          }
+        }
+      }
 
       // Reconcile the addition and at most its previous sibling. This preserves recovery of a
       // silently attached preceding line without rescanning a whole feed on each insertion.
@@ -372,8 +383,13 @@
 
   // The time a slice that starts now may run until. Without timers there is nowhere to continue,
   // so the scan then stays fully synchronous.
+  // A hidden document is not sliced either: nobody is watching it stutter, and a background tab
+  // throttles timers to about one a second, which would stretch a long scan to minutes.
   function scanDeadline() {
-    return typeof window.setTimeout === 'function' ? scanClock() + SETTINGS.scanSliceMs : Infinity;
+    if (doc.hidden === true || typeof window.setTimeout !== 'function') {
+      return Infinity;
+    }
+    return scanClock() + SETTINGS.scanSliceMs;
   }
 
   // Walks the roots of `job` depth-first with an explicit stack instead of recursion, so it can
