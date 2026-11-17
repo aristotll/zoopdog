@@ -17,3 +17,17 @@ jobs:
       - run: npm ci
       - run: make verify
       - run: make check-openspec
+  # Real-browser smoke test; informational until it has proven stable (does not block merges).
+  browser-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.63.0
+      - run: npx --yes playwright@1.63.0 install --with-deps chromium
+      - run: make browser-smoke REQUIRE=1

@@ -3,7 +3,8 @@
 // Measures the load and scan costs the userscripts pay: evaluating each embedded map, building
 // the nom matcher, and scanning a fixed Vietnamese sample. Prints milliseconds; writes nothing
 // and is not part of `make verify` (timings are machine-dependent). Run it before and after a
-// performance change on the same machine.
+// performance change on the same machine. `--json` prints one JSON object with the same numbers
+// instead of the human-readable lines.
 
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -38,14 +39,20 @@ function evalMap(file, name) {
   return timeIt(() => JSON.parse(vm.runInNewContext(`(${expression})`)));
 }
 
-function main() {
+function main(argv = process.argv.slice(2)) {
+  const asJson = argv.includes('--json');
+  const log = asJson ? () => {} : (...parts) => console.log(...parts);
+  const result = {scans: []};
   const nom = evalMap(repoPaths.absolute.nomUserscript, 'NOM_MAP');
   const popup = evalMap(repoPaths.absolute.popupUserscript, 'ZOO_DICTIONARY');
-  console.log(`parse NOM_MAP (${Object.keys(nom.result).length} terms): ${nom.ms} ms`);
-  console.log(`parse ZOO_DICTIONARY (${Object.keys(popup.result).length} keys): ${popup.ms} ms`);
+  result.parseNomMap = {terms: Object.keys(nom.result).length, ms: Number(nom.ms)};
+  result.parseDictionary = {keys: Object.keys(popup.result).length, ms: Number(popup.ms)};
+  log(`parse NOM_MAP (${Object.keys(nom.result).length} terms): ${nom.ms} ms`);
+  log(`parse ZOO_DICTIONARY (${Object.keys(popup.result).length} keys): ${popup.ms} ms`);
 
   const built = timeIt(() => zdCreateNomMatcher(nom.result, {annotateAsciiTerms: 'safe'}));
-  console.log(`build matcher: ${built.ms} ms`);
+  result.buildMatcherMs = Number(built.ms);
+  log(`build matcher: ${built.ms} ms`);
 
   const sample = 'Tôi có duyên gặp anh ấy ở Hà Nội vào một buổi chiều mùa thu, khi những chiếc lá vàng rơi ' +
     'đầy trên phố cổ và người ta vẫn kể cho nhau nghe những câu chuyện cũ. ';
@@ -62,9 +69,16 @@ function main() {
       }
       return count;
     });
-    console.log(`scan ${label} (${body.length} chars, ${scan.result} matches): ${scan.ms} ms`);
+    result.scans.push({label, chars: body.length, matches: scan.result, ms: Number(scan.ms)});
+    log(`scan ${label} (${body.length} chars, ${scan.result} matches): ${scan.ms} ms`);
   }
-  console.log(path.basename(repoPaths.absolute.nomUserscript), 'benchmarked');
+  result.userscript = path.basename(repoPaths.absolute.nomUserscript);
+  if (asJson) {
+    console.log(JSON.stringify(result));
+  } else {
+    console.log(result.userscript, 'benchmarked');
+  }
+  return result;
 }
 
 if (require.main === module) {

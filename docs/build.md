@@ -36,6 +36,36 @@ direct command below is useful during development, but may use or refresh shared
 node --test test/*.test.js
 ```
 
+## Fast tests and browser smoke
+
+```sh
+make test-fast      # about 15 s instead of ~40 s, in place
+make browser-smoke  # real Chromium, needs Playwright
+```
+
+`make test-fast` (`scripts/test-fast.js`) runs, directly in the checkout, every `test/*.test.js` that
+needs no built artifact: no temporary copy, no rebuild, nothing written to `zd-extension/db_src/`.
+A file is left out when it uses the `ensure-built` / `real-build-copy` helpers or names a built
+userscript or the built runtime dictionary from `scripts/lib/paths.js`; the skipped files are
+listed when it finishes. It is a development shortcut and does not replace `make verify`, which
+still builds from a clean snapshot and also minifies and checks the generated pages. It was
+checked against a checkout with no build output at all (a copy of the tracked files).
+
+`make browser-smoke` (`scripts/browser-smoke.js`) serves the repository on a throwaway local port
+and drives Chromium through Playwright: the website pages load without uncaught errors,
+`popupdict.html` reaches a ready dictionary status and shows its popup frame on hover, and the
+public popup and nom-ruby userscripts (rendered in memory with a stub dictionary, loaded as plain
+scripts with a `GM_addStyle` shim) show the popup on hover, build no UI before the first hover or
+in a 10x10 iframe, and annotate text, including text added later. Playwright is not a dependency
+of this repository: the script resolves a globally or CI-installed copy, prints "skipped" and
+exits 0 without one, and fails instead with `make browser-smoke REQUIRE=1`. It writes only the
+gitignored runtime dictionary files (as `make rebuild-extension-vnedict-json` does). CI runs it as a
+separate `browser-smoke` job with `continue-on-error`, so it does not block merges yet. Console
+errors about fonts blocked by CORS from the sandboxed popup frame are ignored: they come from
+serving locally.
+
+`node scripts/bench-nom.js --json` prints the benchmark numbers as one JSON object.
+
 ## Linting
 
 ```sh

@@ -19,6 +19,11 @@ module.exports = [
     languageOptions: {sourceType: 'commonjs', ecmaVersion: 2024, globals: globals.node},
     rules: bugRules
   },
+  // browser-smoke.js passes functions to page.evaluate/waitForFunction that run in the page.
+  {
+    files: ['scripts/browser-smoke.js'],
+    languageOptions: {globals: {...globals.node, ...globals.browser}}
+  },
   // The standalone browser files are classic <script>s that share one global scope: what one
   // declares at top level another uses. Each file therefore lists the names it takes from others
   // (and from third-party libraries) below, instead of no-undef being switched off. `module` is

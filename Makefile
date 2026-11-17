@@ -11,7 +11,7 @@ TERM ?=
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
-	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types lint
+	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types lint test-fast browser-smoke
 
 help:
 	@echo "make rebuild-nom-userscript"
@@ -34,6 +34,8 @@ help:
 	@echo "make check-openspec ARCHIVE=1 [DRY_RUN=1]  # archive eligible changes, promote deltas"
 	@echo "make lint              # ESLint bug rules on sources and on the built userscripts (in memory)"
 	@echo "make verify            # tests + syntax-check + type check + lint"
+	@echo "make test-fast         # tests that need no build, straight in the checkout (~15 s; not a substitute for verify)"
+	@echo "make browser-smoke    # website and built userscripts in real Chromium via Playwright (not part of verify)"
 
 rebuild-nom-userscript:
 	$(NODE) scripts/build-nom-userscript.js
@@ -122,6 +124,17 @@ check-types:
 lint:
 	./node_modules/.bin/eslint .
 	$(NODE) scripts/lint-userscripts.js
+
+# Development shortcut: the test files that need no built artifact, run in place with no temporary
+# copy and no rebuild (scripts/test-fast.js). `make verify` remains the authoritative check.
+test-fast:
+	$(NODE) scripts/test-fast.js
+
+# Needs Playwright with Chromium (resolved from the environment, not a dependency of this repo);
+# prints "skipped" without it, REQUIRE=1 makes that a failure. Builds the gitignored runtime
+# dictionary the website loads. Deliberately not part of `make verify`.
+browser-smoke:
+	$(NODE) scripts/browser-smoke.js $(if $(REQUIRE),--require)
 
 # Report the first failure directly; rebuilding and retrying can hide a regression or flake.
 verify-scripts:
