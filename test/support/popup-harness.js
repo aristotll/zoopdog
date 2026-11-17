@@ -56,7 +56,10 @@ function createPopupHarness({
   pointerEvents = true,
   // A frame (window.top is another window) of this size; the top window by default.
   frame = null,
-  localMode = false
+  localMode = false,
+  // A window with requestIdleCallback (callbacks are queued, never run by themselves); without it
+  // the runtime's setTimeout fallback is what gets recorded.
+  idleCallbacks = false
 } = {}) {
   const calls = {caret: 0, elementFromPoint: 0, addStyle: 0};
   const documentListeners = {};
@@ -90,6 +93,8 @@ function createPopupHarness({
   };
 
   const frames = [];
+  const idle = []; // {callback, options} queued through window.requestIdleCallback
+  const timeouts = []; // {callback, ms} queued through window.setTimeout; never run automatically
   const sandbox = {
     document,
     Node: {ELEMENT_NODE: 1, TEXT_NODE: 3},
@@ -127,9 +132,12 @@ function createPopupHarness({
     const at = list.indexOf(listener);
     if (at !== -1) list.splice(at, 1);
   };
-  window.setTimeout = () => 0;
+  window.setTimeout = (callback, ms) => { timeouts.push({callback, ms}); return timeouts.length; };
   window.getComputedStyle = () => ({display: 'block'});
   if (pointerEvents) window.PointerEvent = function PointerEvent() {};
+  if (idleCallbacks) {
+    window.requestIdleCallback = (callback, options) => { idle.push({callback, options}); return idle.length; };
+  }
   if (animationFrames) {
     window.requestAnimationFrame = (callback) => { frames.push(callback); return frames.length; };
   }
@@ -175,6 +183,21 @@ function createPopupHarness({
     // Dispatches an event of any type to the window listeners the runtime registered.
     dispatch(type, event) {
       (windowListeners[type] || []).forEach((listener) => listener(event));
+    },
+    // Idle callbacks queued so far, and a way to run them as the browser would when it is idle.
+    idle,
+    timeouts,
+    flushIdle() {
+      const pending = idle.splice(0);
+      pending.forEach(({callback}) => callback({didTimeout: false, timeRemaining: () => 50}));
+      return pending.length;
+    },
+    // Runs the queued setTimeout callbacks whose delay is `ms`.
+    flushTimeouts(ms) {
+      const due = timeouts.filter((entry) => entry.ms === ms);
+      due.forEach((entry) => timeouts.splice(timeouts.indexOf(entry), 1));
+      due.forEach((entry) => entry.callback());
+      return due.length;
     },
     // Runs every queued animation-frame callback, as the browser would at the next frame.
     flushFrames() {

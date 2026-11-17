@@ -152,7 +152,10 @@ in `scripts/lib/userscript.js`), and the runtime parses them on first use: the d
 first lookup, the Nom maps (and the matcher built from them) on the first text node that holds a
 word character. V8 parses JSON text about twice as fast as the same data written as an object
 literal (≈140 ms vs ≈275 ms for the popup dictionary), and a page that never needs the data never
-pays for it. The runtime templates keep their `{"__ZOOPDOG_*__": true}` placeholders, so a test
+pays for it. To keep that parse out of the user's first hover, the popup queues one idle parse
+(`requestIdleCallback`, 2 s timeout; a 200 ms `setTimeout` without it) on the first pointer activity in
+a started frame (`zooSchedulePrewarm`); a lookup that comes first parses as before and the pre-warm is
+then a no-op, and frames that see no pointer, or are too small to start, still never parse. The runtime templates keep their `{"__ZOOPDOG_*__": true}` placeholders, so a test
 can still render one with a JSON string literal. `scripts/lib/userscript.js`'s `extractAssignedJson`
 reads the maps back (pass the name without `_JSON`) and understands both forms — never grep the
 generated file for a raw `"term":"value"` pair, the quotes are escaped.

@@ -44,13 +44,89 @@ test('the dictionary stays unparsed until the first lookup, then is parsed exact
   assert.equal(harness.parsed.filter((parsed) => parsed === text).length, 1);
 });
 
-test('a hover that finds no word never parses the dictionary', () => {
+// Changed deliberately with the idle pre-warm: the hover itself still never parses the dictionary
+// when it finds no word, but the first pointer activity now queues one idle parse (below), so
+// "never" only holds until that idle callback runs.
+test('a hover that finds no word does not parse the dictionary itself', () => {
   const dictionary = {'bạn': [[['bạn'], [['friend', '']]]]};
   const harness = createPopupHarness({dictionary});
   harness.state.caretMiss = true;
   harness.pointerMove(5, 5);
   assert.equal(harness.lastHover, 'noword');
   assert.ok(!harness.parsed.includes(JSON.stringify(dictionary)));
+});
+
+test('the first pointer activity queues one idle parse; nothing is parsed or queued at load', () => {
+  const dictionary = {'bạn': [[['bạn'], [['friend', '']]]]};
+  const text = JSON.stringify(dictionary);
+  const parses = (harness) => harness.parsed.filter((parsed) => parsed === text).length;
+  const harness = createPopupHarness({dictionary, idleCallbacks: true});
+  assert.equal(harness.idle.length, 0, 'nothing is scheduled before any pointer activity');
+  assert.equal(parses(harness), 0);
+
+  harness.state.caretMiss = true;
+  harness.pointerMove(5, 5);
+  harness.pointerMove(6, 6);
+  harness.dispatch('pointerdown', {type: 'pointerdown', pointerType: 'mouse', target: harness.paragraph});
+  assert.equal(harness.idle.length, 1, 'one pre-warm however much activity follows');
+  assert.equal(harness.idle[0].options.timeout, 2000);
+  assert.equal(parses(harness), 0, 'queued, not run: the hover that found no word parsed nothing');
+
+  assert.equal(harness.flushIdle(), 1);
+  assert.equal(parses(harness), 1, 'the idle callback parses the dictionary once');
+  harness.pointerMove(7, 7);
+  assert.equal(harness.idle.length, 0, 'nothing is scheduled a second time');
+  assert.equal(parses(harness), 1);
+});
+
+test('a lookup that runs before the idle pre-warm parses once and makes the pre-warm a no-op', () => {
+  const dictionary = {'bạn': [[['bạn'], [['friend', '']]]]};
+  const text = JSON.stringify(dictionary);
+  const harness = createPopupHarness({dictionary, idleCallbacks: true});
+  harness.pointerMove(5, 5);
+  assert.equal(harness.lastHover, 'shown');
+  assert.equal(harness.parsed.filter((parsed) => parsed === text).length, 1, 'the hover parsed it');
+  assert.equal(harness.idle.length, 1);
+  harness.flushIdle();
+  assert.equal(harness.parsed.filter((parsed) => parsed === text).length, 1, 'the pre-warm did not parse again');
+});
+
+test('without requestIdleCallback the pre-warm is one 200 ms timeout', () => {
+  const dictionary = {'bạn': [[['bạn'], [['friend', '']]]]};
+  const text = JSON.stringify(dictionary);
+  const harness = createPopupHarness({dictionary});
+  const prewarms = () => harness.timeouts.filter((entry) => entry.ms === 200).length;
+  assert.equal(prewarms(), 0, 'nothing at load');
+  harness.state.caretMiss = true;
+  harness.pointerMove(5, 5);
+  harness.pointerMove(6, 6);
+  assert.equal(prewarms(), 1);
+  assert.ok(!harness.parsed.includes(text));
+  assert.equal(harness.flushTimeouts(200), 1);
+  assert.equal(harness.parsed.filter((parsed) => parsed === text).length, 1);
+});
+
+test('a frame that sees no pointer activity never schedules or parses, whatever else happens', () => {
+  const dictionary = {'bạn': [[['bạn'], [['friend', '']]]]};
+  const harness = createPopupHarness({dictionary, idleCallbacks: true});
+  harness.dispatch('keydown', {type: 'keydown', which: 16, key: 'Shift', repeat: false});
+  harness.dispatch('scroll', {type: 'scroll', target: harness.paragraph});
+  harness.resize(700, 500);
+  assert.equal(harness.idle.length, 0);
+  assert.equal(harness.timeouts.filter((entry) => entry.ms === 200).length, 0);
+  assert.ok(!harness.parsed.includes(JSON.stringify(dictionary)));
+});
+
+test('the mousemove / touchstart fallback listeners also queue the pre-warm, once', () => {
+  const moved = createPopupHarness({idleCallbacks: true, pointerEvents: false});
+  moved.pointerMove(5, 5);
+  moved.pointerMove(6, 6);
+  assert.equal(moved.idle.length, 1);
+
+  const touched = createPopupHarness({idleCallbacks: true, pointerEvents: false});
+  touched.dispatch('touchstart', {type: 'touchstart'});
+  touched.dispatch('touchstart', {type: 'touchstart'});
+  assert.equal(touched.idle.length, 1);
 });
 
 test('the canvas and popup are created on the first hover, not at load, and only once', () => {

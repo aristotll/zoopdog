@@ -43,6 +43,19 @@ for (const localMode of [false, true]) {
     });
   }
 
+  test(`${label}: a tiny frame never schedules the idle pre-warm; a frame that becomes usable does on pointer activity`, () => {
+    const harness = createPopupHarness({localMode, frame: {width: 1, height: 1}, idleCallbacks: true});
+    harness.dispatch('pointermove', {type: 'pointermove', pointerType: 'mouse', clientX: 1, clientY: 1});
+    harness.dispatch('pointerdown', {type: 'pointerdown', pointerType: 'mouse'});
+    assert.equal(harness.idle.length, 0, 'no pointer listener exists in a tiny frame');
+    assert.equal(harness.parsed.length, 0);
+
+    harness.resize(300, 250);
+    assert.equal(harness.idle.length, 0, 'starting the frame does not schedule it either');
+    harness.pointerMove(5, 5);
+    assert.equal(harness.idle.length, 1);
+  });
+
   test(`${label}: a tiny frame still relays Shift to its parent and children`, () => {
     const harness = createPopupHarness({localMode, frame: {width: 1, height: 1}});
     const child = {messages: [], postMessage(message) { this.messages.push(message); }};

@@ -37,6 +37,27 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
     return zooDictionaryParsed;
   }
+
+  // The first lookup would otherwise parse the dictionary in the middle of the user's first hover
+  // (~100-180 ms of synchronous work). Once a started frame sees its first pointer activity, ONE
+  // parse is queued for an idle moment instead, so that first hover usually finds it done. A real
+  // lookup that comes first parses as before and this becomes a no-op (zooDictionary is
+  // idempotent); frames that never see a pointer, and tiny frames (startPopup never runs there, so
+  // none of the listeners that call this exists), never parse.
+  var zooPrewarmScheduled = false;
+  var ZOO_PREWARM_IDLE_TIMEOUT_MS = 2000;
+  var ZOO_PREWARM_FALLBACK_MS = 200;
+
+  function zooSchedulePrewarm() {
+    if (zooPrewarmScheduled) return;
+    zooPrewarmScheduled = true;
+    var prewarm = function() { zooDictionary(); };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(prewarm, {timeout: ZOO_PREWARM_IDLE_TIMEOUT_MS});
+    } else {
+      window.setTimeout(prewarm, ZOO_PREWARM_FALLBACK_MS);
+    }
+  }
   // Number of dictionary keys, substituted at build time so diagnostics never walk the dictionary.
   var ZOO_KEY_COUNT = __ZOOPDOG_KEY_COUNT__;
   // Detailed `data-last-hover` strings cost a second caret lookup plus JSON work on every miss, so
@@ -505,6 +526,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
 
     if ('PointerEvent' in window) {
       window.addEventListener('pointerdown', function(event) {
+        zooSchedulePrewarm();
         if (event.pointerType === 'touch') {
           lastTouchTime = Date.now();
           pointerTouchMoved = false;
@@ -512,6 +534,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       }, {passive: true});
 
       window.addEventListener('pointermove', function(event) {
+        zooSchedulePrewarm();
         if (event.pointerType === 'touch') {
           lastTouchTime = Date.now();
           // A finger dragging inside the popup is scrolling the popup's own
@@ -541,10 +564,12 @@ __ZOOPDOG_RUNTIME_SOURCES__
       }, {passive: true});
     } else {
       window.addEventListener('mousemove', function(event) {
+        zooSchedulePrewarm();
         scheduleHover(event);
       });
 
       window.addEventListener('touchstart', function() {
+        zooSchedulePrewarm();
         touchMoved = false;
       }, {passive: true});
 
