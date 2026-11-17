@@ -1,6 +1,6 @@
 # Build and Verification
 
-Use Node 24 (see `.nvmrc`) and run `npm ci`. The lockfile pins esbuild, Pug, Stylus, TypeScript and `@types/node`; all
+Use Node 24 (see `.nvmrc`) and run `npm ci`. The lockfile pins esbuild, Pug, Stylus, TypeScript, `@types/node`, ESLint and `globals`; all
 are development dependencies, and the shipped website has no runtime npm dependency.
 
 ## Quickstart
@@ -28,13 +28,32 @@ userscripts and dictionary there, runs every suite under `test/`, minifies the u
 checks generated page/style drift in that same temporary directory. It also syntax-checks
 first-party JavaScript under `scripts/`, `js/`, and `zd-extension/js/` (third-party `lib/`
 files are excluded) and type-checks the modules listed in `tsconfig.json` from their JSDoc
-(`make check-types`). It never retries a failed
+(`make check-types`) and lints for bugs (`make lint`). It never retries a failed
 test or writes generated artifacts to the checkout. The
 direct command below is useful during development, but may use or refresh shared artifacts:
 
 ```sh
 node --test test/*.test.js
 ```
+
+## Linting
+
+```sh
+make lint
+```
+
+ESLint (`eslint.config.js`) runs only bug-catching rules from `scripts/lib/lint-config.js`
+(`no-undef`, `no-redeclare`, `no-dupe-keys`, `no-unreachable`, `no-fallthrough`, ... and
+`no-unused-vars` as a warning); there are no formatting rules. It covers `scripts/`, `test/` and
+the standalone browser files in `js/` and `zd-extension/js/`. Those classic scripts share one global
+scope, so each file's cross-file globals (`zdPopupProtocol`, `getWordAndContext`, ...) are declared
+explicitly in `eslint.config.js`; add a name there when a file starts using another file's global.
+
+The userscript runtimes in `scripts/userscript/` are fragments of one IIFE, so they are not linted
+one by one. `scripts/lint-userscripts.js` renders every built userscript (public and `-local`) in
+memory with a tiny stub dictionary and lints each as a whole program with browser and
+Greasemonkey globals, which checks the shared IIFE scope for undeclared names and duplicate
+declarations. It writes nothing and needs no prior build.
 
 ## Compiling sources
 

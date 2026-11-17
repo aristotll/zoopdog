@@ -230,6 +230,8 @@ module.exports = {
   buildNomLines,
   mergeExtractedNomMap,
   buildFullNomMap,
+  buildUserscript,
+  VARIANTS,
   main
 };
 

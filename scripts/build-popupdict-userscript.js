@@ -238,6 +238,7 @@ module.exports = {
   readRuntimeSources,
   buildUserscript,
   buildFullDictionary,
+  VARIANTS,
   main
 };
 

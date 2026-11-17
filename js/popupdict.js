@@ -96,7 +96,7 @@ textField.addEventListener('blur', function(){
   }
 })
 
-stripHTML = (el) => {
+var stripHTML = (el) => {
   el.innerHTML = el.innerHTML.replace(/<\/p>\s*<p.*>/igu, "ZOOPDOG-LINEBREAKZOOPDOG-LINEBREAK")
                              .replace(/<div>(.*?)<\/div>/, "ZOOPDOG-LINEBREAK$1")
                              .replace(/<\/?(font|span|p|div).*?>/igu, "")

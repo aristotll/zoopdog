@@ -11,7 +11,7 @@ TERM ?=
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
-	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types
+	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types lint
 
 help:
 	@echo "make rebuild-nom-userscript"
@@ -32,7 +32,8 @@ help:
 	@echo "make build-pages build-styles  # compile tracked website assets"
 	@echo "make check-generated  # check compiled pages and styles without writing"
 	@echo "make check-openspec ARCHIVE=1 [DRY_RUN=1]  # archive eligible changes, promote deltas"
-	@echo "make verify            # tests + syntax-check maintenance and browser scripts"
+	@echo "make lint              # ESLint bug rules on sources and on the built userscripts (in memory)"
+	@echo "make verify            # tests + syntax-check + type check + lint"
 
 rebuild-nom-userscript:
 	$(NODE) scripts/build-nom-userscript.js
@@ -110,11 +111,17 @@ check-generated:
 # Enumerated rather than listed file-by-file so a new script joins verification without a
 # Makefile edit. The extracted userscript runtime is checked as code too, which a template
 # literal never was.
-verify: verify-scripts verify-browser check-types
+verify: verify-scripts verify-browser check-types lint
 
 # JSDoc type check of the modules listed in tsconfig.json (pure modules; DOM-heavy runtimes are not covered yet).
 check-types:
 	./node_modules/.bin/tsc -p tsconfig.json
+
+# Only bug-catching ESLint rules (eslint.config.js). The userscripts are linted as the whole
+# programs they are, rendered in memory with a stub dictionary; nothing is written.
+lint:
+	./node_modules/.bin/eslint .
+	$(NODE) scripts/lint-userscripts.js
 
 # Report the first failure directly; rebuilding and retrying can hide a regression or flake.
 verify-scripts:

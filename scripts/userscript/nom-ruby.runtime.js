@@ -286,9 +286,9 @@
             return value;
           }
           if (part.nodeType === Node.ELEMENT_NODE && /^(rt|rp)$/i.test(part.tagName)) return '';
-          var value = '';
-          for (var child = part.firstChild; child; child = child.nextSibling) value += currentText(child, seen);
-          return value;
+          var text = '';
+          for (var child = part.firstChild; child; child = child.nextSibling) text += currentText(child, seen);
+          return text;
         }
         injection.segments.forEach(function(segment) {
           injections.delete(segment.node);

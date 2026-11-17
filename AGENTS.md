@@ -21,7 +21,7 @@ The repository intentionally tracks generated assets: `*.jade` compiles to a com
 **not committed**: they are gitignored, minified into `dist/` by esbuild, and published as
 GitHub Release assets (`make release-userscripts`). Edit the source, then rebuild.
 
-`package.json` pins build-time dependencies esbuild, Pug, Stylus and TypeScript (run `npm ci` once);
+`package.json` pins build-time dependencies esbuild, Pug, Stylus, TypeScript and ESLint (run `npm ci` once);
 there are no runtime dependencies, and the shipped browser code is still plain JavaScript.
 Verify with:
 
