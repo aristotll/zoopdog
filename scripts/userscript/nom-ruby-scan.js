@@ -187,8 +187,11 @@
     runScanJob(createScanJob([node]), Infinity);
   }
 
+  // The job owns a zdContainerBoundary cache for its whole life (every slice of it). The first boundary
+  // the scan needs fills it from all the roots in one go: reads made later, one at a time between two
+  // <ruby> insertions, each force a style recalculation (zdPrefillBoundaryCache).
   function createScanJob(roots) {
-    return {roots: roots, index: 0, stack: []};
+    return {roots: roots, index: 0, stack: [], boundaryCache: zdCreateBoundaryCache(roots)};
   }
 
   function scanClock() {
@@ -215,6 +218,7 @@
   // something to visit again in this pass.
   function runScanJob(job, deadline) {
     var stack = job.stack;
+    boundaryCache = job.boundaryCache;
     for (;;) {
       var frame = stack[stack.length - 1];
       if (!frame) {

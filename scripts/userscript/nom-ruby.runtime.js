@@ -92,6 +92,8 @@
   // `scanGeneration` supersedes it (disable, re-render); `scanPasses` counts the queue
   // drains made since the last fresh rescan, so MAX_RESCAN_PASSES bounds a sliced scan as a whole.
   var scanJob = null;
+  // The scan job's zdContainerBoundary cache while a slice runs (see runScanJob); null outside a slice.
+  var boundaryCache = null;
   var scanGeneration = 0;
   var scanPasses = 0;
   var scanContinuation = null;
@@ -387,6 +389,8 @@ __ZOOPDOG_NOM_ANNOTATE__
           console.error('[Zoopdog Nom]', error);
         } catch (ignored) { /* nothing more to do */ }
         return true;
+      } finally {
+        boundaryCache = null;
       }
     }
 

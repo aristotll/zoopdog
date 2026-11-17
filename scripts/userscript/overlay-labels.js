@@ -93,7 +93,10 @@ function zdCreateOverlay(doc, win, options) {
       var vh = win.innerHeight;
       var parentCache = new Map();
       var placed = [];
-      var used = 0;
+      // Labels decided by this pass, in order. The pass reads (rects, computed styles) first and writes the
+      // pooled labels afterwards: a read that follows a label write makes the browser bring style and layout up
+      // to date again, which dominated scrolling on a long page (1.85 s of Range.getClientRects in 10 s).
+      var drawn = [];
       var dropped = 0;
       // One Range serves the whole pass; it is made only once a record actually needs measuring.
       var range = null;
@@ -123,29 +126,10 @@ function zdCreateOverlay(doc, win, options) {
         }
         if (!box) { dropped++; return; }
         placed.push(box);
-        var el = pool[used];
-        if (!el) {
-          el = doc.createElement('div');
-          el.className = 'l';
-          layer.appendChild(el);
-          pool.push(el);
-          poolState.push({});
-        }
-        var written = poolState[used];
-        used++;
-        if (written.text !== text) { el.textContent = text; written.text = text; }
-        if (written.display !== '') { el.style.display = ''; written.display = ''; }
-        var fontSize = size + 'px';
-        if (written.fontSize !== fontSize) { el.style.fontSize = fontSize; written.fontSize = fontSize; }
-        if (written.color !== style.color) { el.style.color = style.color; written.color = style.color; }
-        var family = style.family || '';
-        if (written.family !== family) { el.style.fontFamily = family; written.family = family; }
-        var weight = style.weight || '';
-        if (written.weight !== weight) { el.style.fontWeight = weight; written.weight = weight; }
         var x = cx + (options.documentAnchored ? (win.scrollX || 0) : 0);
         var y = bottom + (options.documentAnchored ? (win.scrollY || 0) : 0);
-        var transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px) translate(-50%,-100%)';
-        if (written.transform !== transform) { el.style.transform = transform; written.transform = transform; }
+        // Only decided here; written after every measurement is done (see `drawn` below).
+        drawn.push({text: text, size: size, style: style, x: x, y: y});
       };
 
       records.forEach(function(rec) {
@@ -189,6 +173,31 @@ function zdCreateOverlay(doc, win, options) {
           if (item.under) underOffset += size * 1.2;
           else overOffset += size * 1.2;
         });
+      });
+      var used = drawn.length;
+      drawn.forEach(function(label, index) {
+        var el = pool[index];
+        if (!el) {
+          el = doc.createElement('div');
+          el.className = 'l';
+          layer.appendChild(el);
+          pool.push(el);
+          poolState.push({});
+        }
+        var written = poolState[index];
+        var text = label.text;
+        var style = label.style;
+        if (written.text !== text) { el.textContent = text; written.text = text; }
+        if (written.display !== '') { el.style.display = ''; written.display = ''; }
+        var fontSize = label.size + 'px';
+        if (written.fontSize !== fontSize) { el.style.fontSize = fontSize; written.fontSize = fontSize; }
+        if (written.color !== style.color) { el.style.color = style.color; written.color = style.color; }
+        var family = style.family || '';
+        if (written.family !== family) { el.style.fontFamily = family; written.family = family; }
+        var weight = style.weight || '';
+        if (written.weight !== weight) { el.style.fontWeight = weight; written.weight = weight; }
+        var transform = 'translate(' + Math.round(label.x) + 'px,' + Math.round(label.y) + 'px) translate(-50%,-100%)';
+        if (written.transform !== transform) { el.style.transform = transform; written.transform = transform; }
       });
       for (var j = used; j < pool.length; j++) {
         if (poolState[j].display !== 'none') {

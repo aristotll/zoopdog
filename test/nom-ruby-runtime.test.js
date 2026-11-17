@@ -94,14 +94,15 @@ function createDom() {
       return this.insertBefore(node, null);
     }
 
-    // Only the selector the runtime's removeAnnotations asks for.
+    // Only the selectors the runtime asks for: removeAnnotations' ruby class, and `*` (every descendant
+    // element), which the scan job uses to prefill its computed-style cache.
     querySelectorAll(selector) {
-      assert.equal(selector, 'ruby.zoopdog-nom-ruby');
+      assert.ok(selector === 'ruby.zoopdog-nom-ruby' || selector === '*', selector);
       const found = [];
       (function walk(node) {
         node.childNodes.forEach((child) => {
           if (child.nodeType !== ELEMENT_NODE) return;
-          if (child.tagName === 'RUBY' && /zoopdog-nom-ruby/.test(child.className)) found.push(child);
+          if (selector === '*' || (child.tagName === 'RUBY' && /zoopdog-nom-ruby/.test(child.className))) found.push(child);
           walk(child);
         });
       })(this);

@@ -152,3 +152,34 @@ test('only what changed is written: a moved label its transform, an unused one d
   assert.equal(scenario.counts.styleWrites, base + 2, 'and not hidden again');
   assert.equal(scenario.snapshot().filter(([, , display]) => display === 'none').length, 1);
 });
+
+// Perf regression (live profile, overlay mode, 10 s of scrolling on vi.wikipedia "Việt Nam": 1.85 s in
+// Range.getClientRects + 0.49 s in getBoundingClientRect): a read made after a label write makes the browser
+// bring style and layout up to date again, so a pass must finish every read before the first write.
+test('a layout pass measures everything before it writes any label', () => {
+  const frames = [], log = [];
+  const doc = {
+    createElement() {
+      const el = {isConnected: false, setAttribute() {}, appendChild() {},
+        attachShadow() { return {appendChild() {}}; },
+        style: new Proxy({}, {set(target, key, value) { if (el.className === 'l') log.push('write'); target[key] = value; return true; }})};
+      Object.defineProperty(el, 'textContent', {get() { return this._text; }, set(value) { this._text = value; if (this.className === 'l') log.push('write'); }});
+      return el;
+    },
+    documentElement: {appendChild(el) { el.isConnected = true; }},
+    createRange() { return {setStart() {}, setEnd() {}, getClientRects() { log.push('read'); return [{left: 10, width: 20, top: 30, bottom: 50}]; }}; }
+  };
+  const win = {innerWidth: 500, innerHeight: 500, requestAnimationFrame(fn) { frames.push(fn); }, setTimeout() {},
+    getComputedStyle() { log.push('read'); return {fontSize: '16px', color: 'black'}; }};
+  const overlay = vm.runInNewContext(source + '\nzdCreateOverlay')(doc, win);
+  const parentRect = () => { log.push('read'); return {width: 100, height: 30, top: 20, bottom: 50, left: 0, right: 100}; };
+  for (let i = 0; i < 3; i++) {
+    const parent = {getBoundingClientRect: parentRect};
+    const node = {isConnected: true, nodeValue: 'bạn', parentElement: parent};
+    overlay.set(node, 'bạn', [{start: 0, end: 3, layers: [{pieces: [{text: '伴' + i}]}]}]);
+  }
+  frames.shift()();
+
+  assert.ok(log.includes('write') && log.includes('read'));
+  assert.equal(log.lastIndexOf('read') < log.indexOf('write'), true, 'no read may follow a write: ' + log.join(','));
+});

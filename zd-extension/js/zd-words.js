@@ -304,29 +304,89 @@ const ZD_CONTAINER_SEARCH_MAX_LEVELS = 8;
 // row is the line. Returns that row when `el` is an item of a row-direction flex container, so
 // the walk can read on into the next word's wrapper; a column container stacks its items as
 // separate lines and keeps `el` as the boundary.
-function zdFlexRowContainer(el) {
+function zdFlexRowContainer(el, cache) {
   const parent = el.parentElement;
   if (!parent || typeof getComputedStyle !== 'function') {
     return null;
   }
-  const style = getComputedStyle(parent);
+  const style = zdBoundaryStyle(parent, cache);
   const isFlex = style && (style.display === 'flex' || style.display === 'inline-flex');
   const direction = (style && style.flexDirection) || 'row';
   return isFlex && direction.indexOf('row') === 0 ? parent : null;
+}
+
+// The two computed values the boundary climb needs, read once per element when a `cache` is given.
+// Reading computed style forces a style recalculation if the page changed since the last read, and a
+// scan that inserts <ruby> between reads changes it constantly (measured on vi.wikipedia "Việt Nam":
+// 2.3 s of a 12.4 s scan, 2816 recalculations against 327 without the script).
+function zdBoundaryStyle(el, cache) {
+  if (!cache) {
+    return typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+  }
+  let entry = cache.style.get(el);
+  if (entry === undefined && cache.pendingRoots) {
+    // The first real need: read the whole subtree now, in one go (see zdPrefillBoundaryCache).
+    const roots = cache.pendingRoots;
+    cache.pendingRoots = null;
+    roots.forEach((root) => zdPrefillBoundaryCache(cache, root));
+    entry = cache.style.get(el);
+  }
+  if (entry === undefined) {
+    const style = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+    entry = style ? {display: style.display, flexDirection: style.flexDirection} : null;
+    cache.style.set(el, entry);
+  }
+  return entry;
+}
+
+// A cache lives as long as one scan job: `style` holds the values above per element, `boundary` the
+// finished answer per starting element. `roots` (optional) are prefilled at the first style read, not
+// before: most text never needs a boundary at all (the matcher only asks when a word can continue).
+function zdCreateBoundaryCache(roots) {
+  return {style: new Map(), boundary: new Map(), pendingRoots: roots && roots.length ? roots : null};
+}
+
+// Reads every element under `root` (and `root`) in one go, while the page is still unchanged, so the
+// scan that follows finds all of them cached and never forces a recalculation of its own: 55k elements
+// took 55 ms in one pass, against about 3 s of recalculations read one at a time between insertions.
+function zdPrefillBoundaryCache(cache, root) {
+  if (!cache || !root || root.nodeType !== 1 || typeof root.querySelectorAll !== 'function') {
+    return;
+  }
+  zdBoundaryStyle(root, cache);
+  const elements = root.querySelectorAll('*');
+  for (let i = 0; i < elements.length; i++) {
+    zdBoundaryStyle(elements[i], cache);
+  }
 }
 
 // The nearest ancestor of `node` whose own box breaks the inline flow (typically the paragraph
 // or line the word sits in), so a forward context walk stops at the end of that text instead of
 // wandering into whatever comes after it just because the last visible character happened to be
 // a word character or a space.
-function zdContainerBoundary(node) {
-  let el = node.nodeType === 1 ? node : node.parentElement;
+//
+// `cache` (zdCreateBoundaryCache) is optional: a scan passes one so a paragraph's text nodes share one
+// climb and no style is read twice; callers that omit it, such as the popup, read fresh every time.
+function zdContainerBoundary(node, cache) {
+  const start = node.nodeType === 1 ? node : node.parentElement;
+  if (cache && start && cache.boundary.has(start)) {
+    return cache.boundary.get(start);
+  }
+  const boundary = zdContainerBoundaryUncached(start, cache);
+  if (cache && start) {
+    cache.boundary.set(start, boundary);
+  }
+  return boundary;
+}
+
+function zdContainerBoundaryUncached(start, cache) {
+  let el = start;
   let level = 0;
   while (el && el.parentElement && level < ZD_CONTAINER_SEARCH_MAX_LEVELS) {
-    const style = typeof getComputedStyle === 'function' ? getComputedStyle(el) : null;
+    const style = zdBoundaryStyle(el, cache);
     const display = style && style.display;
     if (!display || !ZD_INLINE_DISPLAY_VALUES.has(display)) {
-      return zdFlexRowContainer(el) || el;
+      return zdFlexRowContainer(el, cache) || el;
     }
     el = el.parentElement;
     level++;
@@ -464,6 +524,8 @@ if (typeof module !== 'undefined' && module.exports) {
     zdCreateShiftRelay,
     zdNextTextNode,
     zdContainerBoundary,
+    zdCreateBoundaryCache,
+    zdPrefillBoundaryCache,
     zdGatherFollowingContext,
     getWordAndContext,
     generateCandidates,

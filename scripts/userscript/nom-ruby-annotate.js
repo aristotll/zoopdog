@@ -40,7 +40,7 @@
       return ahead;
     }
 
-    var boundary = zdContainerBoundary(textNode);
+    var boundary = zdContainerBoundary(textNode, boundaryCache);
     var node = zdNextTextNode(textNode, boundary);
     var guard = 0;
 

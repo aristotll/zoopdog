@@ -538,3 +538,75 @@ test('a column flex container still bounds the walk at each item', () => {
 
   assert.equal(result.context, 'một', 'stacked items are separate lines, so the walk does not join them');
 });
+
+// Perf regression (live profile of vi.wikipedia "Việt Nam": zdContainerBoundary took 2.3 s of a 12.4 s
+// scan, every call forcing a style recalculation between ruby insertions): a scan passes one cache so
+// the text nodes of one paragraph share a single computed-style climb.
+test('a boundary cache makes sibling text nodes of one paragraph share one computed-style climb', () => {
+  const nodes = [textNode('một'), textNode('câu'), textNode('nói')];
+  const paragraph = linkChildren(elementNode('P'), nodes);
+  linkChildren(elementNode('DIV'), [paragraph]);
+  let reads = 0;
+  const cache = words.zdCreateBoundaryCache();
+
+  let readsAfterFirst = 0;
+
+  const boundaries = withComputedStyle((el) => { reads++; return rubyPageStyle(el); },
+    () => nodes.map((node, i) => {
+      const boundary = words.zdContainerBoundary(node, cache);
+      if (i === 0) readsAfterFirst = reads;
+      return boundary;
+    }));
+
+  assert.deepEqual(boundaries, [paragraph, paragraph, paragraph]);
+  assert.ok(readsAfterFirst > 0);
+  assert.equal(reads, readsAfterFirst, 'only the first text node reads computed style');
+});
+
+test('without a cache every call still reads the computed style (the extension popup path is unchanged)', () => {
+  const node = textNode('câu');
+  linkChildren(elementNode('DIV'), [linkChildren(elementNode('P'), [node])]);
+  let reads = 0;
+
+  let readsAfterFirst = 0;
+
+  withComputedStyle((el) => { reads++; return rubyPageStyle(el); },
+    () => { words.zdContainerBoundary(node); readsAfterFirst = reads; words.zdContainerBoundary(node); });
+
+  assert.ok(readsAfterFirst > 0);
+  assert.equal(reads, readsAfterFirst * 2);
+});
+
+test('a prefilled cache answers a whole subtree without reading computed style again', () => {
+  const nodes = [textNode('một'), textNode('câu')];
+  const spans = nodes.map((node) => linkChildren(elementNode('RUBY'), [node]));
+  const paragraph = linkChildren(elementNode('P'), spans);
+  const root = linkChildren(elementNode('DIV'), [paragraph]);
+  root.querySelectorAll = () => [paragraph, ...spans];
+  const cache = words.zdCreateBoundaryCache();
+  let reads = 0;
+
+  withComputedStyle((el) => { reads++; return rubyPageStyle(el); }, () => {
+    words.zdPrefillBoundaryCache(cache, root);
+    const readsAfterPrefill = reads;
+    assert.ok(readsAfterPrefill > 0);
+    assert.deepEqual(nodes.map((node) => words.zdContainerBoundary(node, cache)), [paragraph, paragraph]);
+    assert.equal(reads, readsAfterPrefill, 'the climb after the prefill reads nothing');
+  });
+});
+
+test('a cache made with roots reads nothing until the first boundary is asked for', () => {
+  const node = textNode('câu');
+  const ruby = linkChildren(elementNode('RUBY'), [node]);
+  const paragraph = linkChildren(elementNode('P'), [ruby]);
+  const root = linkChildren(elementNode('DIV'), [paragraph]);
+  root.querySelectorAll = () => [paragraph, ruby];
+  const cache = words.zdCreateBoundaryCache([root]);
+  let reads = 0;
+
+  withComputedStyle((el) => { reads++; return rubyPageStyle(el); }, () => {
+    assert.equal(reads, 0, 'creating the cache reads nothing');
+    assert.equal(words.zdContainerBoundary(node, cache), paragraph);
+    assert.ok(cache.style.has(root) && cache.style.has(paragraph), 'the whole subtree was read at the first need');
+  });
+});
