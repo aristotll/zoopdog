@@ -30,12 +30,26 @@ const chunomPath = repoPaths.absolute.chunomStandard;
 /** @typedef {[string, string] | [string, string, string]} PopupSenseTuple */
 /** @typedef {[string[], PopupSenseTuple[]]} PopupEntryTuple */
 
-const sourceFiles = [
+const PUBLIC_RUNTIME_SOURCES = [
   // Shared word primitives, inlined ahead of the runtime that calls them. The popup shows no
   // auto-generated pronunciation, so the pron/chroma code is deliberately not embedded.
   'zd-extension/js/zd-words.js',
   'scripts/userscript/nom-review-store.js',
   'scripts/userscript/safe-html.js'
+];
+
+// Runtime sources the -local variant appends after `PUBLIC_RUNTIME_SOURCES`, in concatenation order
+// (docs/runtime-boundaries.md).
+const LOCAL_RUNTIME_SOURCES = [
+  'scripts/userscript/local-transport.js',
+  'scripts/userscript/local-selection.js',
+  'scripts/userscript/local-modal-geometry.js',
+  'scripts/userscript/local-entry-diff.js',
+  'scripts/userscript/local-modal-guard.js',
+  'scripts/userscript/local-explored-tools.js',
+  'scripts/userscript/local-metaso-sources.js',
+  'scripts/userscript/local-ai-search.js',
+  'scripts/userscript/popupdict-local.runtime.js'
 ];
 
 // The -local variant adds the "add/edit Chu Nom entries" ability (docs/local-mode.md) by
@@ -95,54 +109,14 @@ function applyUserNomOrderToDictionary(dictionary, orderEntries) {
 }
 
 function readRuntimeSources(localMode) {
-  const parts = sourceFiles.map((relativePath) => {
-    const absolutePath = path.join(rootDir, relativePath);
-    return [
-      `// ===== ${relativePath} =====`,
-      fs.readFileSync(absolutePath, 'utf8')
-    ].join('\n');
-  });
+  const names = localMode
+    ? PUBLIC_RUNTIME_SOURCES.concat(LOCAL_RUNTIME_SOURCES)
+    : PUBLIC_RUNTIME_SOURCES;
 
-  if (localMode) {
-    parts.push([
-      '// ===== scripts/userscript/local-transport.js =====',
-      readRuntime('local-transport.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-selection.js =====',
-      readRuntime('local-selection.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-modal-geometry.js =====',
-      readRuntime('local-modal-geometry.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-entry-diff.js =====',
-      readRuntime('local-entry-diff.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-modal-guard.js =====',
-      readRuntime('local-modal-guard.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-explored-tools.js =====',
-      readRuntime('local-explored-tools.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-metaso-sources.js =====',
-      readRuntime('local-metaso-sources.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/local-ai-search.js =====',
-      readRuntime('local-ai-search.js')
-    ].join('\n'));
-    parts.push([
-      '// ===== scripts/userscript/popupdict-local.runtime.js =====',
-      readRuntime('popupdict-local.runtime.js')
-    ].join('\n'));
-  }
-
-  return parts.join('\n\n');
+  return names.map((relativePath) => [
+    `// ===== ${relativePath} =====`,
+    fs.readFileSync(path.join(rootDir, relativePath), 'utf8')
+  ].join('\n')).join('\n\n');
 }
 
 // GM_setValue/GM_getValue are granted to both builds (see
