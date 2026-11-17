@@ -329,15 +329,26 @@ Việt, 33 000 `<ruby>`):
 
 ### Giai đoạn 3 — Giảm chi phí bảo trì (3–5 ngày, làm xen kẽ)
 
-- [ ] M3: `tsconfig.json` + mở rộng `check-types` tới các module thuần; ESLint tối thiểu trên
+- [x] M3: `tsconfig.json` + mở rộng `check-types` tới các module thuần; ESLint tối thiểu trên
       bản build; `.editorconfig`; `engines` trong `package.json`.
+      Ghi chú: `engines` đã có sẵn (`>=24 <25`). `check-types` phủ 23 module (review store, các
+      helper local-mode thuần, `zd-nom-match`, `zd-dictionary-runtime`, `zd-popup-protocol`,
+      `zd-browser-runtime`, 12 trong 16 file `scripts/lib`); chưa phủ `scripts/lib/dictionary-identity.js`,
+      `nom-entries-store.js`, `release-manifest.js` (nhiều hình dạng object chưa có kiểu), `lint-config.js` và các
+      runtime nặng DOM. ESLint chỉ có luật bắt lỗi; `no-unused-vars` để mức cảnh báo (10 cảnh báo
+      còn lại là mã chết hoặc biến chưa dùng, chưa sửa).
 - [ ] M2: trích `zd-scan-scheduler.js` và `zd-userscript-common.js`, chuyển `nom-ruby` trước rồi
       `cjk-ruby`; so sánh đầu ra build trước/sau.
 - [ ] M1: tách `popupdict.runtime.js` thành 4–5 module theo danh sách ở M1; thay các phép thử
       `typeof zooX` bằng một điểm mở rộng; rút gọn `readRuntimeSources`.
-- [ ] M4: `make test-fast`; đưa kịch bản Playwright của giai đoạn 0 vào CI như job riêng, không
+- [x] M4: `make test-fast`; đưa kịch bản Playwright của giai đoạn 0 vào CI như job riêng, không
       chặn merge cho tới khi ổn định.
-- [ ] M5: `docs/README.md` làm mục lục; ghi rõ nguồn/sinh ra trong `docs/dictionary-data.md`.
+      Ghi chú: job CI chạy `scripts/browser-smoke.js` (kiểm tra website và userscript trong
+      Chromium thật), `continue-on-error`. Kịch bản đo hiệu năng của giai đoạn 0 (trang dài
+      ~200 KB, 5 iframe, heap/layout) vẫn chưa viết; `bench-nom.js` đã có `--json`.
+- [x] M5: `docs/README.md` làm mục lục; ghi rõ nguồn/sinh ra trong `docs/dictionary-data.md`.
+      Ghi chú: chưa xoá, di chuyển hay đổi tên gì; số phận `vnedict.json`, `vnedict.txt`,
+      `evdict.txt` vẫn chờ quyết định ở giai đoạn 4.
 
 Tiêu chí xong: không runtime nào > 800 dòng; không hàm nào > 100 dòng; `check-types` phủ mọi
 module không đụng DOM; đầu ra build chỉ khác ở phần mã được di chuyển.
