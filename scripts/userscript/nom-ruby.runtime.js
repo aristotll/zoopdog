@@ -42,7 +42,10 @@
     annotateAsciiTerms: 'safe',
     // False shows only the first known Chu Nom candidate as ruby; all candidates stay in title.
     showAllVariants: false,
-    rescanIntervalMs: 500
+    rescanIntervalMs: 500,
+    // A scan that runs longer than this yields to the page and continues in a later task.
+    scanSliceMs: 12,
+    scanIdleTimeoutMs: 100
   };
 
   var doc = document;
@@ -80,6 +83,13 @@
   var rescanNow = null;
   var rescanTimer = null;
   var enabled = true;
+  // A big scan runs in time slices (see runScanJob). `scanJob` is the scan in flight; bumping
+  // `scanGeneration` supersedes it (disable, re-render); `scanPasses` counts the queue
+  // drains made since the last fresh rescan, so MAX_RESCAN_PASSES bounds a sliced scan as a whole.
+  var scanJob = null;
+  var scanGeneration = 0;
+  var scanPasses = 0;
+  var scanContinuation = null;
   // The webfont is its own sheet: the -local build embeds the whole font here (~14MB of base64),
   // which every document that parses it pays for -- so it is added only once a ruby is about to
   // be created (ensureFontFace), never to a page with nothing to annotate, and never again per
@@ -342,22 +352,79 @@
     return tag in EXCLUDED_TAGS || element.isContentEditable;
   }
 
-  // Entry point for a scan root (a queued node or a shadow root). A mutation can queue a
-  // descendant directly, bypassing the tree walk from the body, so the ancestors are checked here --
-  // once per root -- and the recursive descent below only ever looks at the node it is on.
+  // Entry point for a synchronous scan of one root (a shadow root that has just appeared).
   function scanTextNodes(node) {
+    runScanJob(createScanJob([node]), Infinity);
+  }
+
+  function createScanJob(roots) {
+    return {roots: roots, index: 0, stack: []};
+  }
+
+  function scanClock() {
+    return typeof performance !== 'undefined' && performance && typeof performance.now === 'function'
+      ? performance.now() : Date.now();
+  }
+
+  // The time a slice that starts now may run until. Without timers there is nowhere to continue,
+  // so the scan then stays fully synchronous.
+  function scanDeadline() {
+    return typeof window.setTimeout === 'function' ? scanClock() + SETTINGS.scanSliceMs : Infinity;
+  }
+
+  // Walks the roots of `job` depth-first with an explicit stack instead of recursion, so it can
+  // stop between two nodes and resume later. Returns true when the job is done, false when the
+  // deadline passed first (at least one node is always handled, so a slice makes progress).
+  // The next sibling is read *before* a child is handled, because handling a text node inserts
+  // its ruby and remaining text right after it and those are this script's own output, not
+  // something to visit again in this pass.
+  function runScanJob(job, deadline) {
+    var stack = job.stack;
+    for (;;) {
+      var frame = stack[stack.length - 1];
+      if (!frame) {
+        if (job.index >= job.roots.length) {
+          return true;
+        }
+        beginScanRoot(job, job.roots[job.index++]);
+      } else if (frame.next) {
+        var child = frame.next;
+        if (child.parentNode !== frame.parent) {
+          // The page moved or removed the next sibling while the scan was paused, so the
+          // rest of this parent's children can no longer be reached from it: scan the parent again.
+          newNodes.add(frame.parent);
+          stack.pop();
+        } else {
+          frame.next = child.nextSibling;
+          visitScanNode(job, child);
+        }
+      } else {
+        stack.pop();
+        // An element's shadow root is scanned after its light children.
+        var shadow = frame.element && frame.element.shadowRoot;
+        if (shadow && watchShadowRootFor(shadow)) {
+          visitScanNode(job, shadow);
+        }
+      }
+      if (deadline !== Infinity && scanClock() >= deadline) {
+        return false;
+      }
+    }
+  }
+
+  // A mutation can queue a descendant directly, bypassing the tree walk from the body, so the
+  // ancestors are checked here -- once per root -- and the descent only ever looks at the node it is on.
+  function beginScanRoot(job, node) {
     if (!node || !node.isConnected) {
       return;
     }
-
     for (var ancestor = node.parentNode; ancestor; ancestor = ancestor.parentNode || ancestor.host) {
       if (ancestor.nodeType === Node.ELEMENT_NODE && isExcludedElement(ancestor)) return;
     }
-
-    scanNode(node);
+    visitScanNode(job, node);
   }
 
-  function scanNode(node) {
+  function visitScanNode(job, node) {
     // `isConnected` is true for a node reachable from the document either directly or through
     // an attached shadow tree, unlike `doc.body.contains(node)` -- which a ShadowRoot always
     // fails, since a shadow tree is a separate root, not a descendant in the light-DOM sense.
@@ -370,14 +437,11 @@
       if (isExcludedElement(node)) {
         return;
       }
-      scanChildren(node);
-      if (node.shadowRoot) {
-        watchShadowRoot(node.shadowRoot);
-      }
+      job.stack.push({parent: node, element: node, next: node.firstChild});
       return;
 
     case Node.DOCUMENT_FRAGMENT_NODE:
-      scanChildren(node);
+      job.stack.push({parent: node, element: null, next: node.firstChild});
       return;
 
     case Node.TEXT_NODE:
@@ -385,25 +449,52 @@
     }
   }
 
-  // Walks `parent`'s children by sibling link rather than copying them into an array first. The
-  // next sibling is read *before* a child is handled, because handling a text node inserts its
-  // ruby and remaining text right after it and those are this script's own output, not
-  // something to visit again in this pass.
-  function scanChildren(parent) {
-    var child = parent.firstChild;
-    while (child) {
-      var next = child.nextSibling;
-      scanNode(child);
-      child = next;
+  function cancelScanContinuation() {
+    if (scanContinuation) {
+      scanContinuation();
+      scanContinuation = null;
     }
+  }
+
+  // Drops an in-flight sliced scan and its pending continuation.
+  function cancelScan() {
+    scanGeneration++;
+    scanJob = null;
+    scanPasses = 0;
+    cancelScanContinuation();
+  }
+
+  // Continues a paused scan in a later task, when the browser is idle if it can tell.
+  function scheduleScanContinuation() {
+    var generation = scanGeneration;
+    var handle;
+    var useIdle = typeof window.requestIdleCallback === 'function';
+    function resume() {
+      scanContinuation = null;
+      if (generation === scanGeneration && enabled && rescanNow) rescanNow();
+    }
+    scanContinuation = function() {
+      if (useIdle && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(handle);
+      else if (!useIdle) window.clearTimeout(handle);
+    };
+    handle = useIdle
+      ? window.requestIdleCallback(resume, {timeout: SETTINGS.scanIdleTimeoutMs})
+      : window.setTimeout(resume, 0);
   }
 
   // A ShadowRoot is itself a DocumentFragment, so scanTextNodes already knows how to walk its
   // childNodes once handed one -- what it does not get for free is future observation, which
   // needs its own explicit observe() call per shadow root (see the comment on `observer` above).
   function watchShadowRoot(root) {
+    if (watchShadowRootFor(root)) {
+      scanTextNodes(root);
+    }
+  }
+
+  // Registers `root` once (style, observer). True when it is new and should be scanned now.
+  function watchShadowRootFor(root) {
     if (observedShadowRoots.has(root)) {
-      return;
+      return false;
     }
     observedShadowRoots.add(root);
     shadowRootList.push(root);
@@ -411,9 +502,7 @@
     if (observer && enabled) {
       observer.observe(root, {characterData: true, childList: true, subtree: true});
     }
-    if (enabled) {
-      scanTextNodes(root);
-    }
+    return enabled;
   }
 
   // Catches a shadow root the moment it is created, for the host element this script has not
@@ -963,6 +1052,8 @@
       if (!enabled) {
         return;
       }
+      // This call supersedes a continuation that is still waiting for its turn.
+      cancelScanContinuation();
       mutationHandler(observer.takeRecords());
 
       if (changedNodes.size) {
@@ -973,10 +1064,23 @@
 
       // A pass can queue more work itself (the tail of a following node after a match that
       // spans nodes), so drain until it settles -- bounded, leftovers wait for the next tick.
-      for (var pass = 0; newNodes.size && pass < MAX_RESCAN_PASSES; pass++) {
-        var nodes = outermostNodes([...newNodes]);
-        newNodes.clear();
-        nodes.forEach(scanTextNodes);
+      // A scan that outlasts its time slice stays in `scanJob` and continues in a later task.
+      if (!scanJob) {
+        scanPasses = 0;
+      }
+      var deadline = scanDeadline();
+      var paused = false;
+      while (scanJob || (newNodes.size && scanPasses < MAX_RESCAN_PASSES)) {
+        if (!scanJob) {
+          scanJob = createScanJob(outermostNodes([...newNodes]));
+          newNodes.clear();
+          scanPasses++;
+        }
+        if (!runScanJob(scanJob, deadline)) {
+          paused = true;
+          break;
+        }
+        scanJob = null;
       }
 
       // Everything queued on the observer since the records were taken above is this script's
@@ -985,6 +1089,7 @@
       // had already exhausted.
       observer.takeRecords();
       if (overlay) overlay.schedule(); // page layout may have moved the words
+      if (paused) scheduleScanContinuation();
     }
 
     rescanNow = rescanTextNodes;
@@ -1000,6 +1105,7 @@
 
   // Replaces every ruby this script made with its plain base text.
   function removeAnnotations() {
+    cancelScan();
     if (overlay) overlay.clear();
     var roots = [doc].concat(shadowRootList);
     roots.forEach(function(root) {
@@ -1051,6 +1157,7 @@
 
   function disableAnnotations() {
     enabled = false;
+    cancelScan();
     observer.disconnect();
     window.clearInterval(rescanTimer);
     rescanTimer = null;

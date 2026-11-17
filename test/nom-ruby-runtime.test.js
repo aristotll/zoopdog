@@ -93,6 +93,38 @@ function createDom() {
       return this.insertBefore(node, null);
     }
 
+    // Only the selector the runtime's removeAnnotations asks for.
+    querySelectorAll(selector) {
+      assert.equal(selector, 'ruby.zoopdog-nom-ruby');
+      const found = [];
+      (function walk(node) {
+        node.childNodes.forEach((child) => {
+          if (child.nodeType !== ELEMENT_NODE) return;
+          if (child.tagName === 'RUBY' && /zoopdog-nom-ruby/.test(child.className)) found.push(child);
+          walk(child);
+        });
+      })(this);
+      return found;
+    }
+
+    // Merges adjacent text nodes without reporting records, like the runtime's own cleanup.
+    normalize() {
+      for (let i = this.childNodes.length - 1; i > 0; i--) {
+        const here = this.childNodes[i], before = this.childNodes[i - 1];
+        if (here.nodeType === TEXT_NODE && before.nodeType === TEXT_NODE) {
+          before.data += here.data;
+          here.parentNode = null;
+          this.childNodes.splice(i, 1);
+        }
+      }
+    }
+
+    remove() {
+      if (this.parentNode) {
+        this.parentNode.removeChild(this);
+      }
+    }
+
     insertBefore(node, reference) {
       // A DocumentFragment hands over its children, in order, in a single childList record.
       if (node instanceof MiniFragment) {
@@ -111,6 +143,11 @@ function createDom() {
       node.parentNode = this;
       record({type: 'childList', target: this, addedNodes: [node]});
       return node;
+    }
+
+    replaceChild(node, old) {
+      this.insertBefore(node, old);
+      return this.removeChild(old);
     }
 
     removeChild(node) {
@@ -176,6 +213,16 @@ function createDom() {
       this.title = '';
       this.isContentEditable = false;
       this.shadowRoot = null;
+      this.style = {};
+      this.listeners = {};
+    }
+
+    addEventListener(type, listener) {
+      (this.listeners[type] = this.listeners[type] || []).push(listener);
+    }
+
+    dispatch(type) {
+      (this.listeners[type] || []).forEach((listener) => listener({stopPropagation() {}}));
     }
 
     get textContent() {
@@ -203,14 +250,21 @@ function createDom() {
   const body = new MiniElement('body');
   const head = new MiniElement('head');
 
+  const created = [];
   const document = {
     body,
-    createElement: (tagName) => new MiniElement(tagName),
+    documentElement: null,
+    createElement: (tagName) => {
+      const element = new MiniElement(tagName);
+      created.push(element);
+      return element;
+    },
     createTextNode: (data) => new MiniText(data),
     createDocumentFragment: () => new MiniFragment(),
     getElementsByTagName: (tagName) => (tagName === 'head' ? [head] : []),
     // Only the Cloudflare challenge markers are looked up by selector (see isCloudflareChallenge).
-    querySelector: () => (flags.challengeMarkup ? {} : null)
+    querySelector: () => (flags.challengeMarkup ? {} : null),
+    querySelectorAll: (selector) => body.querySelectorAll(selector)
   };
 
   return {
@@ -218,9 +272,14 @@ function createDom() {
     body,
     MiniText,
     MiniElement,
+    created,
     flags,
     observe: (root) => {
       observedRoots.add(root);
+    },
+    disconnect: () => {
+      observedRoots.clear();
+      records.length = 0;
     },
     appendSilently: (parent, node) => {
       parent.childNodes.push(node);
@@ -240,7 +299,11 @@ function displayOf(el) {
   return {display: 'inline'};
 }
 
-function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false, parseCalls = null} = {}) {
+// Options beyond the page itself: `timers` queues window.setTimeout instead of running it at once
+// (drive it with runTimers), `clockStep` gives the runtime a fake performance.now() that moves that
+// many milliseconds per read (0 = frozen, so a scan never runs out of time), and `toggle` makes the
+// frame the top window with a <html> element so the toggle button exists (dom.button).
+function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false, parseCalls = null, timers = false, clockStep = null, toggle = false} = {}) {
   const dom = createDom();
   dom.flags.challengeMarkup = challengeMarkup;
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
@@ -271,6 +334,9 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
       observe(root) {
         dom.observe(root);
       }
+      disconnect() {
+        dom.disconnect();
+      }
       takeRecords() {
         return dom.takeRecords();
       }
@@ -283,11 +349,32 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
       stringify: (...args) => JSON.stringify(...args)
     };
   }
+  const timerQueue = [];
+  let nextTimerId = 1;
   context.window = {
     location: {hostname},
-    setTimeout: (fn) => fn(),
-    setInterval: (fn) => intervals.push(fn)
+    setTimeout: timers === 'absent' ? undefined : timers
+      ? (fn, delay) => { const id = nextTimerId++; timerQueue.push({id, fn, delay}); return id; }
+      : (fn) => fn(),
+    clearTimeout: (id) => {
+      const at = timerQueue.findIndex((timer) => timer.id === id);
+      if (at !== -1) timerQueue.splice(at, 1);
+    },
+    setInterval: (fn) => intervals.push(fn),
+    clearInterval: (fn) => {
+      const at = intervals.indexOf(fn);
+      if (at !== -1) intervals.splice(at, 1);
+    }
   };
+  if (clockStep !== null) {
+    let clock = 0;
+    context.performance = {now: () => (clock += clockStep)};
+  }
+  if (toggle) {
+    context.window.top = context.window;
+    dom.document.documentElement = new dom.MiniElement('html');
+    dom.document.documentElement.dataset = {};
+  }
 
   const originalAttachShadow = dom.MiniElement.prototype.attachShadow;
   vm.createContext(context);
@@ -299,7 +386,18 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
   return Object.assign(dom, {
     attachShadowFn: () => dom.MiniElement.prototype.attachShadow,
     attachShadowPatched: () => dom.MiniElement.prototype.attachShadow !== originalAttachShadow,
-    tick: () => intervals.forEach((fn) => fn())});
+    tick: () => intervals.forEach((fn) => fn()),
+    pendingTimers: () => timerQueue.length,
+    // Runs queued timers in order, including ones they queue, until none is left or `limit` ran.
+    runTimers: (limit = 100000) => {
+      let ran = 0;
+      while (timerQueue.length && ran < limit) {
+        timerQueue.shift().fn();
+        ran++;
+      }
+      return ran;
+    },
+    button: () => dom.created.filter((element) => element.tagName === 'BUTTON')[0]});
 }
 
 // Text seen by a reader: the annotated words plus everything around them, with the ruby
@@ -1093,4 +1191,111 @@ test('the ancestor exclusion check runs once per scan root, not once per node', 
     assert.ok(count <= depth + 5, `depth ${depth}: ${count} tagName reads`);
     assert.equal(rubyAnnotations(root).length, depth);
   }
+});
+
+// Every node, tag and text, so two runs can be compared exactly (visibleText hides the ruby text).
+function serialize(node) {
+  return node.nodeType === TEXT_NODE
+    ? JSON.stringify(node.nodeValue)
+    : `<${node.tagName}>${node.childNodes.map(serialize).join('')}</${node.tagName}>`;
+}
+
+// `silent` adds them without mutation records, so only a render (toggle click) queues the body.
+function fillParagraphs(dom, count, text = 'của bạn và tình cảm', silent = false) {
+  const paragraphs = [];
+  for (let i = 0; i < count; i++) {
+    const p = dom.document.createElement('p');
+    p.appendChild(dom.document.createTextNode(text));
+    if (silent) dom.appendSilently(dom.body, p); else dom.body.appendChild(p);
+    paragraphs.push(p);
+  }
+  return paragraphs;
+}
+
+test('a large scan is sliced yet annotates exactly what an unsliced scan does', () => {
+  const whole = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 0});
+  fillParagraphs(whole, 400);
+  whole.tick();
+  assert.equal(whole.pendingTimers(), 0, 'a frozen clock never pauses a scan');
+
+  const sliced = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1});
+  fillParagraphs(sliced, 400);
+  sliced.tick();
+  assert.equal(sliced.pendingTimers(), 1, 'the scan yielded and queued its continuation');
+  assert.ok(rubyAnnotations(sliced.body).length < rubyAnnotations(whole.body).length);
+  const slices = sliced.runTimers();
+
+  assert.ok(slices > 5, `only ${slices} continuations`);
+  assert.equal(sliced.pendingTimers(), 0);
+  assert.equal(rubyAnnotations(whole.body).length, 400 * 3);
+  assert.equal(serialize(sliced.body), serialize(whole.body));
+});
+
+test('a scan without a clock or timers stays synchronous', () => {
+  const dom = runRuntime(NOM_MAP, {}, {timers: 'absent', clockStep: 1});
+  fillParagraphs(dom, 200);
+  dom.tick();
+  assert.equal(rubyAnnotations(dom.body).length, 200 * 3);
+});
+
+test('mutations that arrive between slices are not lost and nothing is annotated twice', () => {
+  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  const paragraphs = fillParagraphs(dom, 300, 'của bạn và tình cảm', true);
+  dom.button().dispatch('click');
+  dom.runTimers(1); // the click's own delay; the body scan it starts pauses and queues a continuation
+  assert.equal(dom.pendingTimers(), 1);
+  const firstUnvisited = paragraphs.findIndex((p) => rubyAnnotations(p).length === 0);
+  assert.ok(firstUnvisited > 0 && firstUnvisited < 100, `paused after ${firstUnvisited} paragraphs`);
+
+  // The page rewrites a paragraph that was already annotated, removes the very next one the scan
+  // was about to reach, rewrites a later one and appends a new one.
+  paragraphs[0].childNodes[0].nodeValue = 'bạn';
+  dom.body.removeChild(paragraphs[firstUnvisited]);
+  paragraphs[200].childNodes[0].nodeValue = 'của';
+  const added = dom.document.createElement('p');
+  added.appendChild(dom.document.createTextNode('tình cảm'));
+  dom.body.appendChild(added);
+  dom.runTimers();
+
+  assert.equal(dom.pendingTimers(), 0);
+  const expected = new Map([[paragraphs[0], ['伴']], [paragraphs[200], ['𧵑']], [added, ['情感']]]);
+  const texts = new Map([[paragraphs[0], 'bạn'], [paragraphs[200], 'của'], [added, 'tình cảm']]);
+  paragraphs.forEach((p) => {
+    if (p === paragraphs[firstUnvisited]) return;
+    assert.deepEqual(rubyAnnotations(p), expected.get(p) || ['𧵑', '伴', '情感'], serialize(p));
+    assert.equal(visibleText(p), texts.get(p) || 'của bạn và tình cảm');
+  });
+  assert.deepEqual(rubyAnnotations(added), ['情感']);
+  assert.equal(visibleText(added), 'tình cảm');
+});
+
+test('turning the script off during a sliced scan leaves no annotation behind', () => {
+  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  fillParagraphs(dom, 300);
+  dom.tick();
+  assert.equal(dom.pendingTimers(), 1);
+  assert.ok(rubyAnnotations(dom.body).length > 0);
+
+  dom.button().dispatch('dblclick');
+  assert.equal(dom.pendingTimers(), 1, 'only the removal is queued; the continuation was cancelled');
+  dom.runTimers();
+  dom.tick();
+
+  assert.deepEqual(rubyAnnotations(dom.body), []);
+  assert.equal(dom.pendingTimers(), 0);
+  assert.equal(visibleText(dom.body), 'của bạn và tình cảm'.repeat(300));
+});
+
+test('rendering again during a sliced scan supersedes it without double annotation', () => {
+  const dom = runRuntime(NOM_MAP, {}, {timers: true, clockStep: 1, toggle: true});
+  fillParagraphs(dom, 300);
+  dom.tick();
+  assert.equal(dom.pendingTimers(), 1);
+
+  dom.button().dispatch('click');
+  dom.runTimers();
+
+  assert.equal(dom.pendingTimers(), 0);
+  assert.equal(rubyAnnotations(dom.body).length, 300 * 3);
+  assert.equal(visibleText(dom.body), 'của bạn và tình cảm'.repeat(300));
 });
