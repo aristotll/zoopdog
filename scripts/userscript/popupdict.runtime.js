@@ -56,7 +56,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
   };
 
   // Local-mode (add/edit Chu Nom entries via the book-translator reader server) lives in
-  // scripts/userscript/popupdict-local.runtime.js -- see docs/local-mode.md. It is only
+  // scripts/userscript/local-*.js and popupdict-local.runtime.js -- see docs/local-mode.md. It is only
   // concatenated into the -local build, which ends by assigning `zooLocal = {...}` -- the one
   // seam between the two (declared above, before the runtime sources). In the public build it
   // stays null, so this file (and popup-render.js / popup-nom-review.js) is fully functional

@@ -134,9 +134,15 @@ test('builders assemble the runtime instead of inlining it', () => {
     'popupdict-local.runtime.js is syntax-checked as code'
   );
 
-  // The popup-*.js files are fragments of the same IIFE, split out of popupdict.runtime.js
+  // The popup-*.js files are fragments of the same IIFE, split out of popupdict.runtime.js, and the
+  // local-*.js files listed here were split out of popupdict-local.runtime.js
   // (docs/runtime-boundaries.md): no userscript header, valid code once wrapped.
-  for (const name of ['popup-render.js', 'popup-highlighter.js', 'popup-result.js', 'popup-nom-review.js']) {
+  for (const name of [
+    'popup-render.js', 'popup-highlighter.js', 'popup-result.js', 'popup-nom-review.js',
+    'local-server.js', 'local-explored-engines.js', 'local-explored-highlight.js', 'local-requests.js',
+    'local-form-helpers.js', 'local-modal.js', 'local-selection-bar.js', 'local-nom-form.js',
+    'local-nom-order-form.js', 'local-modal-build.js'
+  ]) {
     const fragment = fs.readFileSync(path.join(scriptsDir, 'userscript', name), 'utf8');
     assert.doesNotMatch(fragment, /==UserScript==/, `${name} is a fragment, not a standalone userscript`);
     fs.writeFileSync(probePath, `(function() {\n${fragment}\n})();`);
@@ -144,6 +150,17 @@ test('builders assemble the runtime instead of inlining it', () => {
       () => execFileSync(process.execPath, ['--check', probePath], {stdio: 'pipe'}),
       `${name} is syntax-checked as code`
     );
+  }
+});
+
+test('every popup fragment on disk is concatenated by the popup builder', () => {
+  const builder = fs.readFileSync(path.join(scriptsDir, 'build-popupdict-userscript.js'), 'utf8');
+  const fragments = fs.readdirSync(path.join(scriptsDir, 'userscript'))
+    .filter((name) => /^(local|popup)-.*\.js$/.test(name) || name === 'popupdict-local.runtime.js');
+  assert.ok(fragments.length >= 20, 'the popup fragments are found');
+  for (const name of fragments) {
+    assert.equal(builder.split(`'scripts/userscript/${name}'`).length - 1, 1,
+      `${name} is listed exactly once in the popup builder's source lists`);
   }
 });
 

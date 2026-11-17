@@ -7,7 +7,16 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const runtimePath = path.join(__dirname, '..', 'scripts', 'userscript', 'popupdict-local.runtime.js');
-const runtime = fs.readFileSync(runtimePath, 'utf8');
+// popupdict-local.runtime.js was split verbatim into these fragments, concatenated in this order
+// (LOCAL_RUNTIME_SOURCES in scripts/build-popupdict-userscript.js), with the runtime itself last.
+const runtimeFragmentNames = [
+  'local-server.js', 'local-explored-engines.js', 'local-explored-highlight.js', 'local-requests.js',
+  'local-form-helpers.js', 'local-modal.js', 'local-selection-bar.js', 'local-nom-form.js',
+  'local-nom-order-form.js', 'local-modal-build.js', 'popupdict-local.runtime.js'
+];
+const runtime = runtimeFragmentNames
+  .map((name) => fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', name), 'utf8'))
+  .join('\n');
 const transport = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-transport.js'), 'utf8');
 const selectionTools = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-selection.js'), 'utf8');
 const modalGeometry = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'userscript', 'local-modal-geometry.js'), 'utf8');

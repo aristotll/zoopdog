@@ -284,7 +284,7 @@
   }
 
   // Named distinctly from the -local build's own zooTrimSelectionPunctuation/zooDebounce
-  // (scripts/userscript/popupdict-local.runtime.js): both files share one IIFE in the -local
+  // (scripts/userscript/local-modal.js, local-requests.js): both files share one IIFE in the -local
   // build, and this selection bar never runs there anyway (see the guard in
   // zooWireNomReviewSelectionBar below), so a name collision would just be confusing to read.
   function zooTrimNomReviewSelection(value) {

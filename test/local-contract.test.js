@@ -7,7 +7,11 @@ const os = require('node:os');
 
 test('local userscript calls the versioned reader contract routes', () => {
   const contract = require('./fixtures/local-mode-contract.json');
-  const source = fs.readFileSync(path.join(__dirname, '../scripts/userscript/popupdict-local.runtime.js'), 'utf8');
+  // The calls live in the local-*.js fragments moved out of popupdict-local.runtime.js, so scan all of them.
+  const userscriptDir = path.join(__dirname, '../scripts/userscript');
+  const fragments = fs.readdirSync(userscriptDir).filter(name => /^local-.*\.js$/.test(name))
+    .concat('popupdict-local.runtime.js');
+  const source = fragments.map(name => fs.readFileSync(path.join(userscriptDir, name), 'utf8')).join('\n');
   const seen = new Set();
   for (const match of source.matchAll(/zoo(GetJSON|Post)\(\s*'([^']+)'|zooHttpRequest\(\s*'(GET|POST)'\s*,\s*'([^']+)'/g)) {
     const method = match[1] === 'GetJSON' ? 'GET' : match[1] === 'Post' ? 'POST' : match[3];

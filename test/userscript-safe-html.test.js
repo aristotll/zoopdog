@@ -57,7 +57,7 @@ test('the denied-policy fallback replaces content without an HTML sink', () => {
 });
 
 test('the real local modal templates use only supported markup', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../scripts/userscript/popupdict-local.runtime.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '../scripts/userscript/local-modal-build.js'), 'utf8');
   const start = source.indexOf('    var nomIds = ZOO_MODAL_IDS.nom;', source.indexOf('  function zooBuildModals()'));
   const end = source.indexOf('    var container = document.createElement', start);
   assert.ok(start >= 0 && end > start);

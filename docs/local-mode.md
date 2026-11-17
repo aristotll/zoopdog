@@ -26,13 +26,13 @@ popup can extend the same dictionary from anywhere.
 ## Where it lives
 
 This ability only ships in the **`-local` build** — `zoopdog-popupdict-local.user.js`, built
-from `scripts/userscript/popupdict-local.runtime.js` (search for `ZOO_LOCAL_BASE`) and
-`scripts/userscript/popupdict-local.css`. The github-hosted `zoopdog-popupdict.user.js` never
+from the `scripts/userscript/local-*.js` fragments and `popupdict-local.runtime.js` (search for
+`ZOO_LOCAL_BASE`, in `local-server.js`) and `scripts/userscript/popupdict-local.css`. The github-hosted `zoopdog-popupdict.user.js` never
 inlines any of it and never asks for the `GM_xmlhttpRequest` / `127.0.0.1` grants it needs — see
 "Two builds" below.
 
-`popupdict-local.runtime.js` has no header or IIFE of its own: `scripts/build-popupdict-userscript.js`
-concatenates it inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
+`popupdict-local.runtime.js` and the `local-*.js` fragments have no header or IIFE of their own:
+`scripts/build-popupdict-userscript.js` concatenates them inside `scripts/userscript/popupdict.runtime.js`'s IIFE (via
 `__ZOOPDOG_RUNTIME_SOURCES__`, the same mechanism used for the other inlined browser sources),
 so it shares scope with the core runtime. The separately testable `local-transport.js` factory
 is inlined ahead of the fragment and receives the userscript manager request function explicitly;
@@ -266,7 +266,7 @@ for the same reason: there is no "book" to scope a local, book-only order to.
 ## Testing changes here
 
 ```sh
-node --check scripts/userscript/popupdict-local.runtime.js
+for f in scripts/userscript/local-*.js scripts/userscript/popupdict-local.runtime.js; do node --check "$f"; done
 node scripts/build-popupdict-userscript.js
 make verify
 ```
@@ -337,7 +337,7 @@ repositories; client code needs no change while the HTTP contract is unchanged.
 
 The Google highlighter (`/v1/explored-sites/match`, refresh and blacklist buttons) also runs on Bing, DuckDuckGo, Yahoo,
 Yahoo! JAPAN, Baidu, Brave, Ecosia, Startpage, Qwant, Naver and Seznam. `ZOO_SEARCH_ENGINES` in
-`popupdict-local.runtime.js` describes only layout per engine: `scope` (every link section, AI answers included),
+`local-explored-engines.js` describes only layout per engine: `scope` (every link section, AI answers included),
 `block` (one result; none = paint the link itself), `own` hosts (never keys) and how a redirect link yields its target
 (Bing `ck/a?u=a1<base64url>`; Baidu the container's `mu`). Yandex and Sogou (bot check) and Kagi (login) also work in a profile that passed the check / is logged in; Sogou's redirect
 links read the host from the address shown in the result. Evidence and per-engine verdicts: book-translator `docs/research/search_engines_explored/`.
@@ -359,7 +359,7 @@ See `docs/research/search_engines_explored/README.md` there for live checks.
 ### Adding a search engine
 
 Whenever book-translator gains a built-in web or AI search engine, add its
-result-link support to `scripts/userscript/popupdict-local.runtime.js` in the
+result-link support to `scripts/userscript/local-explored-engines.js` (and `local-explored-highlight.js` where the painting changes) in the
 same change. Cover the engine's observed hosts, search paths, redirects and
 regional or AI variants; inspect result and citation layouts, including
 dynamically added content. Restrict matching to result links where feasible,

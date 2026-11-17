@@ -55,6 +55,21 @@ const LOCAL_RUNTIME_SOURCES = [
   'scripts/userscript/local-explored-tools.js',
   'scripts/userscript/local-metaso-sources.js',
   'scripts/userscript/local-ai-search.js',
+  // Moved out of popupdict-local.runtime.js verbatim, in their original order (docs/runtime-boundaries.md).
+  // Top-level `var x = expr;` in these read each other while being concatenated (ZOO_LOCAL_BASE
+  // feeds zooHttpRequest, ZOO_SEARCH_ENGINES feeds ZOO_ENGINE, the factories above feed the
+  // instances in local-modal.js), so keep this order.
+  'scripts/userscript/local-server.js',
+  'scripts/userscript/local-explored-engines.js',
+  'scripts/userscript/local-explored-highlight.js',
+  'scripts/userscript/local-requests.js',
+  'scripts/userscript/local-form-helpers.js',
+  'scripts/userscript/local-modal.js',
+  'scripts/userscript/local-selection-bar.js',
+  'scripts/userscript/local-nom-form.js',
+  'scripts/userscript/local-nom-order-form.js',
+  'scripts/userscript/local-modal-build.js',
+  // Last: assigns `zooLocal`, the seam the core runtime reads.
   'scripts/userscript/popupdict-local.runtime.js'
 ];
 
