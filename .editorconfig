@@ -1,0 +1,26 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
+
+# Generated pages are minified by Pug and carry no trailing newline; `make check-generated`
+# compares them byte for byte, so an editor must not append one.
+[*.html]
+insert_final_newline = unset
+
+[img/favicon/manifest.json]
+insert_final_newline = unset
+
+[.codemoss/prompt.json]
+insert_final_newline = unset
+
+[scripts/userscript/cjk-ruby.runtime.js]
+indent_size = 4
+
+[Makefile]
+indent_style = tab
