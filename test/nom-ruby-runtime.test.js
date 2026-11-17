@@ -240,7 +240,7 @@ function displayOf(el) {
   return {display: 'inline'};
 }
 
-function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false} = {}) {
+function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, hostname = 'example.test', prototypeArrayFrom = false, parseCalls = null} = {}) {
   const dom = createDom();
   dom.flags.challengeMarkup = challengeMarkup;
   const source = renderRuntime(readRuntime('nom-ruby.runtime.js'), {
@@ -248,8 +248,8 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
     '__ZOOPDOG_WORDS__': fs.readFileSync(wordsPath, 'utf8'),
     '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
     '__ZOOPDOG_LOCAL_SITE_RULES__': '[]',
-    '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(nomMap),
-    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(caseSensitiveNomMap),
+    '{"__ZOOPDOG_NOM_MAP__": true}': JSON.stringify(JSON.stringify(nomMap)),
+    '{"__ZOOPDOG_CASE_SENSITIVE_NOM_MAP__": true}': JSON.stringify(JSON.stringify(caseSensitiveNomMap)),
     '__ZOOPDOG_ENTRY_COUNT__': Object.keys(nomMap).length,
     '__ZOOPDOG_NAME_SUFFIX__': '',
     '__ZOOPDOG_UPDATE_URL__': 'about:blank',
@@ -276,6 +276,13 @@ function runRuntime(nomMap, caseSensitiveNomMap = {}, {challengeMarkup = false, 
       }
     }
   };
+  if (parseCalls) {
+    // Records every JSON.parse the runtime performs, to show when the embedded maps are parsed.
+    context.JSON = {
+      parse: (text) => { parseCalls.push(String(text).length); return JSON.parse(text); },
+      stringify: (...args) => JSON.stringify(...args)
+    };
+  }
   context.window = {
     location: {hostname},
     setTimeout: (fn) => fn(),
@@ -329,6 +336,30 @@ test('annotates text present when the script starts', () => {
 
   assert.equal(visibleText(paragraph), 'của bạn');
   assert.deepEqual(rubyAnnotations(paragraph), ['𧵑', '伴']);
+});
+
+test('the embedded maps are not parsed until a text node with word characters needs matching', () => {
+  const parseCalls = [];
+  const dom = runRuntime(NOM_MAP, {}, {parseCalls});
+  const paragraph = dom.document.createElement('p');
+  paragraph.appendChild(dom.document.createTextNode('.. ... \u4e2d\u6587 !!'));
+  dom.body.appendChild(paragraph);
+  dom.tick();
+  assert.deepEqual(parseCalls, [], 'no word characters on the page, so no parse');
+
+  const second = dom.document.createElement('p');
+  second.appendChild(dom.document.createTextNode('của bạn'));
+  dom.body.appendChild(second);
+  dom.tick();
+  assert.equal(parseCalls.length, 2, 'one parse per embedded map on first need');
+  assert.deepEqual(rubyAnnotations(second), ['𧵑', '伴']);
+
+  const third = dom.document.createElement('p');
+  third.appendChild(dom.document.createTextNode('tình cảm'));
+  dom.body.appendChild(third);
+  dom.tick();
+  assert.equal(parseCalls.length, 2, 'later matching reuses the built matcher');
+  assert.deepEqual(rubyAnnotations(third), ['情感']);
 });
 
 test('annotates when Prototype replaces Array.from with an array-like converter', () => {

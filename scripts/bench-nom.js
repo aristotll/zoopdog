@@ -21,9 +21,9 @@ function timeIt(fn) {
   return {result, ms: ms(start)};
 }
 
-// The value of `var NAME = <expr>;` in a generated userscript, as source text.
+// The value of `var NAME_JSON = <string literal>;` in a generated userscript, as source text.
 function assignedExpression(source, name) {
-  const marker = `var ${name} = `;
+  const marker = `var ${name}_JSON = `;
   const start = source.indexOf(marker);
   if (start < 0) {
     throw new Error(`Missing ${name}`);
@@ -34,14 +34,15 @@ function assignedExpression(source, name) {
 
 function evalMap(file, name) {
   const expression = assignedExpression(fs.readFileSync(file, 'utf8'), name);
-  return timeIt(() => vm.runInNewContext(`(${expression})`));
+  // Evaluating the string literal and parsing its JSON is what the runtime now does on first use.
+  return timeIt(() => JSON.parse(vm.runInNewContext(`(${expression})`)));
 }
 
 function main() {
   const nom = evalMap(repoPaths.absolute.nomUserscript, 'NOM_MAP');
   const popup = evalMap(repoPaths.absolute.popupUserscript, 'ZOO_DICTIONARY');
-  console.log(`eval NOM_MAP (${Object.keys(nom.result).length} terms): ${nom.ms} ms`);
-  console.log(`eval ZOO_DICTIONARY (${Object.keys(popup.result).length} keys): ${popup.ms} ms`);
+  console.log(`parse NOM_MAP (${Object.keys(nom.result).length} terms): ${nom.ms} ms`);
+  console.log(`parse ZOO_DICTIONARY (${Object.keys(popup.result).length} keys): ${popup.ms} ms`);
 
   const built = timeIt(() => zdCreateNomMatcher(nom.result, {annotateAsciiTerms: 'safe'}));
   console.log(`build matcher: ${built.ms} ms`);

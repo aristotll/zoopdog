@@ -30,16 +30,18 @@ function renderRuntime(source, replacements) {
   return output;
 }
 
-// Emits `value` as `JSON.parse("...")` source. V8 parses a JSON string markedly faster than the
-// same data written as an object literal (measured ~2x on the 5 MB popup dictionary), and the
-// literal is at once a valid JS string and a valid JSON string, so `extractAssignedJson` below
-// can read it back with the JSON primitives it already has.
-function jsonParseLiteral(value) {
-  return `JSON.parse(${JSON.stringify(JSON.stringify(value))})`;
+// Emits `value` as a JS string literal holding its JSON text. The runtime keeps that text in a
+// `var <NAME>_JSON = ...;` and parses it on first use: V8 parses a JSON string markedly faster
+// than the same data written as an object literal (measured ~2x on the 5 MB popup dictionary),
+// and deferring the parse keeps pages that never need the data from paying for it at all. The
+// literal is a valid JS string whose value is valid JSON, so `extractAssignedJson` below reads
+// it back with the JSON primitives it already has.
+function jsonStringLiteral(value) {
+  return JSON.stringify(JSON.stringify(value));
 }
 
 // Generic JS-source-value-span scanning, used by `extractAssignedJson` to find where a
-// `var NOM_MAP = {...}` / `var ZOO_DICTIONARY = {...}` assignment's value ends inside a
+// `var NOM_MAP_JSON = "..."` / `var ZOO_DICTIONARY_JSON = "..."` assignment's value ends inside a
 // generated userscript.
 function skipJsoncTrivia(source, start) {
   let index = start;
@@ -114,18 +116,21 @@ function readJsonValueEnd(source, start) {
   return index;
 }
 
-// Reads back a `var <variableName> = ...;` assignment written by `jsonParseLiteral` (or a plain
-// object literal) from generated userscript source.
+// Reads back a generated `var <variableName>_JSON = "<json text>";` assignment (written with
+// `jsonStringLiteral`) or, failing that, a plain `var <variableName> = {...};` object literal
+// from generated userscript source.
 function extractAssignedJson(source, variableName) {
-  const marker = `var ${variableName} =`;
-  const markerIndex = source.indexOf(marker);
+  let markerIndex = source.indexOf(`var ${variableName}_JSON =`);
+  let marker = `var ${variableName}_JSON =`;
+  if (markerIndex < 0) {
+    marker = `var ${variableName} =`;
+    markerIndex = source.indexOf(marker);
+  }
   if (markerIndex < 0) throw new Error(`Missing generated ${variableName}.`);
   let start = markerIndex + marker.length;
   while (start < source.length && /\s/.test(source[start])) start++;
-  const wrapper = 'JSON.parse(';
-  if (source.startsWith(wrapper, start)) {
-    const stringStart = start + wrapper.length;
-    return JSON.parse(JSON.parse(source.slice(stringStart, readJsonStringEnd(source, stringStart))));
+  if (source[start] === '"') {
+    return JSON.parse(JSON.parse(source.slice(start, readJsonStringEnd(source, start))));
   }
   const end = readJsonValueEnd(source, start);
   return JSON.parse(source.slice(start, end));
@@ -233,7 +238,7 @@ module.exports = {
   readLocalSiteRules,
   readRuntime,
   renderRuntime,
-  jsonParseLiteral,
+  jsonStringLiteral,
   extractAssignedJson,
   VERSION_PLACEHOLDER,
   PENDING_VERSION,

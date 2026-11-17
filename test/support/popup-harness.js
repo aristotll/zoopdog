@@ -19,6 +19,7 @@ function fakeElement(tagName = 'DIV') {
     style: {},
     classList: {add() {}, remove() {}, contains() { return false; }},
     parentNode: null,
+    get isConnected() { return !!this.parentNode; },
     parentElement: null,
     firstChild: null,
     nextSibling: null,
@@ -55,6 +56,7 @@ function createPopupHarness({
 } = {}) {
   const calls = {caret: 0, elementFromPoint: 0};
   const state = {caretMiss: false};
+  const parsed = []; // every text the runtime passed to JSON.parse
   const windowListeners = {};
   const body = fakeElement('BODY');
   const paragraph = fakeElement('P');
@@ -64,7 +66,7 @@ function createPopupHarness({
 
   const document = {
     body,
-    documentElement: {clientWidth: 800},
+    documentElement: {clientWidth: 800, children: []},
     createElement: fakeElement,
     createTextNode: (data) => ({nodeType: 3, data}),
     getElementById: () => null,
@@ -86,9 +88,17 @@ function createPopupHarness({
   const sandbox = {
     document,
     Node: {ELEMENT_NODE: 1, TEXT_NODE: 3},
-    Range: class {},
+    Range: class {
+      setStart() {}
+      setEnd() {}
+      getClientRects() { return [{left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10}]; }
+    },
     console,
-    JSON, Object, Array, String, Number, Math, Date, Set, Map, WeakMap, Promise, Error, isFinite, parseInt,
+    JSON: {
+      parse: (text) => { parsed.push(String(text)); return JSON.parse(text); },
+      stringify: (...args) => JSON.stringify(...args)
+    },
+    Object, Array, String, Number, Math, Date, Set, Map, WeakMap, Promise, Error, isFinite, parseInt,
     setTimeout() { return 0; },
     clearTimeout() {},
     GM_addStyle() {},
@@ -127,6 +137,7 @@ function createPopupHarness({
 
   return {
     calls,
+    parsed,
     state,
     context,
     source,

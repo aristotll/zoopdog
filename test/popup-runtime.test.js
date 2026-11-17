@@ -891,9 +891,9 @@ test('popup retains Chu Nom definitions when Prototype replaces Array.from', () 
 test('popup lookup ignores inherited dictionary properties but accepts own entries', () => {
   const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
   const body = source.slice(source.indexOf('  function lookupContext('), source.indexOf('\n  // Element.contains()', source.indexOf('  function lookupContext(')));
-  const lookup = new Function('ZOO_DICTIONARY', 'ZOO_MAX_WORDS', 'normalizeLookup', `${body}; return lookupContext;`);
+  const lookup = new Function('zooDictionary', 'ZOO_MAX_WORDS', 'normalizeLookup', `${body}; return lookupContext;`);
   const dictionary = JSON.parse('{"bạn":[["friend",""]]}');
-  const find = lookup(dictionary, 5, value => value);
+  const find = lookup(() => dictionary, 5, value => value);
   assert.equal(find('constructor'), null);
   assert.equal(find('bạn').results[0][0], 'friend');
   dictionary.constructor = [['builder', '']];

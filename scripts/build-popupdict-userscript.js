@@ -16,7 +16,7 @@ const repoPaths = require('./lib/paths');
 const {
   readRuntime,
   renderRuntime,
-  jsonParseLiteral,
+  jsonStringLiteral,
   PENDING_VERSION,
   writeVersionedUserscript
 } = require('./lib/userscript');
@@ -166,7 +166,7 @@ function buildUserscript(dictionary, maxWords, runtimeSources, variant) {
   return renderRuntime(readRuntime('popupdict.runtime.js'), {
     '"__ZOOPDOG_CSS__"': JSON.stringify(css),
     '__ZOOPDOG_RUNTIME_SOURCES__': runtimeSources,
-    '{"__ZOOPDOG_DICTIONARY__": true}': jsonParseLiteral(dictionary),
+    '{"__ZOOPDOG_DICTIONARY__": true}': jsonStringLiteral(dictionary),
     '__ZOOPDOG_MAX_WORDS__': maxWords,
     '__ZOOPDOG_KEY_COUNT__': Object.keys(dictionary).length,
     '__ZOOPDOG_NAME_SUFFIX__': variant.nameSuffix,

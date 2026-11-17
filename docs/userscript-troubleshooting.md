@@ -65,12 +65,14 @@ nom-ruby and the popup (see `docs/build.md`).
 - **Leave evidence in the DOM.** A userscript's console lives in an isolated world the CDP bridge
   cannot see; a `data-*` attribute on a page element can be read from anywhere. The popup writes
   `data-last-hover` (why the last hover stopped: `locked`, `excluded`, `nopoint`, `noword`,
-  `notcontained`, `same`, `nolookup`, `shown`) and `data-last-error` (a hover that threw).
-  Reading them was what turned guessing into steps. By default `data-last-hover` holds only the
-  short code, because the caret / word / context detail costs a second caret lookup on every
-  miss. To get the detail (`noword origin=... caret=... pt=...`, `nolookup word=... ctx=...
-  keys=...`), run `localStorage.setItem('zoopdogDebug', '1')` on the page and reload; the flag
-  is read once at startup. Remove it with `localStorage.removeItem('zoopdogDebug')`.
+  `notcontained`, `same`, `nolookup`, `shown`) and `data-last-error` (a hover that threw). The
+  popup element is created on the first pointer event of a frame, so it does not exist before
+  the pointer has moved. Reading them was what turned guessing into steps. By default
+  `data-last-hover` holds only the short code, because the caret / word / context detail costs a
+  second caret lookup on every miss. To get the detail (`noword origin=... caret=... pt=...`,
+  `nolookup word=... ctx=... keys=...`), run `localStorage.setItem('zoopdogDebug', '1')` on the
+  page and reload; the flag is read once at startup. Remove it with
+  `localStorage.removeItem('zoopdogDebug')`.
 - **Compare two copies.** Run the same build in the page world (as a second instance) next to the
   installed one: if the page-world copy works and the installed one does not, the problem is the
   environment (realm, detached nodes), not the logic.

@@ -5,7 +5,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const {jsonParseLiteral, extractAssignedJson} = require('../scripts/lib/userscript');
+const {jsonStringLiteral, extractAssignedJson} = require('../scripts/lib/userscript');
 
 const SAMPLE = {
   'kiểm tra': '檢查 / 檢查',
@@ -14,15 +14,15 @@ const SAMPLE = {
   ' line': 'z'
 };
 
-test('jsonParseLiteral is valid JS that evaluates back to the same object', () => {
-  const literal = jsonParseLiteral(SAMPLE);
-  assert.match(literal, /^JSON\.parse\("/);
-  assert.deepEqual(new Function(`return ${literal};`)(), SAMPLE);
+test('jsonStringLiteral is a JS string whose value is the JSON text', () => {
+  const literal = jsonStringLiteral(SAMPLE);
+  assert.match(literal, /^"/);
+  assert.deepEqual(JSON.parse(new Function(`return ${literal};`)()), SAMPLE);
 });
 
-test('extractAssignedJson reads both the JSON.parse form and a plain object literal', () => {
+test('extractAssignedJson reads the lazy _JSON string form and a plain object literal', () => {
   assert.deepEqual(
-    extractAssignedJson(`var NOM_MAP = ${jsonParseLiteral(SAMPLE)};\nvar next = 1;`, 'NOM_MAP'),
+    extractAssignedJson(`var NOM_MAP_JSON = ${jsonStringLiteral(SAMPLE)};\nvar next = 1;`, 'NOM_MAP'),
     SAMPLE
   );
   assert.deepEqual(
