@@ -50,3 +50,33 @@ test('selection helper handles reverse drags and equal-offset word selection', (
   tools.selectBetweenPoints({x: 1, y: 0}, {x: 1, y: 0});
   assert.equal(selected[1].node, node);
 });
+
+function loadSelectionTools(options) {
+  const context = vm.createContext({});
+  vm.runInContext(fs.readFileSync(require.resolve('../scripts/userscript/local-selection.js'), 'utf8'), context);
+  return context.createZooSelectionTools(Object.assign({scanLimit: 10}, options));
+}
+
+test('plainText drops Chu Nom annotations the browser still reports in toString()', () => {
+  const rt = {parentNode: {removeChild() {}}};
+  let removed = 0;
+  rt.parentNode.removeChild = () => { removed++; };
+  const fragment = {textContent: 'đọc', };
+  const holder = {appendChild() {}, querySelectorAll: () => [rt], get textContent() { return 'đọc'; }};
+  const tools = loadSelectionTools({document: {createElement: () => holder}});
+  const selection = {rangeCount: 1, toString: () => 'đọc讀', getRangeAt: () => ({cloneContents: () => fragment})};
+  assert.equal(tools.plainText(selection), 'đọc');
+  assert.equal(removed, 1);
+  holder.querySelectorAll = () => [];
+  assert.equal(tools.plainText(selection), 'đọc讀', 'no annotations: toString() is kept');
+});
+
+test('unblockSelection clears copy-protection handlers only', () => {
+  const guard = function disable_copy() { return false; };
+  const own = function pageMenu() { return true; };
+  const doc = {onselectstart: guard, onmousedown: guard, body: {onmousedown: own}, documentElement: {}};
+  loadSelectionTools({document: doc}).unblockSelection();
+  assert.equal(doc.onselectstart, null);
+  assert.equal(doc.onmousedown, null);
+  assert.equal(doc.body.onmousedown, own);
+});

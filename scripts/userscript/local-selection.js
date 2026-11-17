@@ -42,6 +42,35 @@ function createZooSelectionTools(options) {
       return {rect: rect, text: holder.textContent};
     } catch (error) { return null; }
   }
+  // The term of a selection is the page's own words: Chu Nom <rt>/<rp> annotations are dropped even
+  // when the browser reports them in toString() (user-select:none is not honoured everywhere, and
+  // a page rule can override it). A selection without annotations keeps toString() untouched.
+  function plainText(selection) {
+    var raw = selection ? selection.toString() : '';
+    try {
+      if (!selection || !selection.rangeCount) return raw;
+      var holder = options.document.createElement('div');
+      for (var i = 0; i < selection.rangeCount; i++) holder.appendChild(selection.getRangeAt(i).cloneContents());
+      var notes = holder.querySelectorAll('rt, rp');
+      if (!notes.length) return raw;
+      Array.prototype.forEach.call(notes, function(node) { node.parentNode.removeChild(node); });
+      return holder.textContent;
+    } catch (error) { return raw; }
+  }
+  // "Copy protection" plugins (WordPress wccp, `disable_copy`) cancel mousedown/selectstart on the
+  // document and body, so no text can be selected at all. Drop only those handlers, recognised by
+  // name, and stop page selectstart blockers from seeing the event.
+  var BLOCKER = /disable_copy|wccp|disableselect|nocontext/;
+  function unblockSelection() {
+    var doc = options.document;
+    [doc, doc.body, doc.documentElement].forEach(function(target) {
+      if (!target) return;
+      ['onselectstart', 'onmousedown', 'ondragstart'].forEach(function(name) {
+        var handler = target[name];
+        if (typeof handler === 'function' && BLOCKER.test(Function.prototype.toString.call(handler))) target[name] = null;
+      });
+    });
+  }
   function annotationInLinkAt(x, y) {
     var caret = options.caretFromPoint({x: x, y: y});
     var node = caret && caret.node;
@@ -76,6 +105,7 @@ function createZooSelectionTools(options) {
     selection.removeAllRanges();
     selection.addRange(range);
   }
-  return {trim: trim, collectRoots: collectRoots, composed: composed,
+  return {trim: trim, collectRoots: collectRoots, composed: composed, plainText: plainText,
+    unblockSelection: unblockSelection,
     annotationInLinkAt: annotationInLinkAt, selectBetweenPoints: selectBetweenPoints};
 }

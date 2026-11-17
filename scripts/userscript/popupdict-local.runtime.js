@@ -1322,7 +1322,7 @@
         zooHideSelectionBar();
         return;
       }
-      var text = zooTrimSelectionPunctuation(selection.toString());
+      var text = zooTrimSelectionPunctuation(zooSelectionTools.plainText(selection));
       if (!text) {
         zooHideSelectionBar();
         return;
@@ -1363,7 +1363,7 @@
   function zooHandleReadHotkey(event) {
     if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.code !== 'KeyR') return;
     var selection = window.getSelection ? window.getSelection() : null;
-    var text = selection ? selection.toString() : '';
+    var text = selection ? zooSelectionTools.plainText(selection) : '';
     if (!text.trim() && selection && selection.rangeCount) {
       var composed = zooComposedSelection(selection, selection.anchorNode);
       text = composed ? composed.text : '';
@@ -1374,6 +1374,10 @@
   }
 
   function zooWireSelectionBar() {
+    // Copy-protection plugins can run after us (and re-arm on load), so clear them now and again later.
+    zooSelectionTools.unblockSelection();
+    window.addEventListener('load', zooSelectionTools.unblockSelection);
+    document.addEventListener('mousedown', zooSelectionTools.unblockSelection, true);
     var debounced = zooDebounce(zooHandleSelectionChange, 180);
     document.addEventListener('selectionchange', debounced);
     // A mouse/touch drag fires 'selectionchange' repeatedly while it is in
