@@ -268,10 +268,13 @@ thứ local userscript gọi hoặc cấu hình phải sửa đồng thời `boo
 
 ### Giai đoạn 0 — Đo trước khi sửa (nửa ngày)
 
-- [ ] `scripts/bench-nom.js` xuất thêm JSON; lưu số nền của mục 2 vào tài liệu này.
-- [ ] Viết kịch bản Playwright nạp `dist/*.user.js` vào một trang mẫu dài (văn bản tiếng Việt
+- [x] `scripts/bench-nom.js` xuất thêm JSON; lưu số nền của mục 2 vào tài liệu này.
+- [x] Viết kịch bản Playwright nạp `dist/*.user.js` vào một trang mẫu dài (văn bản tiếng Việt
       ~200 KB) và một trang có 5 iframe; ghi thời gian tác vụ dài, heap, số lần layout.
-- [ ] Thêm test đếm cho đường con trỏ và lượt quét đầu (M4) — phải đỏ trước khi sửa P1/P2.
+      Ghi chú: `scripts/browser-perf.js` (`make browser-perf`, commit `14002c3`), số đo ở mục 9.
+      Đo thời gian chạy script, tác vụ dài nhất, tổng thời gian tác vụ và heap sau GC; **không** đo
+      số lần layout/style (không có bộ đếm tin cậy từ ngoài trang).
+- [x] Thêm test đếm cho đường con trỏ và lượt quét đầu (M4) — phải đỏ trước khi sửa P1/P2.
 
 ### Giai đoạn 1 — Thắng nhanh, rủi ro thấp (1 ngày)
 
@@ -286,6 +289,12 @@ thứ local userscript gọi hoặc cấu hình phải sửa đồng thời `boo
 Tiêu chí xong: trang không có tiếng Việt không còn tác vụ nào > 5 ms từ Zoopdog lúc nạp; heap mỗi
 frame giảm ≥ 35 MB với popup; test đếm xanh; `make verify` xanh.
 
+Ghi chú: các mục trên đã làm, nhưng đo trong Chromium thật (mục 9) cho thấy hai tiêu chí số liệu
+**chưa đạt**: mỗi frame vẫn chạy script ≈ 196 ms lúc nạp (trước đó 281 ms) và heap mỗi frame giảm
+13–20 MB, không phải 35 MB. Test đếm và `make verify` thì xanh. Sau đó thêm parse nhàn rỗi ở lần
+hoạt động con trỏ đầu tiên (`626ef90`): lần hover đầu vào từ tiếng Việt không còn gánh ≈ 130 ms parse
+nếu con trỏ đã có lúc yên, nhưng nếu hover ngay thì vẫn gánh.
+
 ### Giai đoạn 2 — Quét và overlay (2–3 ngày)
 
 - [ ] P4: kiểm tra tổ tiên một lần ở gốc; đo `isContentEditable`; chia lô lượt quét đầu theo ngân
@@ -297,6 +306,10 @@ frame giảm ≥ 35 MB với popup; test đếm xanh; `make verify` xanh.
 
 Tiêu chí xong: trên trang mẫu dài không có tác vụ nào > 50 ms do lượt quét; cuộn ở chế độ overlay
 không gọi `getComputedStyle` cho phần tử ngoài viewport.
+
+Ghi chú: đo trong Chromium thật (mục 9), tác vụ dài nhất của nom-ruby là 96 ms (84–178), nên tiêu
+chí 50 ms **chưa đạt** dù khoảng trống tối đa của luồng chính đã giảm từ 3,6 s xuống 173 ms; tiêu chí
+về overlay chưa đo trong trình duyệt. Vì vậy P4, P6 và P1 bước 2 vẫn để mở.
 
 Ghi chú thực hiện giai đoạn 2 (đo bằng Playwright/Chromium; trang mẫu 3 000 thẻ `<p>`, 300 KB chữ
 Việt, 33 000 `<ruby>`):
@@ -335,7 +348,10 @@ Việt, 33 000 `<ruby>`):
       helper local-mode thuần, `zd-nom-match`, `zd-dictionary-runtime`, `zd-popup-protocol`,
       `zd-browser-runtime`, 12 trong 16 file `scripts/lib`); chưa phủ `scripts/lib/dictionary-identity.js`,
       `nom-entries-store.js`, `release-manifest.js` (nhiều hình dạng object chưa có kiểu), `lint-config.js` và các
-      runtime nặng DOM. ESLint chỉ có luật bắt lỗi; `no-unused-vars` để mức cảnh báo (10 cảnh báo
+      runtime nặng DOM. Cập nhật (`26c6dca`): ba module đầu đã có `@typedef` và qua `strict` không
+      cần `@ts-nocheck`, nên `check-types` phủ 27 tệp; còn `lint-config.js` và các runtime nặng DOM.
+      Thử thêm `overlay-labels.js` và `zd-words.js`: mỗi tệp ≈ 40 lỗi tham số DOM chưa có kiểu, và
+      mỗi tệp cần thêm một phép ép kiểu (`.data` trên `Node`, `error.message`), nên chưa đưa vào. ESLint chỉ có luật bắt lỗi; `no-unused-vars` để mức cảnh báo (10 cảnh báo
       còn lại là mã chết hoặc biến chưa dùng, chưa sửa).
       Cập nhật: đã xoá hết mã chết đó, `make lint` không còn cảnh báo và `no-unused-vars` là lỗi.
 - [ ] M2: trích `zd-scan-scheduler.js` và `zd-userscript-common.js`, chuyển `nom-ruby` trước rồi
@@ -357,18 +373,24 @@ Việt, 33 000 `<ruby>`):
       `typeof zooX` bằng một điểm mở rộng; rút gọn `readRuntimeSources`.
       Ghi chú: `popupdict.runtime.js` còn 571 dòng (từ 1 646), tách ra `popup-render.js` (152),
       `popup-highlighter.js` (150), `popup-result.js` (282), `popup-nom-review.js` (531); mã được
-      chuyển nguyên văn, không đổi tên. `zooLocal` (khai báo `null` trước các nguồn runtime, build
+      chuyển nguyên văn, không đổi tên. Cập nhật: `popupdict-local.runtime.js` (2 071 dòng) đã tách
+      nguyên văn thành 10 tệp `local-*.js` (`e0f484d`; lớn nhất `local-selection-bar.js` 319 dòng;
+      `popupdict-local.runtime.js` còn 20 dòng: tiêu đề và `zooLocal`); `nom-ruby.runtime.js`
+      (1 290 dòng) còn 463 dòng sau khi chuyển quét, ghi chú DOM và vòng đời sang `nom-ruby-scan.js`
+      (337), `nom-ruby-annotate.js` (390), `nom-ruby-lifecycle.js` (135) (`9ff46af`; phần luật theo
+      site, chọn chế độ và CSS ở lại vì mang placeholder của builder). `cjk-ruby.runtime.js`
+      (1 271 dòng) cố ý chưa tách vì test DOM của nó bị bỏ qua khi thiếu jsdom. `zooLocal` (khai báo `null` trước các nguồn runtime, build
       local gán vào cuối `popupdict-local.runtime.js`) thay năm phép thử `typeof`; lint của build công
       khai không còn danh sách global riêng cho local. `readRuntimeSources` dùng hai danh sách có
       thứ tự. Chưa làm: `main`/`startPopup` (hơn 300 dòng) giữ nguyên thân hàm vì chia nhỏ nó không
-      còn là phép chuyển nguyên văn; `popupdict-local.runtime.js` vẫn 2 071 dòng; `nom-ruby.runtime.js`
-      1 290 và `cjk-ruby.runtime.js` 1 271 dòng, chưa chạm tới. Mục tiêu "không tệp nào quá ~800 dòng"
-      chưa đạt với ba tệp này.
+      còn là phép chuyển nguyên văn; (đã lỗi thời, xem cập nhật ở trên: khi đó `popupdict-local.runtime.js`
+      còn 2 071 dòng, `nom-ruby.runtime.js` 1 290 và `cjk-ruby.runtime.js` 1 271 dòng). Mục tiêu
+      "không tệp nào quá ~800 dòng" nay chỉ còn chưa đạt với `cjk-ruby.runtime.js`.
 - [x] M4: `make test-fast`; đưa kịch bản Playwright của giai đoạn 0 vào CI như job riêng, không
       chặn merge cho tới khi ổn định.
       Ghi chú: job CI chạy `scripts/browser-smoke.js` (kiểm tra website và userscript trong
-      Chromium thật), `continue-on-error`. Kịch bản đo hiệu năng của giai đoạn 0 (trang dài
-      ~200 KB, 5 iframe, heap/layout) vẫn chưa viết; `bench-nom.js` đã có `--json`.
+      Chromium thật), `continue-on-error`. Kịch bản đo hiệu năng của giai đoạn 0 (trang dài,
+      5 iframe, heap) nay là `make browser-perf` (`14002c3`), chưa chạy trong CI; `bench-nom.js` đã có `--json`.
 - [x] M5: `docs/README.md` làm mục lục; ghi rõ nguồn/sinh ra trong `docs/dictionary-data.md`.
       Ghi chú: chưa xoá, di chuyển hay đổi tên gì; số phận `vnedict.json`, `vnedict.txt`,
       `evdict.txt` vẫn chờ quyết định ở giai đoạn 4.
@@ -376,11 +398,24 @@ Việt, 33 000 `<ruby>`):
 Tiêu chí xong: không runtime nào > 800 dòng; không hàm nào > 100 dòng; `check-types` phủ mọi
 module không đụng DOM; đầu ra build chỉ khác ở phần mã được di chuyển.
 
+Ghi chú: tệp lớn nhất của `popupdict`/`nom-ruby` nay là 596 và 463 dòng, nhưng `cjk-ruby.runtime.js`
+còn 1 271 dòng và vẫn có hàm dài hơn 100 dòng (`main` của popup, `zooWireNomForm` ≈ 225 dòng...), nên
+hai tiêu chí đầu chưa đạt. Hai lần tách (`e0f484d`, `9ff46af`) được kiểm bằng bộ so sánh: cùng tập khai
+báo hàm với cùng văn bản, cùng các câu lệnh cấp cao nhất theo cùng thứ tự, đầu ra minify giống hệt.
+
 ### Giai đoạn 4 — Cần quyết định trước khi làm
 
-- [ ] P1 bước 3: tách từ điển sang `@resource` (cần thử trên Tampermonkey, Violentmonkey và iOS).
-- [ ] P7: mã hoá gọn + Worker cho từ điển website (tăng `schemaVersion`).
-- [ ] M5: số phận `db_src/vnedict.json`, `evdict.txt`; đổi tên `zd-extension/`; `.jade` → `.pug`.
+- [ ] P1 bước 3: tách từ điển sang `@resource` — chờ quyết định của người duy trì: cần thử trên
+      Tampermonkey, Violentmonkey và iOS; đây là hướng còn lại để giảm ≈ 196 ms chạy script mỗi frame
+      (mục 9; chưa thử nên chưa biết mức giảm).
+- [ ] P7: mã hoá gọn + Worker cho từ điển website (tăng `schemaVersion`) — chờ quyết định của người
+      duy trì: đổi schema từ điển website.
+- [ ] M5: số phận `zd-extension/db_src/vnedict.json` và `evdict.txt` — chờ quyết định của người duy
+      trì: chỉ người duy trì được xoá hoặc ngừng theo dõi dữ liệu nguồn.
+- [ ] M5: đổi tên thư mục `zd-extension/` — chờ quyết định của người duy trì: thay đổi rộng, chạm
+      đường dẫn trong HTML, test và repo `book-translator`.
+- [x] M5: `.jade` → `.pug` — xong (`785e3b7`): `git mv` mọi mẫu, `*.html` sinh ra giống hệt từng
+      byte, Pug không còn cảnh báo.
 
 ## 7. Những gì nên giữ nguyên
 
