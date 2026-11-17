@@ -17,6 +17,10 @@ function zdCreateOverlay(doc, win, options) {
   var host = null;
   var layer = null;
   var pool = [];
+  // What was last written to each pooled label (same index as `pool`) and to the host, so a layout
+  // pass only touches the properties whose value changed, without reading styles back.
+  var poolState = [];
+  var hostDisplay = null;
   var scheduled = false;
   var scheduleId = 0;
   var hidden = false;
@@ -80,13 +84,25 @@ function zdCreateOverlay(doc, win, options) {
     scheduled = false;
     try {
       ensureHost();
-      host.style.display = hidden ? 'none' : '';
+      var display = hidden ? 'none' : '';
+      if (hostDisplay !== display) {
+        host.style.display = display;
+        hostDisplay = display;
+      }
       var vw = win.innerWidth;
       var vh = win.innerHeight;
       var parentCache = new Map();
       var placed = [];
       var used = 0;
       var dropped = 0;
+      // One Range serves the whole pass; it is made only once a record actually needs measuring.
+      var range = null;
+      var rectOf = function(node, from, to) {
+        if (!range) range = doc.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, to);
+        return range.getClientRects()[0];
+      };
 
       var put = function(text, cx, bottom, size, style) {
         if (!text) return;
@@ -113,17 +129,23 @@ function zdCreateOverlay(doc, win, options) {
           el.className = 'l';
           layer.appendChild(el);
           pool.push(el);
+          poolState.push({});
         }
+        var written = poolState[used];
         used++;
-        if (el.textContent !== text) el.textContent = text;
-        el.style.display = '';
-        el.style.fontSize = size + 'px';
-        el.style.color = style.color;
-        el.style.fontFamily = style.family || '';
-        el.style.fontWeight = style.weight || '';
+        if (written.text !== text) { el.textContent = text; written.text = text; }
+        if (written.display !== '') { el.style.display = ''; written.display = ''; }
+        var fontSize = size + 'px';
+        if (written.fontSize !== fontSize) { el.style.fontSize = fontSize; written.fontSize = fontSize; }
+        if (written.color !== style.color) { el.style.color = style.color; written.color = style.color; }
+        var family = style.family || '';
+        if (written.family !== family) { el.style.fontFamily = family; written.family = family; }
+        var weight = style.weight || '';
+        if (written.weight !== weight) { el.style.fontWeight = weight; written.weight = weight; }
         var x = cx + (options.documentAnchored ? (win.scrollX || 0) : 0);
         var y = bottom + (options.documentAnchored ? (win.scrollY || 0) : 0);
-        el.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px) translate(-50%,-100%)';
+        var transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px) translate(-50%,-100%)';
+        if (written.transform !== transform) { el.style.transform = transform; written.transform = transform; }
       };
 
       records.forEach(function(rec) {
@@ -136,24 +158,20 @@ function zdCreateOverlay(doc, win, options) {
         var info = parentCache.get(parent);
         if (!info) {
           var box = parent.getBoundingClientRect();
-          var cs = win.getComputedStyle(parent);
-          info = {
-            visible: box.width > 0 && box.height > 0 && box.bottom > -40 && box.top < vh + 40 &&
-              box.right > 0 && box.left < vw && cs.visibility !== 'hidden' && cs.display !== 'none',
-            size: parseFloat(cs.fontSize) || 16,
-            color: cs.color
-          };
+          info = {visible: false};
+          // The computed style is only needed for a parent that is on screen.
+          if (box.width > 0 && box.height > 0 && box.bottom > -40 && box.top < vh + 40 &&
+              box.right > 0 && box.left < vw) {
+            var cs = win.getComputedStyle(parent);
+            info.visible = cs.visibility !== 'hidden' && cs.display !== 'none';
+            info.size = parseFloat(cs.fontSize) || 16;
+            info.color = cs.color;
+          }
           parentCache.set(parent, info);
         }
         if (!info.visible || !rec.layers || !rec.layers.length) return;
 
-        var range = doc.createRange();
-        var rectOf = function(from, to) {
-          range.setStart(node, from);
-          range.setEnd(node, to);
-          return range.getClientRects()[0];
-        };
-        var first = rectOf(rec.start, rec.end);
+        var first = rectOf(node, rec.start, rec.end);
         if (!first || first.bottom < 0 || first.top > vh) return;
 
         var overOffset = 0;
@@ -162,7 +180,7 @@ function zdCreateOverlay(doc, win, options) {
           var size = Math.max(9, info.size * (item.scale || 0.55));
           var style = {color: item.color || info.color, family: item.family, weight: item.weight};
           item.pieces.forEach(function(piece) {
-            var r = piece.from == null ? first : rectOf(piece.from, piece.to);
+            var r = piece.from == null ? first : rectOf(node, piece.from, piece.to);
             if (!r) return;
             var cx = r.left + r.width / 2;
             if (item.under) put(piece.text, cx, r.bottom + underOffset + size * 1.15, size, style);
@@ -172,7 +190,12 @@ function zdCreateOverlay(doc, win, options) {
           else overOffset += size * 1.2;
         });
       });
-      for (var j = used; j < pool.length; j++) pool[j].style.display = 'none';
+      for (var j = used; j < pool.length; j++) {
+        if (poolState[j].display !== 'none') {
+          pool[j].style.display = 'none';
+          poolState[j].display = 'none';
+        }
+      }
       lastStats = 'labels=' + used + ' records=' + records.size + ' dropped=' + dropped;
       if (options.onStats) options.onStats(lastStats);
     } catch (error) {
