@@ -290,13 +290,42 @@ frame giảm ≥ 35 MB với popup; test đếm xanh; `make verify` xanh.
 
 - [ ] P4: kiểm tra tổ tiên một lần ở gốc; đo `isContentEditable`; chia lô lượt quét đầu theo ngân
       sách thời gian, ưu tiên viewport. Giữ nguyên các test hồi quy cross-node/shadow/removal.
-- [ ] P5: thay nhịp 500 ms bằng hẹn giờ theo mutation + lưới an toàn chậm.
+- [x] P5: thay nhịp 500 ms bằng hẹn giờ theo mutation + lưới an toàn chậm.
 - [ ] P6: lọc theo viewport, bỏ bố trí lại khi cuộn với trang neo theo tài liệu, ghi style có điều
       kiện.
 - [ ] P1 bước 2: bỏ qua frame kích thước 0, hoãn `main()` trong frame tới tương tác đầu tiên.
 
 Tiêu chí xong: trên trang mẫu dài không có tác vụ nào > 50 ms do lượt quét; cuộn ở chế độ overlay
 không gọi `getComputedStyle` cho phần tử ngoài viewport.
+
+Ghi chú thực hiện giai đoạn 2 (đo bằng Playwright/Chromium; trang mẫu 3 000 thẻ `<p>`, 300 KB chữ
+Việt, 33 000 `<ruby>`):
+
+- P4 (làm một phần). Đã làm: kiểm tra tổ tiên một lần ở gốc quét (số lần đọc `tagName` tuyến tính
+  theo số nút, có test đếm); quét chia lát ~12 ms bằng ngăn xếp tường minh, tiếp tục bằng
+  `requestIdleCallback`/`setTimeout`, huỷ bằng bộ đếm thế hệ khi tắt/vẽ lại. Trước: một tác vụ quét
+  đồng bộ 330–370 ms, longtask 416–462 ms cộng một tác vụ render 2,3–2,5 s, khoảng trống tối đa
+  của luồng chính ~3,5 s. Sau: mỗi lát ≤ 13 ms (17 lát đo được), phần đồng bộ ban đầu 73–77 ms
+  (gồm dựng bộ khớp), longtask dài nhất 160–165 ms (chưa tách được phần nào của nó thuộc lượt quét
+  và phần nào là style/layout của các `<ruby>` vừa chèn), khoảng trống tối đa 210–670 ms; tổng thời
+  gian tới khi chú âm xong 3,75–4,0 s so với 3,5–3,7 s (chậm hơn ~5%). Vì vậy tiêu chí "không tác
+  vụ nào > 50 ms" chưa được chứng minh. `isContentEditable`: đo 5 000 đoạn, đọc thuộc tính 958–1082 ms
+  so với kiểm tra bằng attribute 922–1006 ms (chênh < 5%, nhiễu) nên giữ nguyên. Chưa làm: ưu tiên
+  nội dung trong viewport (không thêm IntersectionObserver).
+- P5 (xong cho nom-ruby và cjk-ruby). Hẹn giờ tự đặt lại, bắt đầu 500 ms, nhân đôi tới 5 s khi các
+  lần quét liên tiếp không có việc, về 500 ms khi gặp việc hoặc MutationObserver báo thay đổi (đo:
+  5 s/lần sau ~9 s yên tĩnh). cjk-ruby giữ 500 ms khi còn nhãn đang chờ vì hẹn giờ là đồng hồ thử
+  lại. Để nguyên `setInterval(paintNow, ZOO_EXPLORED_REPAINT_MS)` của popupdict-local: nó tô lại
+  kết quả Google bị thay khối mà MutationObserver gắn trên `body` có thể bỏ sót, chưa đủ chắc chắn
+  an toàn.
+- P6 (làm một phần). Đã làm: một `Range` cho mỗi lượt bố trí (tạo lười), không gọi
+  `getComputedStyle` cho cha nằm ngoài màn hình, chỉ ghi style/text khi giá trị khác lần ghi trước
+  (lượt thứ hai giống hệt: 0 ghi, 1 `createRange`, trước đó 6). Chưa làm: bỏ bố trí lại khi cuộn ở
+  trang neo theo tài liệu (nhãn của phần tử `position: fixed` hiện đi theo cuộn qua lần bố trí lại,
+  bỏ qua sẽ đổi hình vẽ) và gom hàng cho phép kiểm tra chồng lấn.
+- P1 bước 2 (làm một phần). Frame nhỏ hơn 50 px chỉ nối relay phím Shift (vẫn chuyển tiếp cho
+  frame cha/con), khởi tạo đầy đủ một lần khi frame được đổi kích thước. Chưa làm: hoãn `main()` tới
+  tương tác đầu tiên.
 
 ### Giai đoạn 3 — Giảm chi phí bảo trì (3–5 ngày, làm xen kẽ)
 
