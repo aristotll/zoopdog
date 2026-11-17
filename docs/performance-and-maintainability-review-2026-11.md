@@ -275,13 +275,13 @@ thứ local userscript gọi hoặc cấu hình phải sửa đồng thời `boo
 
 ### Giai đoạn 1 — Thắng nhanh, rủi ro thấp (1 ngày)
 
-- [ ] P2: thay `Object.keys(ZOO_DICTIONARY).length` bằng hằng số build; đưa chuỗi chẩn đoán chi
+- [x] P2: thay `Object.keys(ZOO_DICTIONARY).length` bằng hằng số build; đưa chuỗi chẩn đoán chi
       tiết sau cờ gỡ lỗi; cập nhật `docs/userscript-troubleshooting.md`.
-- [ ] P1 bước 1: parse lười `ZOO_DICTIONARY` và `NOM_MAP`; cập nhật `extractAssignedJson`,
+- [x] P1 bước 1: parse lười `ZOO_DICTIONARY` và `NOM_MAP`; cập nhật `extractAssignedJson`,
       `bench-nom.js`, test cấu trúc.
-- [ ] P1: tạo `Highlighter`/`ResultPopup` ở lần dùng đầu.
-- [ ] P3: gộp `pointermove`/`mousemove` theo rAF (userscript và `js/popupdict.js`).
-- [ ] P7: `defer` cho script của website; debounce ô nhập phát âm.
+- [x] P1: tạo `Highlighter`/`ResultPopup` ở lần dùng đầu.
+- [x] P3: gộp `pointermove`/`mousemove` theo rAF (userscript và `js/popupdict.js`).
+- [x] P7: `defer` cho script của website; debounce ô nhập phát âm.
 
 Tiêu chí xong: trang không có tiếng Việt không còn tác vụ nào > 5 ms từ Zoopdog lúc nạp; heap mỗi
 frame giảm ≥ 35 MB với popup; test đếm xanh; `make verify` xanh.
