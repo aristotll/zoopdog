@@ -11,7 +11,7 @@ TERM ?=
 	rebuild-nom-userscript rebuild-popupdict-userscript rebuild-cjk-ruby-userscript rebuild-userscripts release-userscripts minify-userscripts \
 	rebuild-local-userscripts rebuild-cycle-local-userscripts \
 	rebuild-extension-dict rebuild-extension-vnedict-json import-chunom-standard rebuild-realwords-lexicon nom-annotate nom-popup \
-	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types lint test-fast browser-smoke
+	check-openspec build-pages build-styles check-generated verify verify-scripts verify-browser check-types lint test-fast browser-smoke browser-perf
 
 help:
 	@echo "make rebuild-nom-userscript"
@@ -36,6 +36,7 @@ help:
 	@echo "make verify            # tests + syntax-check + type check + lint"
 	@echo "make test-fast         # tests that need no build, straight in the checkout (~15 s; not a substitute for verify)"
 	@echo "make browser-smoke    # website and built userscripts in real Chromium via Playwright (not part of verify)"
+	@echo "make browser-perf     # load time, long tasks and heap of the built userscripts in real Chromium (not part of verify; ARGS='--runs 5 --json')"
 
 rebuild-nom-userscript:
 	$(NODE) scripts/build-nom-userscript.js
@@ -135,6 +136,12 @@ test-fast:
 # dictionary the website loads. Deliberately not part of `make verify`.
 browser-smoke:
 	$(NODE) scripts/browser-smoke.js $(if $(REQUIRE),--require)
+
+# Needs Playwright with Chromium, like browser-smoke. Measures the built userscripts at the repository
+# root (built first when missing); pass other builds through ARGS, e.g.
+# make browser-perf ARGS='/path/popup.user.js /path/nom-ruby.user.js --runs 5'. Not part of `make verify`.
+browser-perf:
+	$(NODE) scripts/browser-perf.js $(ARGS)
 
 # Report the first failure directly; rebuilding and retrying can hide a regression or flake.
 verify-scripts:

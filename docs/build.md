@@ -64,6 +64,29 @@ separate `browser-smoke` job with `continue-on-error`, so it does not block merg
 errors about fonts blocked by CORS from the sandboxed popup frame are ignored: they come from
 serving locally.
 
+`make browser-perf` (`scripts/browser-perf.js`) measures the built userscripts in the same real
+Chromium: script evaluation time, the longest long task, total main-thread task time and JS heap
+after a forced GC for the popup userscript on a plain page and on a page with five same-origin
+iframes (at load, on a first hover, and on a first hover after the pointer idled so the idle
+pre-warm could run), and, for nom-ruby, the longest long task, the longest main-thread gap and the
+time until the annotation stops changing on a generated 3,000-paragraph Vietnamese page. The header
+of the script says exactly how each number is taken. It prints a table (median and range over
+`--runs`, default 3) or `--json`, resolves Playwright like `browser-smoke` ("skipped" without it),
+builds a missing root userscript with the real builder, serves its pages from memory and writes
+nothing into the repository. Pass other builds as arguments to compare two commits:
+
+```sh
+git worktree add --detach /tmp/before <commit>
+ln -s "$PWD/node_modules" /tmp/before/node_modules
+(cd /tmp/before && node scripts/build-popupdict-userscript.js && node scripts/build-nom-userscript.js)
+make browser-perf ARGS='/tmp/before/zoopdog-popupdict.user.js /tmp/before/zoopdog-nom-ruby.user.js --json'
+rm /tmp/before/node_modules && git worktree remove --force /tmp/before
+```
+
+Timings depend on the machine and Chromium build; compare numbers taken on one machine in one
+session. It is not part of `make verify`. The results of the phase 1 and 2 changes are recorded in
+[the performance plan](performance-and-maintainability-review-2026-11.md) (section 9).
+
 `node scripts/bench-nom.js --json` prints the benchmark numbers as one JSON object.
 
 ## Linting

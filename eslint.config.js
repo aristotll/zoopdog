@@ -19,9 +19,9 @@ module.exports = [
     languageOptions: {sourceType: 'commonjs', ecmaVersion: 2024, globals: globals.node},
     rules: bugRules
   },
-  // browser-smoke.js passes functions to page.evaluate/waitForFunction that run in the page.
+  // browser-smoke.js and browser-perf.js pass functions to page.evaluate/waitForFunction that run in the page.
   {
-    files: ['scripts/browser-smoke.js'],
+    files: ['scripts/browser-smoke.js', 'scripts/browser-perf.js'],
     languageOptions: {globals: {...globals.node, ...globals.browser}}
   },
   // The standalone browser files are classic <script>s that share one global scope: what one

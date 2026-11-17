@@ -404,3 +404,114 @@ module không đụng DOM; đầu ra build chỉ khác ở phần mã được d
 Giới hạn: không chạy trong trình duyệt hay trình quản lý userscript thật; các nhận định về
 layout/style (P3, P4 phần `isContentEditable`, P6) là suy luận từ mã và cần số đo ở giai đoạn 0
 trước khi coi là đã xác nhận. Lần rà soát này không sửa mã nguồn nào.
+
+## 9. Số đo sau khi thực hiện
+
+Đo bằng `scripts/browser-perf.js` (`make browser-perf`) trong Chromium 153 thật (Playwright, headless,
+Linux trong container), mỗi cấu hình 3 lần, ô là trung vị (nhỏ nhất–lớn nhất). "Trước" là userscript
+dựng từ `3c4df61` (commit ngay trước khi sửa, dựng trong một `git worktree` riêng với cùng dữ liệu
+`db_src`); "Sau" là bản dựng tại `626ef90` (đã gồm nhịp quét thích ứng, bỏ qua frame nhỏ và parse nhàn rỗi).
+Đây là một máy, một phiên bản Chromium, không có trình quản lý userscript (script được chèn bằng thẻ
+`<script>` nội tuyến, như Violentmonkey làm), nên con số tuyệt đối chỉ so sánh được với nhau.
+
+Cách đo từng chỉ số: "chạy mã" là thời gian trong trang quanh việc chèn thẻ `<script>` (nguồn đã đưa
+vào trang trước đó nên thời gian truyền qua DevTools không bị tính); "tác vụ dài nhất" lấy từ
+`PerformanceObserver('longtask')`, chỉ thấy tác vụ trên 50 ms; "tổng thời gian tác vụ" là hiệu của
+`TaskDuration` (CDP `Performance.getMetrics`) từ lúc chèn tới 400 ms sau, thấy được cả việc dưới ngưỡng
+50 ms; heap là `Runtime.getHeapUsage` sau hai lần `HeapProfiler.collectGarbage` (iframe cùng gốc dùng
+chung một isolate, nên đó là tổng của mọi frame); khoảng trống tối đa của luồng chính là khoảng cách
+lớn nhất giữa hai nhịp của một bộ hẹn giờ 4 ms.
+
+### Popup userscript, trang thường (một đoạn tiếng Việt ngắn, chưa tra từ nào lúc nạp)
+
+| Chỉ số | Trước (`3c4df61`) | Sau (HEAD) |
+| --- | --- | --- |
+| Chạy mã (`evalMs`, ms) | 281 (280–288) | 196 (195–244) |
+| Tác vụ dài nhất (ms) | 298 (296–305) | 213 (212–261) |
+| Tổng thời gian tác vụ (ms) | 310 (309–318) | 220 (218–268) |
+| Heap sau GC (MB) | 23.9 (23.9–23.9) | 10.8 (10.8–10.8) |
+| Heap tăng so với trước khi nạp (MB) | 23.4 (23.4–23.4) | 10.3 (10.3–10.3) |
+
+### Popup userscript, trang có 5 iframe cùng gốc 300×200 (6 bản script chạy)
+
+| Chỉ số | Trước (`3c4df61`) | Sau (HEAD) |
+| --- | --- | --- |
+| Chạy mã, cộng 6 frame (ms) | 1736 (1730–1782) | 1175 (1155–1178) |
+| Tác vụ dài nhất (ms) | 332 (326–340) | 218 (217–233) |
+| Tổng thời gian tác vụ (ms) | 1830 (1822–1876) | 1258 (1237–1261) |
+| Heap sau GC (MB) | 130 (130–130) | 12.6 (12.6–12.6) |
+| Heap tăng (MB) | 128 (128–128) | 10.6 (10.6–10.6) |
+
+### Popup userscript, lần hover đầu trên từ tiếng Việt
+
+"Hover ngay" là con trỏ đi thẳng vào từ ngay sau khi nạp; "sau lúc yên" là con trỏ đi qua chỗ trống,
+trang yên 0,8 s (để việc parse nhàn rỗi chạy), rồi mới vào từ. "Lúc yên" là tác vụ nhàn rỗi đó.
+
+| Chỉ số | Trước (`3c4df61`) | Sau (HEAD) |
+| --- | --- | --- |
+| Trang thường, hover ngay: độ trễ tới khi hiện popup (ms) | 21.0 (21.0–23.0) | 137 (136–172) |
+| tác vụ dài nhất lúc hover (ms) | 0.0 (0.0–0.0) | 130 (128–153) |
+| heap sau hover (MB) | 25.0 (25.0–25.0) | 25.0 (25.0–25.0) |
+| Trang thường, sau một lúc yên: độ trễ (ms) | 19.0 (17.0–20.0) | 20.0 (19.0–27.0) |
+| tác vụ dài nhất lúc hover (ms) | 0.0 (0.0–0.0) | 0.0 (0.0–0.0) |
+| tác vụ dài nhất lúc yên (ms) | 0.0 (0.0–0.0) | 98.0 (97.0–134) |
+| 5 iframe, hover ngay: độ trễ (ms) | 20.0 (18.0–24.0) | 136 (131–191) |
+| tác vụ dài nhất lúc hover (ms) | 0.0 (0.0–0.0) | 128 (124–168) |
+| heap sau hover (MB) | 131 (131–131) | 37.1 (37.1–37.1) |
+| 5 iframe, sau lúc yên: độ trễ (ms) | 17.0 (15.0–17.0) | 19.0 (17.0–21.0) |
+| tác vụ dài nhất lúc yên (ms) | 0.0 (0.0–0.0) | 99.0 (95.0–100) |
+| tác vụ dài nhất lúc hover (ms) | 0.0 (0.0–0.0) | 0.0 (0.0–0.0) |
+
+### nom-ruby, trang sinh sẵn 3 000 đoạn tiếng Việt (≈300 KB chữ, 42 000 `<ruby>`)
+
+| Chỉ số | Trước (`3c4df61`) | Sau (HEAD) |
+| --- | --- | --- |
+| Chạy mã (ms) | 418 (413–428) | 67.1 (54.1–80.4) |
+| Tác vụ dài nhất (ms) | 422 (416–432) | 96.0 (84.0–178) |
+| Khoảng trống tối đa của luồng chính (ms) | 3604 (3556–3793) | 173 (147–214) |
+| Thời gian tới khi ngừng thay đổi (ms) | 424 (418–434) | 3827 (3748–3885) |
+| Tổng thời gian tác vụ (ms) | 3609 (3560–3797) | 3873 (3743–3884) |
+| Số `<ruby>` | 42000 (42000–42000) | 42000 (42000–42000) |
+| Heap sau GC (MB) | 7.1 (7.1–7.1) | 7.2 (7.1–7.2) |
+
+### Đối chiếu với "Tiêu chí xong"
+
+Giai đoạn 1 ("trang không có tiếng Việt không còn tác vụ nào > 5 ms từ Zoopdog lúc nạp; heap mỗi
+frame giảm ≥ 35 MB với popup; test đếm xanh; `make verify` xanh"):
+
+- Test đếm xanh và `make verify` xanh: **đạt**.
+- Không tác vụ nào > 5 ms lúc nạp: **không đạt**. Mỗi frame vẫn mất ≈ 196 ms (196–244) để chèn script,
+  tác vụ dài nhất 213 ms; với 5 iframe là ≈ 1,2 s cộng dồn. Giảm so với trước (281 ms mỗi frame) nhưng
+  còn rất xa 5 ms. Chuỗi từ điển 6,2 MB riêng đã tốn ≈ 79 ms lần đầu (đo riêng: chèn một script chỉ có
+  chuỗi đó, 79 ms rồi 18 ms ở các lần sau trong cùng trang, nên con số này có phần là bộ nhớ đệm
+  biên dịch); phần còn lại của ≈ 196 ms (kích thước nguồn 7 MB đi qua Blink và V8) chưa được tách.
+  Chi phí này chỉ mất đi khi dữ liệu rời khỏi thân script (`@resource`, Giai đoạn 4, chờ quyết định).
+- Heap mỗi frame giảm ≥ 35 MB: **không đạt**. Trang thường giảm 13,1 MB (23,9 → 10,8 MB sau GC);
+  trang 5 iframe giảm 117 MB cho 6 frame, tức ≈ 19,6 MB mỗi frame (130 → 12,6 MB). Ước tính ~40 MB
+  của bản rà soát đo bằng Node; trong Chromium từ điển đã parse chỉ nặng ≈ 14 MB (heap sau hover đầu
+  25 MB so với 10,8 MB), nên ngưỡng 35 MB không thể đạt được bằng cách hoãn parse.
+- Cái giá phải trả: chi phí parse không biến mất mà chuyển từ lúc nạp sang lúc con trỏ hoạt động.
+  Hover ngay vào một từ làm lần tra đầu chậm 137 ms (136–172) thay vì 21 ms, kèm tác vụ dài 130 ms. Nếu
+  con trỏ có khoảng yên trước đó, parse chạy ở lúc nhàn rỗi (tác vụ dài 98 ms) và lần hover đầu quay về
+  20 ms. Mỗi frame mà con trỏ chạm vào, kể cả trang chỉ có chữ Anh, vẫn trả ≈ 100–130 ms CPU và ≈ 14 MB
+  khi con trỏ đi qua; chỉ frame không bao giờ nhận con trỏ thì không trả.
+
+Giai đoạn 2 ("trên trang mẫu dài không có tác vụ nào > 50 ms do lượt quét; cuộn ở chế độ overlay
+không gọi `getComputedStyle` cho phần tử ngoài viewport"):
+
+- Không tác vụ nào > 50 ms do lượt quét: **không đạt**. Tác vụ dài nhất giảm từ 422 ms xuống 96 ms
+  (84–178; lần đo cao nhất vượt 170 ms), vẫn trên 50 ms. Phần chèn script đồng bộ ban đầu 67 ms đã
+  gồm dựng bộ khớp. Khoảng trống tối đa của luồng chính giảm rõ, từ 3 604 ms xuống 173 ms (147–214),
+  tức là trang không còn đóng băng gần 3,6 s. Khoảng trống 3,6 s của bản trước nằm ngoài phần script
+  (script chỉ chạy 418 ms) và `longtask` không báo nó, nên đó là việc style/layout/vẽ của 42 000
+  `<ruby>`: đây là suy luận, chưa tách bằng trace.
+- Đổi lại, chú âm xong chậm hơn nhiều: 3 827 ms so với 424 ms (nom-ruby trước đó chèn hết trong một
+  tác vụ rồi để trình duyệt tính layout hàng giây). Tổng thời gian tác vụ gần như bằng nhau (3 609 → 3 873 ms, +7%), số
+  `<ruby>` cuối cùng bằng nhau (42 000) và heap không đổi.
+- Cuộn ở chế độ overlay không gọi `getComputedStyle` cho phần tử ngoài viewport: **không đo trong trình
+  duyệt** ở đây, và P6 mới làm một phần (xem ghi chú Giai đoạn 2); phần "không đo cha ngoài màn hình"
+  chỉ có test đếm trên DOM giả.
+
+Những gì chưa đo được: trình quản lý userscript thật (Tampermonkey/Violentmonkey) và CSP nghiêm ngặt,
+trang thật nhiều iframe quảng cáo, thiết bị di động, và độ lệch giữa các máy (chỉ một máy, 3 lần mỗi
+cấu hình).
