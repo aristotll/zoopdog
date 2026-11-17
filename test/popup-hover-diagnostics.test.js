@@ -65,3 +65,68 @@ test('the canvas and popup are created on the first hover, not at load, and only
   harness.pointerMove(6, 6);
   assert.deepEqual(ids(), ['zoopdog-userscript-canvas', 'zoopdog-userscript-popup']);
 });
+
+test('pointermove events are coalesced into one lookup per animation frame', () => {
+  const harness = createPopupHarness({animationFrames: true});
+  for (let i = 0; i < 50; i++) harness.pointerMove(5 + i, 5);
+  assert.equal(harness.calls.caret, 0, 'nothing is looked up until the frame runs');
+  assert.equal(harness.flushFrames(), 1, 'one frame callback however many moves arrived');
+  assert.equal(harness.calls.caret, 1);
+  assert.equal(harness.lastHover, 'shown');
+
+  harness.pointerMove(9, 9);
+  harness.pointerMove(10, 10);
+  assert.equal(harness.flushFrames(), 1);
+  assert.equal(harness.calls.caret, 2, 'the next frame looks up once more');
+});
+
+test('the coalesced lookup uses the latest point and a copy of the event fields', () => {
+  const harness = createPopupHarness({animationFrames: true, dictionary: {}});
+  harness.state.caretMiss = true;
+  const points = [];
+  const original = harness.context.document.caretRangeFromPoint;
+  harness.context.document.caretRangeFromPoint = (x, y) => { points.push([x, y]); return original(x, y); };
+  const first = harness.pointerMove(1, 1);
+  harness.pointerMove(2, 2);
+  first.clientX = 99; // a mutated, reused event object must not leak into the later lookup
+  harness.flushFrames();
+  assert.deepEqual(points, [[2, 2]]);
+});
+
+test('a click cancels a pending hover instead of replaying it afterwards', () => {
+  const harness = createPopupHarness({animationFrames: true});
+  harness.pointerMove(5, 5);
+  harness.dispatch('pointerup', {type: 'pointerup', pointerType: 'mouse', clientX: 5, clientY: 5, target: harness.paragraph});
+  const afterClick = harness.calls.caret;
+  assert.equal(afterClick, 1, 'pointerup is handled synchronously');
+  harness.flushFrames();
+  assert.equal(harness.calls.caret, afterClick, 'the stale pending move is dropped');
+});
+
+test('without requestAnimationFrame the move is looked up synchronously', () => {
+  const harness = createPopupHarness();
+  harness.pointerMove(5, 5);
+  harness.pointerMove(6, 6);
+  assert.equal(harness.calls.caret, 2);
+});
+
+test('the mousemove fallback is coalesced the same way', () => {
+  const harness = createPopupHarness({animationFrames: true, pointerEvents: false});
+  for (let i = 0; i < 20; i++) harness.pointerMove(5 + i, 5);
+  assert.equal(harness.calls.caret, 0);
+  harness.flushFrames();
+  assert.equal(harness.calls.caret, 1);
+});
+
+test('the website mousemove handler coalesces moves per animation frame', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'popupdict.js'), 'utf8');
+  const handler = source.slice(source.indexOf("textField.addEventListener('mousemove'"), source.indexOf('async function hoverAtPoint'));
+  // The listener itself does no lookup work: it only records the latest point and requests a
+  // frame, falling back to an immediate lookup when requestAnimationFrame is unavailable.
+  assert.match(handler, /requestAnimationFrame/);
+  assert.match(handler, /if \(pendingFrame\) return/);
+  assert.match(handler, /typeof window\.requestAnimationFrame !== 'function'/);
+  assert.doesNotMatch(handler, /getWordAndContext|elementFromPoint/);
+});

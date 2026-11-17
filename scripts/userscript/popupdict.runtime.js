@@ -1282,6 +1282,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     function clearActiveResult() {
+      cancelPendingHover();
       if (!popup) return;
       highlighter.off();
       popup.hide();
@@ -1442,6 +1443,38 @@ __ZOOPDOG_RUNTIME_SOURCES__
     var touchMoved = false;
     var pointerTouchMoved = false;
 
+    // A mouse fires pointermove far more often than the screen refreshes, and each hover walks
+    // the DOM around the pointer. Moves are coalesced: the latest point is kept and looked up
+    // once per animation frame. Only the fields the lookup reads are copied, because the event
+    // object must not be relied on after its handler returns. Without requestAnimationFrame
+    // (older embeds, test harnesses) the move runs immediately, as it always did.
+    var pendingMove = null;
+    var pendingFrame = 0;
+
+    function cancelPendingHover() {
+      pendingMove = null;
+    }
+
+    function scheduleHover(event) {
+      if (typeof window.requestAnimationFrame !== 'function') {
+        mainListener(event, false);
+        return;
+      }
+      pendingMove = {
+        target: event.target,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        pointerType: event.pointerType
+      };
+      if (pendingFrame) return;
+      pendingFrame = window.requestAnimationFrame(function() {
+        var move = pendingMove;
+        pendingFrame = 0;
+        pendingMove = null;
+        if (move) mainListener(move, false);
+      });
+    }
+
     // Capture-phase so a scroll inside a nested scrollable container is seen
     // too (those don't bubble a 'scroll' event to window). But capture also
     // means this sees a scroll from *any* scrollable element on the page --
@@ -1480,6 +1513,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     });
 
     function touchListener(event) {
+      cancelPendingHover();
       lastTouchTime = Date.now();
       if (touchMoved) {
         touchMoved = false;
@@ -1489,6 +1523,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
     }
 
     function clickListener(event) {
+      cancelPendingHover();
       if (Date.now() - lastTouchTime < 700) {
         return true;
       }
@@ -1515,11 +1550,12 @@ __ZOOPDOG_RUNTIME_SOURCES__
         }
 
         if (event.pointerType === 'mouse' || event.pointerType === 'pen') {
-          mainListener(event, false);
+          scheduleHover(event);
         }
       }, {passive: true});
 
       window.addEventListener('pointerup', function(event) {
+        cancelPendingHover();
         if (event.pointerType === 'touch') {
           lastTouchTime = Date.now();
         }
@@ -1532,7 +1568,7 @@ __ZOOPDOG_RUNTIME_SOURCES__
       }, {passive: true});
     } else {
       window.addEventListener('mousemove', function(event) {
-        mainListener(event, false);
+        scheduleHover(event);
       });
 
       window.addEventListener('touchstart', function() {

@@ -294,6 +294,9 @@ function initializePopupDictionary() {
   const lookupTasks = zdBrowserRuntime.createLatestTask()
   const self = window
   let oldWord = null
+  // Latest unprocessed mousemove point and its animation-frame request (see the mousemove handler).
+  let pendingMouse = null
+  let pendingFrame = 0
 
   const toggleLock = () => {
     self.highlighter.toggleLock()
@@ -301,6 +304,7 @@ function initializePopupDictionary() {
   }
   self.popup.onToggleLock = toggleLock
   const invalidateLookup = () => {
+    pendingMouse = null
     lookupTasks.invalidate()
     oldWord = null
   }
@@ -328,11 +332,29 @@ function initializePopupDictionary() {
     if (e.key === 'Shift' || e.which === 16) toggleLock()
   })
 
-  textField.addEventListener('mousemove', async function(e){
+  // mousemove can fire many times per frame and each lookup walks the DOM around the pointer, so
+  // moves are coalesced: only the latest point is looked up, once per animation frame. The event
+  // is not kept, just its coordinates. Without requestAnimationFrame the move runs immediately.
+  textField.addEventListener('mousemove', function(e){
+    const mouse = {x: e.clientX, y: e.clientY}
+    if (typeof window.requestAnimationFrame !== 'function') {
+      hoverAtPoint(mouse)
+      return
+    }
+    pendingMouse = mouse
+    if (pendingFrame) return
+    pendingFrame = window.requestAnimationFrame(() => {
+      const latest = pendingMouse
+      pendingFrame = 0
+      pendingMouse = null
+      if (latest) hoverAtPoint(latest)
+    })
+  })
+
+  async function hoverAtPoint(mouse){
 
     if (self.popup.locked || !self.zoopdogIsOn) return true
 
-    var mouse = {x: e.clientX, y: e.clientY}
     if (self.highlighter.highlights.length && mouseInRects(mouse, self.highlighter.highlights)) return true
 
     var origin = getWordAndContext(mouse)
@@ -393,7 +415,7 @@ function initializePopupDictionary() {
       console.error('Dictionary lookup failed:', error)
     }
 
-  })
+  }
 
 }
 

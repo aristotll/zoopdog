@@ -52,7 +52,8 @@ function createPopupHarness({
   dictionary = {'bạn': [[['bạn'], [['friend', '']]]]},
   maxWords = 3,
   debug = false,
-  animationFrames = false
+  animationFrames = false,
+  pointerEvents = true
 } = {}) {
   const calls = {caret: 0, elementFromPoint: 0};
   const state = {caretMiss: false};
@@ -114,7 +115,7 @@ function createPopupHarness({
   window.addEventListener = (type, listener) => { (windowListeners[type] || (windowListeners[type] = [])).push(listener); };
   window.setTimeout = () => 0;
   window.getComputedStyle = () => ({display: 'block'});
-  window.PointerEvent = function PointerEvent() {};
+  if (pointerEvents) window.PointerEvent = function PointerEvent() {};
   if (animationFrames) {
     window.requestAnimationFrame = (callback) => { frames.push(callback); return frames.length; };
   }
@@ -126,8 +127,9 @@ function createPopupHarness({
   vm.runInContext(source, context);
 
   function pointerMove(x, y, extra) {
-    const event = Object.assign({type: 'pointermove', pointerType: 'mouse', clientX: x, clientY: y, target: paragraph}, extra);
-    (windowListeners.pointermove || []).forEach((listener) => listener(event));
+    const type = pointerEvents ? 'pointermove' : 'mousemove';
+    const event = Object.assign({type, pointerType: 'mouse', clientX: x, clientY: y, target: paragraph}, extra);
+    (windowListeners[type] || []).forEach((listener) => listener(event));
     return event;
   }
 
@@ -144,6 +146,10 @@ function createPopupHarness({
     pointerMove,
     popupElement,
     paragraph,
+    // Dispatches an event of any type to the window listeners the runtime registered.
+    dispatch(type, event) {
+      (windowListeners[type] || []).forEach((listener) => listener(event));
+    },
     // Runs every queued animation-frame callback, as the browser would at the next frame.
     flushFrames() {
       const pending = frames.splice(0);
