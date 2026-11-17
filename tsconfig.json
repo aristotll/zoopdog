@@ -22,6 +22,7 @@
     "scripts/userscript/local-modal-geometry.js",
     "scripts/userscript/local-selection.js",
     "scripts/userscript/safe-html.js",
+    "scripts/userscript/zd-userscript-common.js",
     "zd-extension/js/zd-dictionary-runtime.js",
     "zd-extension/js/zd-popup-protocol.js",
     "zd-extension/js/zd-browser-runtime.js",

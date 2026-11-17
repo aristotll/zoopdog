@@ -32,6 +32,7 @@ function buildUserscript(variant) {
 
   return renderRuntime(source, {
     '__ZOOPDOG_OVERLAY_LABELS__': readRuntime('overlay-labels.js'),
+    '__ZOOPDOG_USERSCRIPT_COMMON__': readRuntime('zd-userscript-common.js'),
     '__ZOOPDOG_LOCAL_SITE_RULES__': JSON.stringify(readLocalSiteRules('cjk-ruby', variant.localMode)),
     '__ZOOPDOG_UPDATE_URL__': updateUrl,
     '__ZOOPDOG_DOWNLOAD_URL__': updateUrl,

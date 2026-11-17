@@ -69,6 +69,9 @@
     var PARTICLE_START = /^[はがをにでとのもへや]/;
     var KANA = /[ぁ-ゖァ-ヺ]/;
     var EXCLUDED_SELECTOR = 'ruby,rt,rp,script,style,noscript,select,textarea,input,template,[contenteditable="true"],[contenteditable=""]';
+    // Not the same list as EXCLUDED_TAGS in nom-ruby.runtime.js; they are not unified because changing
+    // either changes what that script annotates. Compared with it, this one also skips template, and
+    // lacks rp, button, option, code, pre, kbd and samp (rp is still covered by EXCLUDED_SELECTOR).
     var EXCLUDED_TAGS = { ruby: true, rt: true, script: true, style: true, noscript: true, select: true, textarea: true, input: true, template: true };
 
     // ----- transport -----------------------------------------------------------------------------
@@ -945,6 +948,9 @@
 
 __ZOOPDOG_OVERLAY_LABELS__
 
+    // ===== scripts/userscript/zd-userscript-common.js =====
+__ZOOPDOG_USERSCRIPT_COMMON__
+
     var overlay = zdCreateOverlay(doc, window, {
         id: 'zoopdog-cjk-overlay',
         onStats: function (stats) { root.dataset.zoopdogCjkOverlay = stats + ' pending=' + queue.size; }
@@ -1224,27 +1230,19 @@ __ZOOPDOG_OVERLAY_LABELS__
 
     // The timer doubles as the rate limiter for requests and as the retry clock for failed ones, so it
     // keeps its short interval while labels are pending. It backs off only while a page is quiet, and
-    // wakeRescan (a mutation or page event) brings it back.
-    var scanTimer = null;
-    var scanDelay = SCAN_INTERVAL_MS;
-
-    function pollRescan() {
-        scanDelay = rescan() ? SCAN_INTERVAL_MS : Math.min(scanDelay * 2, SCAN_IDLE_MAX_MS);
-        scanTimer = setTimeout(pollRescan, scanDelay);
-    }
-
-    // A timer already at the short interval is left alone, so a steady stream of mutations cannot
-    // keep postponing it.
-    function wakeRescan() {
-        if (scanTimer === null || scanDelay <= SCAN_INTERVAL_MS) return;
-        clearTimeout(scanTimer);
-        scanDelay = SCAN_INTERVAL_MS;
-        scanTimer = setTimeout(pollRescan, scanDelay);
-    }
+    // poll.wake (a mutation or page event) brings it back. A timer already at the short interval is left alone, so a steady stream of mutations cannot
+    // keep postponing it (zdCreateBackoffPoll, zd-userscript-common.js). It never stops.
+    var poll = zdCreateBackoffPoll({
+        intervalMs: SCAN_INTERVAL_MS,
+        maxMs: SCAN_IDLE_MAX_MS,
+        run: rescan,
+        setTimeout: function (callback, ms) { return setTimeout(callback, ms); },
+        clearTimeout: function (handle) { clearTimeout(handle); }
+    });
 
     function queueRoot() {
         newNodes.push(doc.body || doc.documentElement);
-        wakeRescan();
+        poll.wake();
     }
 
     function main() {
@@ -1258,14 +1256,14 @@ __ZOOPDOG_OVERLAY_LABELS__
         registerModeMenu();
         observer = new MutationObserver(function (mutations) {
             record(mutations);
-            wakeRescan();
+            poll.wake();
         });
         observer.observe(doc.documentElement, { childList: true, subtree: true, characterData: true });
         newNodes.push(doc.body || doc.documentElement);
         doc.addEventListener(RESCAN_EVENT, queueRoot);
         window.addEventListener('pageshow', queueRoot);
         rescan();
-        scanTimer = setTimeout(pollRescan, scanDelay);
+        poll.start();
     }
 
     if (doc.body) main();

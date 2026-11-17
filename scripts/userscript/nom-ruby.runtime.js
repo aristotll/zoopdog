@@ -22,6 +22,9 @@
   // ===== scripts/userscript/overlay-labels.js =====
   __ZOOPDOG_OVERLAY_LABELS__
 
+  // ===== scripts/userscript/zd-userscript-common.js =====
+  __ZOOPDOG_USERSCRIPT_COMMON__
+
   // ===== zd-extension/js/zd-words.js =====
   __ZOOPDOG_WORDS__
 
@@ -84,8 +87,6 @@
   var shadowRootList = [];
   // Set by main(); the toggle button drives these.
   var rescanNow = null;
-  var rescanTimer = null;
-  var pollDelay = SETTINGS.rescanIntervalMs;
   var enabled = true;
   // A big scan runs in time slices (see runScanJob). `scanJob` is the scan in flight; bumping
   // `scanGeneration` supersedes it (disable, re-render); `scanPasses` counts the queue
@@ -340,6 +341,10 @@
     });
   }
 
+  // Not the same list as EXCLUDED_TAGS in cjk-ruby.runtime.js; they are not unified because changing
+  // either changes what that script annotates. Compared with it, this one also skips rp, button,
+  // option, code, pre, kbd and samp, and lacks template; it tests `tag in EXCLUDED_TAGS`, which also
+  // matches inherited property names, where cjk-ruby indexes the object.
   var EXCLUDED_TAGS = {
     ruby: true,
     rt: true,
@@ -509,31 +514,17 @@
   // for what they miss (a hidden tab never runs frame callbacks, leftovers of a bounded pass, text a
   // page translator rewrites where nothing is observed). It starts at rescanIntervalMs, doubles up
   // to rescanIdleMaxMs while polls find nothing, and drops back as soon as a poll finds work or a
-  // mutation is observed (wakePoll).
-  function pollRescan() {
-    var worked = rescanNow();
-    pollDelay = worked ? SETTINGS.rescanIntervalMs : Math.min(pollDelay * 2, SETTINGS.rescanIdleMaxMs);
-    rescanTimer = enabled ? window.setTimeout(pollRescan, pollDelay) : null;
-  }
-
-  function startPoll() {
-    window.clearTimeout(rescanTimer);
-    pollDelay = SETTINGS.rescanIntervalMs;
-    rescanTimer = window.setTimeout(pollRescan, pollDelay);
-  }
-
-  function stopPoll() {
-    window.clearTimeout(rescanTimer);
-    rescanTimer = null;
-  }
-
-  // A backed-off poll would leave a mutation waiting for seconds; one already at the short
-  // interval is left alone, so a steady stream of mutations cannot keep postponing it.
-  function wakePoll() {
-    if (rescanTimer !== null && pollDelay > SETTINGS.rescanIntervalMs) {
-      startPoll();
-    }
-  }
+  // mutation is observed (poll.wake). A backed-off poll would leave a mutation waiting for seconds;
+  // one already at the short interval is left alone, so a steady stream of mutations cannot keep
+  // postponing it (zdCreateBackoffPoll, zd-userscript-common.js). It stops re-arming once disabled.
+  var poll = zdCreateBackoffPoll({
+    intervalMs: SETTINGS.rescanIntervalMs,
+    maxMs: SETTINGS.rescanIdleMaxMs,
+    run: function() { return rescanNow(); },
+    isActive: function() { return enabled; },
+    setTimeout: function(callback, ms) { return window.setTimeout(callback, ms); },
+    clearTimeout: function(handle) { window.clearTimeout(handle); }
+  });
 
   function watchShadowRoot(root) {
     if (watchShadowRootFor(root)) {
@@ -1081,7 +1072,7 @@
     observer = new MutationObserver(function(mutationList) {
       mutationHandler(mutationList);
       scheduleFrameScan();
-      wakePoll();
+      poll.wake();
     });
     observer.observe(doc.body, {characterData: true, childList: true, subtree: true});
 
@@ -1154,7 +1145,7 @@
         doc.documentElement.dataset.zoopdogNomError = String(error && error.stack || error).slice(0, 400);
       }
     }
-    startPoll();
+    poll.start();
     rescanTextNodes();
   }
 
@@ -1214,7 +1205,7 @@
     enabled = false;
     cancelScan();
     observer.disconnect();
-    stopPoll();
+    poll.stop();
     hideAnnotations();
     removalTimer = window.setTimeout(function() {
       removalTimer = null;
@@ -1236,7 +1227,7 @@
     newNodes.add(doc.body);
     shadowRootList.forEach(function(root) { newNodes.add(root); });
     rescanNow();
-    startPoll();
+    poll.start();
   }
 
   // A small fixed button in a closed shadow root (page CSS cannot restyle it, and the
