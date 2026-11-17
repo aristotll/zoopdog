@@ -236,6 +236,7 @@ module.exports = {
   applyUserNomOrderToDictionary,
   isCjkDefinition,
   readRuntimeSources,
+  buildUserscript,
   buildFullDictionary,
   main
 };
