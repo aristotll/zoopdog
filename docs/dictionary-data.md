@@ -2,6 +2,30 @@
 
 Dictionary source data lives under `zd-extension/db_src/`.
 
+## What is in `zd-extension/db_src/`
+
+Every entry, with whether it is hand-maintained source, generated, or read by no script. This
+was established by searching `scripts/`, `test/`, the `Makefile` and `.github/` for each file
+(paths are resolved in `scripts/lib/paths.js`); a file marked "unused" has no reader there.
+
+| Path | Status | Written by | Read by |
+| --- | --- | --- | --- |
+| `vnedict2.json` | **Source of truth** for the base dictionary (committed). Edited in place by tools, not rebuilt from anything. | `scripts/merge-mdx-nom-into-vnedict2.js` (in-place merge of `mdx_nom.json`); otherwise edited directly | The popup and nom-ruby userscript builders, `scripts/build-extension-vnedict-json.js`, `merge-mdx-nom-into-vnedict2.js`, several tests; `scripts/nom-inspect.js` through the builders |
+| `user_nom_entries/` | **Hand-maintained** source: 128 CSV shards under `00/`-`07/` plus `SHARDING.md` (the shard-assignment fixture shared with `book-translator`). | The local-mode popup and the reader server's modals (through `scripts/lib/nom-entries-store.js`), `scripts/migrate-user-nom-entries-to-shards.js` (one-off migration), by hand | Both userscript builders (through `scripts/user-nom-entries.js`), `build-extension-vnedict-json.js`, `watch-local-userscripts.js` (change detection); `nom-inspect.js` through the builders |
+| `user_nom_order.jsonc` | **Hand-maintained** source: display-order overrides applied last. | By hand, or the local-mode "Set order" modal | `scripts/user-nom-order.js`, used by both userscript builders, `build-extension-vnedict-json.js` and `chunom-standard-layer.js`; `watch-local-userscripts.js` (change detection) |
+| `realwords-source.txt` | **Hand-maintained** source of the real-word lexicon used for homophone filtering. | By hand | `scripts/build-realwords-lexicon.js` (`make rebuild-realwords-lexicon`) -> generated `zd-extension/js/realwords.js` |
+| `mdx_nom.json` | **Generated, committed** extraction of an external MDX dictionary (not reproducible from this repository alone: it needs the MDX file and `js-mdict`, see [Supplemental MDX data](#supplemental-mdx-data)). | `scripts/extract-mdx-nom-data.js` | `scripts/merge-mdx-nom-into-vnedict2.js` and `scripts/build-nom-userscript.js` (folded into the nom map in memory) |
+| `vnedict.txt` | **Legacy source** of the base vocabulary (committed, no longer the source of the shipped dictionary). | By hand historically; not written by any script | `scripts/build-extension-dictionary.js` only |
+| `vnedict.json` | **Generated, committed** from `vnedict.txt` by `make rebuild-extension-dict`. A diffable intermediate: no builder or runtime reads it. | `scripts/build-extension-dictionary.js` | Only `test/build-extension-dictionary.test.js`, which checks it still matches a regeneration of `vnedict.txt` (headwords and order) |
+| `evdict.txt` | **Unused.** A StarDict-format file with a different schema from `vnedict.txt`; no script, test, Makefile target or workflow reads it (noted as orphaned in the archived `harden-dictionary-data-pipeline` change). | Unknown | Nothing |
+| `chunom_standard.json` | **Generated, gitignored** (absent in a fresh clone) from chunom.org; see [chunom-standard.md](chunom-standard.md). | `scripts/import-chunom-standard.js` (`make import-chunom-standard`) | Both userscript builders and `build-extension-vnedict-json.js` (through `scripts/chunom-standard-layer.js`), `watch-local-userscripts.js`, `release-userscripts.js`; folded in memory, never written into `vnedict2.json` |
+| `fonts/` | **Local-only input**, gitignored: `NomNaTong-Regular.otf` embedded by the `-local` nom-ruby build. | Placed by hand | `scripts/build-nom-userscript.js` (falls back to the GitHub URL when absent) |
+
+No script deletes or moves any of these. `vnedict2.json` and `mdx_nom.json` are not rebuilt from
+other inputs in this repository, so do not regenerate them casually. What to do with
+`vnedict.json`, `vnedict.txt` and `evdict.txt` is an open decision, tracked under "Giai đoạn 4" in
+[the performance and maintainability review](performance-and-maintainability-review-2026-11.md).
+
 ## Website runtime dictionary
 
 `zd-extension/db_src/vnedict.json` is a regenerated, bug-fixed copy of the legacy
