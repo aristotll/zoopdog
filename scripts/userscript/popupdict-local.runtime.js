@@ -170,10 +170,6 @@
     return !!engine && engine === ZOO_ENGINE;
   }
 
-  function zooIsGoogleSearchPage(loc) {
-    return /(^|\.)google\.[a-z.]+$/.test(loc.hostname) && loc.pathname === '/search';
-  }
-
   // Bing's result links are bing.com/ck/a?...&u=a1<base64url of the target>: decode the target.
   function zooBingTarget(url) {
     var u = url.searchParams.get('u') || '';
@@ -967,10 +963,8 @@
       else localStorage.setItem(key, value);
     }
   });
-  function zooModalPositionKey(id) { return zooModalGeometry.positionKey(id); }
   function zooSaveModalPosition(id, left, top) { zooModalGeometry.savePosition(id, left, top); }
   function zooRestoreModalPosition(id, panel) { zooModalGeometry.restorePosition(id, panel); }
-  function zooModalSizeKey(id) { return zooModalGeometry.sizeKey(id); }
   function zooSaveModalSize(id, width, height) { zooModalGeometry.saveSize(id, width, height); }
   function zooRestoreModalSize(id, panel) { zooModalGeometry.restoreSize(id, panel); }
 
@@ -1295,7 +1289,6 @@
     }
   }
 
-  function zooCollectOpenShadowRoots(node) { return zooSelectionTools.collectRoots(node); }
   function zooComposedSelection(selection, container) { return zooSelectionTools.composed(selection, container); }
 
   function zooHandleSelectionChange() {

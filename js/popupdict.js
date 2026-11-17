@@ -51,7 +51,7 @@ if (window.getSelection && document.createRange) {
   };
 } else if (document.selection) {
   saveSelection = function(containerEl) {
-    var doc = containerEl.ownerDocument, win = doc.defaultView || doc.parentWindow;
+    var doc = containerEl.ownerDocument;
     var selectedTextRange = doc.selection.createRange();
     var preSelectionTextRange = doc.body.createTextRange();
     preSelectionTextRange.moveToElementText(containerEl);
@@ -65,7 +65,7 @@ if (window.getSelection && document.createRange) {
   };
 
   restoreSelection = function(containerEl, savedSel) {
-    var doc = containerEl.ownerDocument, win = doc.defaultView || doc.parentWindow;
+    var doc = containerEl.ownerDocument;
     var textRange = doc.body.createTextRange();
     textRange.moveToElementText(containerEl);
     textRange.collapse(true);
@@ -124,7 +124,6 @@ textField.addEventListener('keyup', function(e) {
   if (e.which === 13) {
     var selection = window.getSelection();
     var range = selection.getRangeAt(0);
-    var br = document.createElement("br");
     var zwsp = document.createTextNode("\u200B");
     var textNodeParent = document.getSelection().anchorNode.parentNode;
     var inSpan = textNodeParent.nodeName == "SPAN";

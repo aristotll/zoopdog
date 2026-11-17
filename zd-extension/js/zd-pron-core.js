@@ -453,8 +453,7 @@ function createPronunciationCore(pronData, allPossibleRealWords) {
 
     dialects.forEach(dialect => {
       results[dialect] = {shorter: [], longer: []}
-      var initialPron = (initial.length) ? initialsToIPA[initial][dialect] : ""
-        , rimePron    = rimesToIPA[rime][dialect]
+      var rimePron    = rimesToIPA[rime][dialect]
         , isLong      = /ː/.test(rimePron)
         , homRimes    = Object.keys(rimesToIPA).filter((r) => {
             var target = rimesToIPA[r][dialect]

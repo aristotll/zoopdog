@@ -63,8 +63,7 @@ const drawGradients = (word) => {
   // ========================================================
 
   Array.from(word.querySelectorAll(".phonemes:not(.blank-bg) .glide")).forEach(phoneme => {
-    var defaultColor  = colors.neutral.light
-      , startColor    = (phoneme.previousSibling) ? window.getComputedStyle(phoneme.previousSibling).backgroundColor : colors.neutral.light
+    var startColor    = (phoneme.previousSibling) ? window.getComputedStyle(phoneme.previousSibling).backgroundColor : colors.neutral.light
       , endColor      = (phoneme.nextSibling) ? window.getComputedStyle(phoneme.nextSibling).backgroundColor : colors.neutral.light
       , gradient      = chroma.scale([startColor, endColor]).mode('lab').colors(5)
       , res           = "linear-gradient(to right, "

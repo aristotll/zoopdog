@@ -74,7 +74,7 @@ make lint
 
 ESLint (`eslint.config.js`) runs only bug-catching rules from `scripts/lib/lint-config.js`
 (`no-undef`, `no-redeclare`, `no-dupe-keys`, `no-unreachable`, `no-fallthrough`, ... and
-`no-unused-vars` as a warning); there are no formatting rules. It covers `scripts/`, `test/` and
+`no-unused-vars`, all errors); there are no formatting rules. It covers `scripts/`, `test/` and
 the standalone browser files in `js/` and `zd-extension/js/`. Those classic scripts share one global
 scope, so each file's cross-file globals (`zdPopupProtocol`, `getWordAndContext`, ...) are declared
 explicitly in `eslint.config.js`; add a name there when a file starts using another file's global.

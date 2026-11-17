@@ -32,7 +32,7 @@ module.exports = [
     files: ['js/*.js', 'zd-extension/js/*.js'],
     languageOptions: {sourceType: 'script', ecmaVersion: 2024, globals: {...globals.browser, module: 'readonly'}},
     // Top-level declarations of a classic script are its public API, so only locals are checked.
-    rules: {...bugRules, 'no-unused-vars': ['warn', {vars: 'local', args: 'none', caughtErrors: 'none'}]}
+    rules: {...bugRules, 'no-unused-vars': ['error', {vars: 'local', args: 'none', caughtErrors: 'none'}]}
   },
   ...Object.entries({
     'js/popupdict.js': [

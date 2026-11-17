@@ -13,7 +13,7 @@ const bugRules = Object.freeze({
   'no-const-assign': 'error',
   'valid-typeof': 'error',
   'no-fallthrough': 'error',
-  'no-unused-vars': ['warn', {args: 'none', caughtErrors: 'none'}]
+  'no-unused-vars': ['error', {args: 'none', caughtErrors: 'none'}]
 });
 
 module.exports = {bugRules};

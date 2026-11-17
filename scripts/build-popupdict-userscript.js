@@ -8,7 +8,6 @@ const {
 } = require('./user-nom-entries');
 const {applyUserNomOrderToDefinitions} = require('./user-nom-order');
 const {loadChunomLayer} = require('./chunom-standard-layer');
-const {normalizeTerm} = require('./lib/text');
 const {CJK_PATTERN: cjkPattern} = require('./lib/cjk');
 const {readJson} = require('./lib/sources');
 const {groupEntries} = require('./lib/dictionary-identity');
