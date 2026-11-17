@@ -873,7 +873,7 @@ test('make verify syntax-checks first-party browser modules', () => {
 });
 
 test('the Nôm export panel recognises the reader /control page by IP, localhost and Bonjour name', () => {
-  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popup-nom-review.js'), 'utf8');
   const body = source.match(/function zooOnReaderControlPage\(\) \{[\s\S]*?\n  \}\n/)[0];
   const onPage = (hostname, pathname = '/control') =>
     new Function('window', `${body}; return zooOnReaderControlPage();`)({location: {hostname, pathname}});
@@ -889,7 +889,7 @@ test('the Nôm export panel recognises the reader /control page by IP, localhost
 
 test('popup retains Chu Nom definitions when Prototype replaces Array.from', () => {
   const vm = require('node:vm');
-  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popupdict.runtime.js'), 'utf8');
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/userscript/popup-render.js'), 'utf8');
   const functions = source.slice(source.indexOf('  function renderDefinitionItems('), source.indexOf('  function renderDefinitionItem('));
   const cjkDeclarations = source.split('\n').filter((line) => /var ZOO_CJK_(RE|SEQUENCE_RE) =/.test(line)).join('\n');
   const context = vm.createContext({});

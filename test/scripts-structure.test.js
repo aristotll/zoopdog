@@ -133,6 +133,18 @@ test('builders assemble the runtime instead of inlining it', () => {
     () => execFileSync(process.execPath, ['--check', probePath], {stdio: 'pipe'}),
     'popupdict-local.runtime.js is syntax-checked as code'
   );
+
+  // The popup-*.js files are fragments of the same IIFE, split out of popupdict.runtime.js
+  // (docs/runtime-boundaries.md): no userscript header, valid code once wrapped.
+  for (const name of ['popup-render.js', 'popup-highlighter.js', 'popup-result.js', 'popup-nom-review.js']) {
+    const fragment = fs.readFileSync(path.join(scriptsDir, 'userscript', name), 'utf8');
+    assert.doesNotMatch(fragment, /==UserScript==/, `${name} is a fragment, not a standalone userscript`);
+    fs.writeFileSync(probePath, `(function() {\n${fragment}\n})();`);
+    assert.doesNotThrow(
+      () => execFileSync(process.execPath, ['--check', probePath], {stdio: 'pipe'}),
+      `${name} is syntax-checked as code`
+    );
+  }
 });
 
 test('runtime placeholders must be replaced exactly once', () => {

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
-const source = fs.readFileSync(require('node:path').join(__dirname, '../scripts/userscript/popupdict.runtime.js'), 'utf8');
+const source = fs.readFileSync(require('node:path').join(__dirname, '../scripts/userscript/popup-nom-review.js'), 'utf8');
 function harness() {
   const elements = [];
   function element() {

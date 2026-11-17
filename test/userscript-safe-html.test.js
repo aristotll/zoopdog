@@ -46,8 +46,8 @@ test('rejects unsafe or malformed markup before it reaches the page', () => {
 });
 
 test('the denied-policy fallback replaces content without an HTML sink', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../scripts/userscript/popupdict.runtime.js'), 'utf8');
-  const helper = source.slice(source.indexOf('  var zooTrustedTypesPolicy;'), source.indexOf('  function normalizeLookup'));
+  const source = fs.readFileSync(path.join(__dirname, '../scripts/userscript/popup-render.js'), 'utf8');
+  const helper = source.slice(source.indexOf('  var zooTrustedTypesPolicy;'), source.indexOf('  function escapeHtml'));
   const doc = fakeDocument();
   const context = vm.createContext({window: {trustedTypes: {createPolicy() { throw new TypeError('policy denied'); }}}, document: doc, zooBuildSafeFragment: parser()});
   vm.runInContext(helper, context);

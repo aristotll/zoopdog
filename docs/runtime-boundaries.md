@@ -17,10 +17,18 @@ commands are in [build.md](build.md), and the cross-repository reader contract i
 | Explored-link tools | Inline buttons after each Google result title (`decorate`) and a hover pill for an uncoloured link take an injected document and `eligible`/`refresh`/`blacklist` callbacks; they only draw and route clicks. The runtime owns the keys, the server calls and the blacklist modal. | `scripts/userscript/local-explored-tools.js`, `popupdict-local.runtime.js` |
 | Local entry preview and modal guard | A renderer takes an injected document and renders server diff rows with text nodes; a guard prevents duplicate submissions while preserving pre-existing button state. Modal event handlers own preview and confirmation. | `scripts/userscript/local-entry-diff.js`, `local-modal-guard.js`, `popupdict-local.runtime.js` |
 | Offline Nôm review | `read`, `write`, `has` and `add` operate on a supplied string store; entries are `{vi, context, ts}`. | `scripts/userscript/nom-review-store.js` |
+| Popup runtime fragments | `popupdict.runtime.js` keeps the userscript header, the dictionary accessor, settings, lookup and the `main`/`startPopup` event wiring. Four fragments were moved out of it verbatim, with no renaming: the offline Nôm review queue, export panel and selection bar; the `Highlighter`; `ResultPopup` with pin storage, viewport helpers and placement; and definition rendering with `escapeHtml` and the Trusted Types `zooSetHTML`. They are plain top-level declarations that share the IIFE's scope, and each file's header comment names the globals it relies on. | `scripts/userscript/popup-nom-review.js`, `popup-highlighter.js`, `popup-result.js`, `popup-render.js`, `popupdict.runtime.js` |
 | Annotation ownership | A cross-node match tracks its source segments and inserted nodes; changed or removed sources retire the affected match before rescanning. | `scripts/userscript/nom-ruby.runtime.js` |
 
 The userscript builders inline the shared browser sources in declaration order into their existing
-IIFEs. Local-only helpers and grants are not included in the public popup build. Tests exercise
+IIFEs. The popup builder keeps two ordered lists, `PUBLIC_RUNTIME_SOURCES` and `LOCAL_RUNTIME_SOURCES`
+(the latter only for the `-local` build), and renders both with one loop; the whole list is placed
+where `__ZOOPDOG_RUNTIME_SOURCES__` sits, ahead of `popupdict.runtime.js`'s own body. Function
+declarations hoist across fragments, but a top-level `var x = expr;` does not, so a fragment may not
+read another fragment's `var` while it is being concatenated; keep such initialisers independent of
+each other (the moved fragments only read them from inside functions that run later, from `main()`).
+
+Local-only helpers and grants are not included in the public popup build. Tests exercise
 these boundaries in isolation and through the generated scripts; a DOM harness cannot establish
 userscript-manager, Trusted Types or browser layout compatibility by itself.
 

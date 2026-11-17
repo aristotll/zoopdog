@@ -35,7 +35,14 @@ const PUBLIC_RUNTIME_SOURCES = [
   // auto-generated pronunciation, so the pron/chroma code is deliberately not embedded.
   'zd-extension/js/zd-words.js',
   'scripts/userscript/nom-review-store.js',
-  'scripts/userscript/safe-html.js'
+  'scripts/userscript/safe-html.js',
+  // Moved out of popupdict.runtime.js (docs/runtime-boundaries.md). They only declare functions
+  // and a few `var`s that nothing reads before main() runs at the end of popupdict.runtime.js,
+  // so their order among themselves is free; they stay ahead of it like every other source.
+  'scripts/userscript/popup-render.js',
+  'scripts/userscript/popup-highlighter.js',
+  'scripts/userscript/popup-result.js',
+  'scripts/userscript/popup-nom-review.js'
 ];
 
 // Runtime sources the -local variant appends after `PUBLIC_RUNTIME_SOURCES`, in concatenation order
