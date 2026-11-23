@@ -62,6 +62,9 @@ test('the CJK Ruby runtime caches network labels between pages and falls back wh
   assert.match(source, /function remember\(/, 'only non-empty network labels are stored');
   assert.match(source, /function showFallback\(/, 'local romaji shows while English is unavailable');
   assert.match(source, /solo\.has\(key\)/, 'an empty English batch answer is retried one by one');
+  assert.match(source, /function limited\(/, 'requests are capped so a phone is not flooded');
+  assert.match(source, /addEventListener\('online', retryNow\)/, 'coming back online skips the retry back-off');
+  assert.match(source, /visibilitychange/, 'returning to the tab skips the retry back-off');
 
   const start = source.indexOf('    var KANA_ROWS');
   const end = source.indexOf('    var GTX_HOSTS');

@@ -953,6 +953,42 @@ test('Refresh all hands every cumulative reply to onRows while slower channels a
   assert.deepEqual(seen, ['a|waiting: b', 'a|b']);
 });
 
+test('Refresh all drops the stream when its box closes and does not fall back to per-channel requests', async () => {
+  const urls = [];
+  let aborted = 0;
+  const harness = createHarness((options) => {
+    urls.push(options.url);
+    return {abort() { aborted += 1; options.onabort(); }};
+  });
+  const control = {cancelled: false, abort: null};
+  const pending = harness.context.zooFetchNotesAll('nom-notes', 'a', undefined, control);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /\/v1\/suggest\/stream/);
+  control.cancelled = true;
+  control.abort();
+  assert.deepEqual(Array.from(await pending), []);
+  assert.equal(aborted, 1);
+  assert.equal(urls.length, 1, 'no per-channel request after the close');
+});
+
+test('Refresh all sends no further per-channel request once cancelled', async () => {
+  const seen = [];
+  const control = {cancelled: false, abort: null};
+  const harness = createHarness((options) => {
+    const q = new URL(options.url).searchParams;
+    seen.push(options.url);
+    if (options.url.includes('/v1/suggest/stream')) return options.onerror();
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (q.get('engines')) return reply({engines: ['a', 'b', 'c', 'd', 'e', 'f', 'g']});
+    control.cancelled = true; // the box closes while the first channels are being asked
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}]});
+  });
+  await harness.context.zooFetchNotesAll('nom-notes', 'a', undefined, control);
+  const asked = seen.filter((url) => url.includes('engine=')).length;
+  assert.ok(asked >= 1 && asked < 7, 'asked ' + asked + ' of 7 channels');
+});
+
 test('Refresh all reads every channel from one streamed request and falls back to per-channel ones without it', async () => {
   const lines = [
     {entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]},

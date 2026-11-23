@@ -102,7 +102,10 @@
   // false (no GM_xmlhttpRequest, HTTP error, cut connection) sends the caller to the per-channel requests below.
   // `onprogress` shows lines as they arrive; `onload` carries the whole text, so a manager that never reports progress
   // still gets every line, just at the end.
-  function zooStreamNotesAll(kind, text, take) {
+  // `control` ({cancelled, abort}) is how the box that shows the answers cancels the ask when it is closed: `abort()` drops the
+  // connection (the server sees the closed socket and stops asking the channels it has not started) and the stream resolves
+  // true so the caller does not fall back to per-channel requests.
+  function zooStreamNotesAll(kind, text, take, control) {
     return new Promise(function(resolve) {
       if (typeof GM_xmlhttpRequest !== 'function') { resolve(false); return; }
       var seen = 0;
@@ -118,7 +121,7 @@
         seen = end + 1;
       }
       try {
-        GM_xmlhttpRequest({
+        var request = GM_xmlhttpRequest({
           method: 'GET',
           url: ZOO_LOCAL_BASE + '/v1/suggest/stream?kind=' + encodeURIComponent(kind) + '&text=' + encodeURIComponent(text),
           timeout: ZOO_NOTES_ALL_TIMEOUT,
@@ -130,14 +133,19 @@
               resolve(finished);
             } catch (e) { resolve(false); }
           },
-          onerror: function() { resolve(false); },
-          ontimeout: function() { resolve(false); }
+          onerror: function() { resolve(control && control.cancelled ? true : false); },
+          ontimeout: function() { resolve(false); },
+          onabort: function() { resolve(true); }
         });
+        if (control) {
+          control.abort = function() { if (request && typeof request.abort === 'function') request.abort(); resolve(true); };
+          if (control.cancelled) control.abort();
+        }
       } catch (e) { resolve(false); }
     });
   }
 
-  function zooFetchNotesAll(kind, text, onRows) {
+  function zooFetchNotesAll(kind, text, onRows, control) {
     if (!text) return Promise.resolve([]);
     var streamedRows = [];
     function takeStreamed(reply) {
@@ -145,15 +153,16 @@
       streamedRows = reply.rows;
       if (onRows) onRows(streamedRows);
     }
-    return zooStreamNotesAll(kind, text, takeStreamed).then(function(done) {
-      return done ? streamedRows : zooFetchNotesAllPerChannel(kind, text, onRows);
+    return zooStreamNotesAll(kind, text, takeStreamed, control).then(function(done) {
+      return done || (control && control.cancelled) ? streamedRows : zooFetchNotesAllPerChannel(kind, text, onRows, control);
     });
   }
 
-  function zooFetchNotesAllPerChannel(kind, text, onRows) {
+  function zooFetchNotesAllPerChannel(kind, text, onRows, control) {
+    function cancelled() { return Boolean(control && control.cancelled); }
     function withRetry(params, n) {
       return zooGetJSON('/v1/suggest', params, params.engine === undefined ? undefined : ZOO_NOTES_ALL_TIMEOUT).catch(function(error) {
-        if (n >= ZOO_NOTES_ALL_RETRIES) throw error;
+        if (cancelled() || n >= ZOO_NOTES_ALL_RETRIES) throw error;
         return new Promise(function(resolve) {
           setTimeout(resolve, ZOO_NOTES_ALL_BASE_DELAY_MS * Math.pow(2, n));
         }).then(function() { return withRetry(params, n + 1); });
@@ -176,12 +185,13 @@
       // them busy for 27 s (70 channels, measured 2026-11-07) made the quick fields of the modal show last.
       var nextChannel = 0;
       function askNext() {
-        if (nextChannel >= engines.length) return Promise.resolve();
+        if (nextChannel >= engines.length || cancelled()) return Promise.resolve();
         var index = nextChannel++;
         var params = base();
         params.engine = String(index);
         params.session = session;
         return withRetry(params, 0).then(take, function() {
+          if (cancelled()) return;
           var report = base();
           report.engine = String(index);
           report.session = session;

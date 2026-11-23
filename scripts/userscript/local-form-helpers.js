@@ -38,10 +38,20 @@
   // it auto-runs right after the modal opens (see zooOpenNomModal), without
   // making the modal's own show wait on it.
   function zooWireNotesAll(button, list, kind, getText, statusId) {
+    // Closing the box that shows the answers cancels the ask (the modal backdrop gets `hidden`): the stream connection is
+    // dropped and no further per-channel request is sent. The server stops the channels it has not started.
+    var control = null;
+    var backdrop = list.closest && list.closest('.zd-modal-backdrop');
+    if (backdrop && typeof MutationObserver === 'function') {
+      new MutationObserver(function() {
+        if (backdrop.hidden && control) { control.cancelled = true; if (control.abort) control.abort(); }
+      }).observe(backdrop, { attributes: true, attributeFilter: ['hidden'] });
+    }
     function run() {
       var text = getText();
       if (!text || button.disabled) return;
       button.disabled = true;
+      var mine = control = { cancelled: false, abort: null };
       list.hidden = false;
       list.textContent = '';
       var pending = document.createElement('li');
@@ -100,8 +110,9 @@
         if (wait <= 0) drawLatest();
         else if (timer === null) timer = setTimeout(drawLatest, wait);
       }
-      zooFetchNotesAll(kind, text, onRows).then(function(finalRows) { clearTimeout(timer); renderRows(finalRows); }, function() {
+      zooFetchNotesAll(kind, text, onRows, mine).then(function(finalRows) { clearTimeout(timer); if (!mine.cancelled) renderRows(finalRows); }, function() {
         clearTimeout(timer);
+        if (mine.cancelled) return;
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {

@@ -666,7 +666,33 @@
         return healthy.length ? healthy : list;
     }
 
+    // At most a few requests in flight: on a phone a page with hundreds of katakana words used to fire all of
+    // its chunks (and every solo retry) at once, which times out on a slow link or is throttled by Google.
+    // Chunks waiting here are already in `inflight`, so the scan timer does not dispatch them twice.
+    var MAX_CONCURRENT_REQUESTS = 3;
+    var activeRequests = 0;
+    var waitingRequests = [];
+    function limited(task) {
+        return new Promise(function (resolve, reject) {
+            function run() {
+                activeRequests++;
+                var promise;
+                try { promise = task(); } catch (error) { promise = Promise.reject(error); }
+                promise.then(resolve, reject).then(function () {
+                    activeRequests--;
+                    var next = waitingRequests.shift();
+                    if (next) next();
+                });
+            }
+            if (activeRequests < MAX_CONCURRENT_REQUESTS) run(); else waitingRequests.push(run);
+        });
+    }
+
     function fetchLabels(kind, phrases) {
+        return limited(function () { return fetchLabelsNow(kind, phrases); });
+    }
+
+    function fetchLabelsNow(kind, phrases) {
         var endpoints = pickEndpoints(kind);
         var lastError = new Error('no endpoint');
         function attempt(index) {
@@ -680,7 +706,9 @@
                 return result;
             }, function (error) {
                 lastError = error;
-                if (!/cannot align/.test(error.message)) {
+                // A bad answer or being offline says nothing about the endpoint: no cool-down for those.
+                var offline = typeof navigator === 'object' && navigator && navigator.onLine === false;
+                if (!/cannot align/.test(error.message) && !offline) {
                     endpointDownUntil[endpoint.id] = Date.now() + ENDPOINT_COOLDOWN_MS;
                 }
                 return attempt(index + 1);
@@ -723,6 +751,9 @@
 
     function translateChunk(kind, phrases) {
         phrases.forEach(function (phrase) { inflight.add(keyOf(kind, phrase)); });
+        // Show the local romaji right away: a slow phone link can take a minute to fail over every endpoint, and
+        // the word should not stay bare meanwhile. The real English replaces it when it arrives.
+        if (kind === 'english') phrases.forEach(function (phrase) { showFallback(keyOf(kind, phrase), phrase); });
         var work = kind === 'jyutping' ? jyutpingLabels(phrases) : fetchLabels(kind, phrases);
         return work.then(function (labelsForPhrases) {
             phrases.forEach(function (phrase, index) {
@@ -1262,6 +1293,15 @@ __ZOOPDOG_USERSCRIPT_COMMON__
         newNodes.push(doc.body || doc.documentElement);
         doc.addEventListener(RESCAN_EVENT, queueRoot);
         window.addEventListener('pageshow', queueRoot);
+        // A phone that was offline, or a tab that came back from the background, must not sit out the
+        // retry back-off (up to two minutes) or the endpoint cool-down it earned while the network was away.
+        function retryNow() {
+            retryState.clear();
+            Object.keys(endpointDownUntil).forEach(function (id) { delete endpointDownUntil[id]; });
+            poll.wake();
+        }
+        window.addEventListener('online', retryNow);
+        doc.addEventListener('visibilitychange', function () { if (!doc.hidden) retryNow(); });
         rescan();
         poll.start();
     }
