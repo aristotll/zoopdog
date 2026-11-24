@@ -178,6 +178,9 @@
     // Only this script's own ruby and other scripts' annotation text (rt/rp) are off limits. The
     // base text of a foreign <ruby> can be Vietnamese too: a translator replaces text nodes that
     // another script (zoopdog-cjk-ruby) had wrapped, leaving the translation inside its <ruby>.
+    // The popup dictionary and the other zoopdog panels are not page text: annotating them put ruby inside
+    // the entries and drew overlay labels over the popup.
+    if (element.id && element.id.indexOf('zoopdog-') === 0) return true;
     if (tag === 'ruby') return /(?:^|\s)zoopdog-nom-ruby(?:\s|$)/.test(String(element.className || ''));
     return tag in EXCLUDED_TAGS || element.isContentEditable;
   }

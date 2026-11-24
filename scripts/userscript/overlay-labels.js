@@ -39,9 +39,9 @@ function zdCreateOverlay(doc, win, options) {
       host.id = options.id || 'zoopdog-overlay';
       host.setAttribute('aria-hidden', 'true');
       host.style.cssText = options.documentAnchored
-        ? 'all:initial;position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:2147483646;'
+        ? 'all:initial;position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:2147483645;'
         : 'all:initial;position:fixed;top:0;right:0;bottom:0;left:0;overflow:hidden;' +
-          'pointer-events:none;z-index:2147483646;contain:strict;';
+          'pointer-events:none;z-index:2147483645;contain:strict;';
       layer = host.attachShadow({mode: 'closed'});
       var style = doc.createElement('style');
       style.textContent = '.l{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.15;' +
