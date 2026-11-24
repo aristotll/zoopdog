@@ -183,3 +183,27 @@ test('a layout pass measures everything before it writes any label', () => {
   assert.ok(log.includes('write') && log.includes('read'));
   assert.equal(log.lastIndexOf('read') < log.indexOf('write'), true, 'no read may follow a write: ' + log.join(','));
 });
+
+test('a clashing label under its word is pushed down, never up into the text', () => {
+  const frames = [], labels = [];
+  const doc = {
+    createElement() {
+      return {style: {}, isConnected: false, setAttribute() {}, attachShadow() {
+        return {appendChild(child) { if (child.className === 'l') labels.push(child); }};
+      }};
+    },
+    documentElement: {appendChild(el) { el.isConnected = true; }},
+    createRange() { return {setStart() {}, setEnd() {}, getClientRects() { return [{left: 10, width: 20, top: 30, bottom: 50}]; }}; }
+  };
+  const win = {innerWidth: 500, innerHeight: 500, requestAnimationFrame(fn) { frames.push(fn); },
+    setTimeout() {}, getComputedStyle() { return {fontSize: '16px', color: 'black'}; }};
+  const overlay = vm.runInNewContext(source + '\nzdCreateOverlay')(doc, win);
+  const parent = {getBoundingClientRect() { return {width: 100, height: 30, top: 20, bottom: 50, left: 0, right: 100}; }};
+  const under = {under: true, scale: 0.55, pieces: [{text: 'dim2'}]};
+  overlay.set({isConnected: true, nodeValue: 'ab', parentElement: parent}, 'ab', [{start: 0, end: 2, layers: [under]}]);
+  overlay.set({isConnected: true, nodeValue: 'cd', parentElement: parent}, 'cd', [{start: 0, end: 2, layers: [under]}]);
+  frames.shift()();
+  const y = (label) => Number(/,(-?\d+)px\)/.exec(label.style.transform)[1]);
+  assert.equal(labels.length, 2);
+  assert.ok(y(labels[1]) > y(labels[0]), 'the second label sits lower');
+});
