@@ -40,18 +40,28 @@
   function zooWireNotesAll(button, list, kind, getText, statusId) {
     // Closing the box that shows the answers cancels the ask (the modal backdrop gets `hidden`): the stream connection is
     // dropped and no further per-channel request is sent. The server stops the channels it has not started.
+    // A cancelled run draws nothing more (late replies of channels already in flight included) and gives the button
+    // back at once, so the box opened next for another word can run its own ask (review 2026-11-25, finding 2: the
+    // old word's rows landed in the new word's list and the auto-run found the button still disabled).
     var control = null;
     var backdrop = list.closest && list.closest('.zd-modal-backdrop');
     if (backdrop && typeof MutationObserver === 'function') {
       new MutationObserver(function() {
-        if (backdrop.hidden && control) { control.cancelled = true; if (control.abort) control.abort(); }
+        if (backdrop.hidden) cancel();
       }).observe(backdrop, { attributes: true, attributeFilter: ['hidden'] });
+    }
+    function cancel() {
+      var current = control;
+      if (!current || current.cancelled) return;
+      current.cancelled = true;
+      if (current.abort) current.abort();
+      if (current.stop) current.stop();
     }
     function run() {
       var text = getText();
       if (!text || button.disabled) return;
       button.disabled = true;
-      var mine = control = { cancelled: false, abort: null };
+      var mine = control = { cancelled: false, abort: null, stop: null };
       list.hidden = false;
       list.textContent = '';
       var pending = document.createElement('li');
@@ -103,8 +113,14 @@
       var lastDraw = 0;
       var latest = null;
       var timer = null;
-      function drawLatest() { timer = null; lastDraw = Date.now(); renderRows(latest); }
+      mine.stop = function() {
+        clearTimeout(timer);
+        timer = null;
+        button.disabled = false;
+      };
+      function drawLatest() { timer = null; if (mine.cancelled) return; lastDraw = Date.now(); renderRows(latest); }
       function onRows(shown) {
+        if (mine.cancelled) return;
         latest = shown;
         var wait = lastDraw + ZOO_NOTES_ALL_REDRAW_MS - Date.now();
         if (wait <= 0) drawLatest();
@@ -116,11 +132,12 @@
         list.textContent = '';
         zooSetModalStatus(statusId, zooLocalRequestRecoveryMessage(), true);
       }).then(function() {
-        button.disabled = false;
+        // A cancelled run gave the button back already; a newer run owns it now.
+        if (!mine.cancelled) button.disabled = false;
       });
     }
     button.addEventListener('click', run);
-    return { run: run };
+    return { run: run, cancel: cancel };
   }
 
   // Drops punctuation from a machine-translated note. A hyphen or apostrophe

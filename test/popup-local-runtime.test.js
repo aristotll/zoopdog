@@ -989,6 +989,55 @@ test('Refresh all sends no further per-channel request once cancelled', async ()
   assert.ok(asked >= 1 && asked < 7, 'asked ' + asked + ' of 7 channels');
 });
 
+test('an abort the user did not ask for falls back to the per-channel requests (review finding 14)', async () => {
+  const paths = [];
+  const harness = createHarness((options) => {
+    const url = new URL(options.url);
+    paths.push(url.pathname + (url.searchParams.get('engines') ? '?engines' : ''));
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (url.pathname === '/v1/suggest/stream') {
+      options.onprogress({responseText: JSON.stringify({rows: [{engines: ['a'], label: 'waiting: a', text: '', pending: true}]}) + '\n'});
+      return options.onabort(); // the manager cut it (page unload, its own cut-off)
+    }
+    if (url.searchParams.get('engines')) return reply({engines: ['a']});
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'ok'}]});
+  });
+  const rows = await harness.context.zooFetchNotesAll('nom-notes', 'a', undefined, {cancelled: false, abort: null});
+  assert.equal(rows[0].text, 'ok', 'the waiting row was not taken as final');
+  assert.deepEqual(paths, ['/v1/suggest/stream', '/v1/suggest?engines', '/v1/suggest']);
+});
+
+test('closing the box during a per-channel Refresh all draws no late reply and frees the button (review finding 2)', async () => {
+  const held = [];
+  let word = 'A';
+  const harness = createHarness((options) => {
+    const url = new URL(options.url);
+    const reply = (body) => options.onload({status: 200, responseText: JSON.stringify(body)});
+    if (url.pathname === '/v1/suggest/stream') return options.onerror();
+    if (url.searchParams.get('engines')) return reply({engines: ['a']});
+    const text = url.searchParams.get('text');
+    if (text === 'A') { held.push(() => reply({rows: [{engines: ['a'], label: 'a', text: 'late answer for A'}]})); return undefined; }
+    return reply({rows: [{engines: ['a'], label: 'a', text: 'answer for ' + text}]});
+  });
+  const button = harness.add('b');
+  const list = harness.add('l');
+  const wired = harness.context.zooWireNotesAll(button, list, 'nom-notes', () => word, 's');
+  wired.run();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(held.length, 1, 'the channel of A is in flight');
+  assert.equal(button.disabled, true);
+  wired.cancel();
+  assert.equal(button.disabled, false, 'the button is free again at once');
+  word = 'B';
+  wired.run();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(list.children[0].children[1].textContent, 'answer for B');
+  held.forEach((send) => send());
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(list.children[0].children[1].textContent, 'answer for B', "A's late reply is not drawn into B's list");
+  assert.equal(button.disabled, false);
+});
+
 test('Refresh all reads every channel from one streamed request and falls back to per-channel ones without it', async () => {
   const lines = [
     {entry: {engine: 'a'}, rows: [{engines: ['a'], label: 'a', text: 'ok'}, {engines: ['b'], label: 'waiting: b', text: '', pending: true}]},

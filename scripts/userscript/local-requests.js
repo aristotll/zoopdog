@@ -104,7 +104,7 @@
   // still gets every line, just at the end.
   // `control` ({cancelled, abort}) is how the box that shows the answers cancels the ask when it is closed: `abort()` drops the
   // connection (the server sees the closed socket and stops asking the channels it has not started) and the stream resolves
-  // true so the caller does not fall back to per-channel requests.
+  // true so the caller does not fall back to per-channel requests. An abort nobody asked for resolves false (a cut connection).
   function zooStreamNotesAll(kind, text, take, control) {
     return new Promise(function(resolve) {
       if (typeof GM_xmlhttpRequest !== 'function') { resolve(false); return; }
@@ -135,7 +135,9 @@
           },
           onerror: function() { resolve(control && control.cancelled ? true : false); },
           ontimeout: function() { resolve(false); },
-          onabort: function() { resolve(true); }
+          // Only the user's cancel ends the ask; an abort by the manager (page unload, its own cut-off) is a cut
+          // connection, so the caller falls back to the per-channel requests (review 2026-11-25, finding 14).
+          onabort: function() { resolve(Boolean(control && control.cancelled)); }
         });
         if (control) {
           control.abort = function() { if (request && typeof request.abort === 'function') request.abort(); resolve(true); };
@@ -176,6 +178,8 @@
       var session = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       var rows = [];
       function take(reply) {
+        // A reply of a channel that was already in flight when the box closed is not drawn.
+        if (cancelled()) return;
         // Replies can arrive out of order; each is cumulative, so the one with fewest channels waiting is newest.
         if (!reply || !reply.rows || (rows.length && zooNotesAllWaiting(reply.rows) > zooNotesAllWaiting(rows))) return;
         rows = reply.rows;
