@@ -172,10 +172,24 @@ therefore split into a shared core and two renderers; a site picks one.
 - **Private site rules are not in this repo.** `SITE_FIXES` / `MODE_RULES` entries for such hosts live in
   `../book-translator/zoopdog-site-rules.json` (or `$ZOOPDOG_LOCAL_SITE_RULES`) and are injected at build time into the
   `(Local)` builds only (`readLocalSiteRules`, placeholder `__ZOOPDOG_LOCAL_SITE_RULES__`); the published builds get `[]`.
-  Rule: `{"host": "<regex>", "scripts": ["nom-ruby","cjk-ruby"], "css", "maxRun", "perWord", "mode"}`.
+  Rule: `{"host": "<regex>", "scripts": ["nom-ruby","cjk-ruby"], "css", "exclude", "maxRun", "perWord", "mode"}`.
+  In cjk-ruby every entry naming the host applies, merged in table order (css and `exclude` add up, a later `maxRun`
+  wins), so a local rule for a host with a built-in fix (chatgpt.com) extends it instead of being hidden behind it.
+  Before 2026-11-25 the runtime dropped a local `exclude` and used only the first matching entry (review finding 11).
 - **A label repeated many times (YouTube live badge `直播 直播 直播 ...`, found 2026-11-14 over CDP).** A framework-owned text node
   (Lit/Polymer binding) was split by `wrapMatch`, which leaves the framework's node in place, empty; the framework writes the
   whole text back on every render and the old code wrapped it again, one more ruby per render. Fix: `built` (WeakMap) records
   what was made from a node and the value left in it; `dropStale` removes those nodes when the value differs (the owner
   rewrote it) before wrapping again. Check: count `ruby` in the badge before and after setting the empty node's value to its
   text; it must stay constant. Regression: `test/cjk-ruby-userscript.test.js` (jsdom from online-dict, skipped when absent).
+- **A streamed chat answer lost its ruby for good (review 2026-11-25, finding 1).** The re-render freeze (`MAX_REWRAPS`)
+  counted every `dropStale` per parent element and never reset, so chatgpt.com, which writes a paragraph's text node once
+  per token, froze the paragraph after the third token and the finished answer stayed bare, as did any new text in it.
+  Now the count is per text node, a value that only grew from what was wrapped (streaming) is not a rewrite, only
+  rewrites within `REWRAP_WINDOW_MS` (2 s) of each other count, and a frozen node is looked at once more after it has been
+  quiet for that long; frozen again after that second chance, it stays as the page wants it.
+- **Retry back-off and tab switches (review 2026-11-25, finding 7).** Returning to the tab or coming back online used to
+  clear every endpoint cool-down and every phrase's back-off, so a page whose words kept failing resent every chunk to a
+  throttled Google endpoint on each tab switch. Now `interruptions` is bumped when the tab is hidden or shown and when the
+  phone goes offline or online; a failure across such a moment earns no endpoint cool-down and a "soft" back-off, and only
+  soft back-off is cleared on return. A real refusal (429, 5xx) while online and visible keeps its back-off.

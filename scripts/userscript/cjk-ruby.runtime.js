@@ -692,12 +692,24 @@
         return limited(function () { return fetchLabelsNow(kind, phrases); });
     }
 
+    // Bumped whenever the tab is hidden or the phone goes offline. A request that failed across such a
+    // moment (or while it lasts) says nothing about the endpoint or the phrase: it earns no endpoint
+    // cool-down, and its retry back-off is "soft", cleared when the tab returns or the phone is back
+    // online. Back-off earned by a real answer (429, 5xx, a bad body) while online and visible is kept
+    // (review 2026-11-25, finding 7: every tab switch used to wipe it and resend every pending chunk).
+    var interruptions = 0;
+    function interruptedSince(epoch) {
+        var offline = typeof navigator === 'object' && navigator && navigator.onLine === false;
+        return offline || !!doc.hidden || epoch !== interruptions;
+    }
+
     function fetchLabelsNow(kind, phrases) {
         var endpoints = pickEndpoints(kind);
         var lastError = new Error('no endpoint');
         function attempt(index) {
             if (index >= endpoints.length) return Promise.reject(lastError);
             var endpoint = endpoints[index];
+            var epoch = interruptions;
             return request(endpoint.url(phrases)).then(function (text) {
                 var json = JSON.parse(text.replace("'", '\u2019'));
                 return endpoint.parse(phrases, json);
@@ -706,9 +718,8 @@
                 return result;
             }, function (error) {
                 lastError = error;
-                // A bad answer or being offline says nothing about the endpoint: no cool-down for those.
-                var offline = typeof navigator === 'object' && navigator && navigator.onLine === false;
-                if (!/cannot align/.test(error.message) && !offline) {
+                // A bad answer, being offline or a hidden tab says nothing about the endpoint: no cool-down for those.
+                if (!/cannot align/.test(error.message) && !interruptedSince(epoch)) {
                     endpointDownUntil[endpoint.id] = Date.now() + ENDPOINT_COOLDOWN_MS;
                 }
                 return attempt(index + 1);
@@ -742,14 +753,16 @@
         scheduleVerify();
     }
 
-    function noteFailure(key) {
+    function noteFailure(key, soft) {
         var state = retryState.get(key) || { attempts: 0, notBefore: 0 };
+        state.soft = !!soft;
         state.notBefore = Date.now() + RETRY_DELAYS_MS[Math.min(state.attempts, RETRY_DELAYS_MS.length - 1)];
         state.attempts++;
         retryState.set(key, state);
     }
 
     function translateChunk(kind, phrases) {
+        var epoch = interruptions;
         phrases.forEach(function (phrase) { inflight.add(keyOf(kind, phrase)); });
         // Show the local romaji right away: a slow phone link can take a minute to fail over every endpoint, and
         // the word should not stay bare meanwhile. The real English replaces it when it arrives.
@@ -785,9 +798,10 @@
             }
             noteError(kind, error);
             console.warn('Zoopdog CJK Ruby: ' + kind + ' request failed, will retry later:', error && error.message);
+            var soft = interruptedSince(epoch);
             phrases.forEach(function (phrase) {
                 var key = keyOf(kind, phrase);
-                noteFailure(key);
+                noteFailure(key, soft);
                 if (kind === 'english') showFallback(key, phrase);
             });
         });
@@ -878,24 +892,51 @@
     var built = new WeakMap();
     var madeNow = null;
 
-    // A framework that rewrites the same element again and again (a chat page re-rendering a message
+    // A framework that rewrites the same text again and again (a chat page re-rendering a message
     // while a switcher script rewrites its text) made each pass wrap, drop and wrap again: the text
-    // blinked. After MAX_REWRAPS drops in one element it is left as the page wants it.
+    // blinked. After MAX_REWRAPS drops of one text node in quick succession (each within
+    // REWRAP_WINDOW_MS of the previous) it is left as the page wants it. Two things do not freeze it
+    // (review 2026-11-25, finding 1): text that only grew (a streamed answer appends tokens to its text
+    // node; chatgpt.com writes the node's value once per token) is not a rewrite, and a frozen node is
+    // looked at once more after it has been quiet for REWRAP_WINDOW_MS, so a finished answer is
+    // annotated. A node frozen again after that second chance stays as the page wants it. The count is
+    // per text node, so new text added beside a frozen node is still annotated.
     var MAX_REWRAPS = 3;
-    var rewraps = new WeakMap();
+    var REWRAP_WINDOW_MS = 2000;
+    var rewraps = new WeakMap(); // text node -> { count, last, retried, recheck }
 
     function isFrozen(node) {
-        var holder = node.parentElement;
-        return !!holder && (rewraps.get(holder) || 0) >= MAX_REWRAPS;
+        var state = rewraps.get(node);
+        if (!state || state.count < MAX_REWRAPS) return false;
+        var quiet = Date.now() - state.last >= REWRAP_WINDOW_MS;
+        if (quiet && !state.retried) {
+            state.retried = true;
+            state.count = 0;
+            return false;
+        }
+        if (!state.retried && !state.recheck) {
+            state.recheck = setTimeout(function () {
+                state.recheck = null;
+                newNodes.push(node);
+                poll.wake();
+            }, REWRAP_WINDOW_MS + 50);
+        }
+        return true;
     }
 
     function dropStale(node) {
         var rec = built.get(node);
         if (!rec || node.nodeValue === rec.left) return;
         built.delete(node);
-        var holder = node.parentElement;
-        if (holder) rewraps.set(holder, (rewraps.get(holder) || 0) + 1);
         rec.made.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+        var value = node.nodeValue || '';
+        if (rec.full && value.length > rec.full.length && value.indexOf(rec.full) === 0) return; // it grew
+        var now = Date.now();
+        var state = rewraps.get(node) || { count: 0, last: 0, retried: false, recheck: null };
+        if (state.count < MAX_REWRAPS && now - state.last > REWRAP_WINDOW_MS) state.count = 0;
+        state.count++;
+        state.last = now;
+        rewraps.set(node, state);
     }
 
     function wrapMatch(node, text, index, kinds) {
@@ -952,14 +993,21 @@
     // the published build gets an empty list. They never appear in this source.
     var LOCAL_SITE_RULES = __ZOOPDOG_LOCAL_SITE_RULES__;
     LOCAL_SITE_RULES.forEach(function (rule) {
-        SITE_FIXES.push({ host: new RegExp(rule.host), css: rule.css, maxRun: rule.maxRun });
+        SITE_FIXES.push({ host: new RegExp(rule.host), css: rule.css, exclude: rule.exclude, maxRun: rule.maxRun });
     });
 
+    // Every entry naming the host applies, merged in table order: css and exclude add up, and a later
+    // maxRun replaces an earlier one. A local rule for a host that has a built-in fix (chatgpt.com)
+    // therefore extends it instead of being hidden behind it (review 2026-11-25, finding 11).
     function pickSiteFix() {
-        for (var i = 0; i < SITE_FIXES.length; i++) {
-            if (SITE_FIXES[i].host.test(location.hostname)) return SITE_FIXES[i];
-        }
-        return {};
+        var fix = {};
+        SITE_FIXES.forEach(function (entry) {
+            if (!entry.host.test(location.hostname)) return;
+            if (entry.css) fix.css = fix.css ? fix.css + '\n' + entry.css : entry.css;
+            if (entry.exclude) fix.exclude = fix.exclude ? fix.exclude + ', ' + entry.exclude : entry.exclude;
+            if (entry.maxRun) fix.maxRun = entry.maxRun;
+        });
+        return fix;
     }
     var siteFix = pickSiteFix();
 
@@ -1143,11 +1191,12 @@ __ZOOPDOG_USERSCRIPT_COMMON__
                     if (isFrozen(node)) return;
                     var next = node;
                     var guard = 0;
+                    var full = node.nodeValue;
                     madeNow = [];
                     try {
                         while ((next = addRuby(next)) && guard++ < 10000) { /* keep splitting */ }
                     } finally {
-                        if (madeNow.length) built.set(node, { left: node.nodeValue, made: madeNow });
+                        if (madeNow.length) built.set(node, { left: node.nodeValue, full: full, made: madeNow });
                         madeNow = null;
                     }
                 }
@@ -1320,14 +1369,20 @@ __ZOOPDOG_USERSCRIPT_COMMON__
         doc.addEventListener(RESCAN_EVENT, queueRoot);
         window.addEventListener('pageshow', queueRoot);
         // A phone that was offline, or a tab that came back from the background, must not sit out the
-        // retry back-off (up to two minutes) or the endpoint cool-down it earned while the network was away.
+        // retry back-off (up to two minutes) it earned while the network was away. Only that "soft"
+        // back-off is cleared: an endpoint cool-down is never earned while interrupted, and back-off
+        // from a real answer while online and visible stays (see interruptions).
+        function interrupt() { interruptions++; }
         function retryNow() {
-            retryState.clear();
-            Object.keys(endpointDownUntil).forEach(function (id) { delete endpointDownUntil[id]; });
+            retryState.forEach(function (state, key) { if (state.soft) retryState.delete(key); });
             poll.wake();
         }
-        window.addEventListener('online', retryNow);
-        doc.addEventListener('visibilitychange', function () { if (!doc.hidden) retryNow(); });
+        window.addEventListener('offline', interrupt);
+        window.addEventListener('online', function () { interrupt(); retryNow(); });
+        doc.addEventListener('visibilitychange', function () {
+            interrupt();
+            if (!doc.hidden) retryNow();
+        });
         rescan();
         poll.start();
     }
