@@ -39,9 +39,9 @@ function zdCreateOverlay(doc, win, options) {
       host.id = options.id || 'zoopdog-overlay';
       host.setAttribute('aria-hidden', 'true');
       host.style.cssText = options.documentAnchored
-        ? 'all:initial;position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:2147483646;'
+        ? 'all:initial;position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:2147483645;'
         : 'all:initial;position:fixed;top:0;right:0;bottom:0;left:0;overflow:hidden;' +
-          'pointer-events:none;z-index:2147483646;contain:strict;';
+          'pointer-events:none;z-index:2147483645;contain:strict;';
       layer = host.attachShadow({mode: 'closed'});
       var style = doc.createElement('style');
       style.textContent = '.l{position:absolute;left:0;top:0;white-space:nowrap;line-height:1.15;' +
@@ -107,15 +107,19 @@ function zdCreateOverlay(doc, win, options) {
         return range.getClientRects()[0];
       };
 
-      var put = function(text, cx, bottom, size, style) {
+      // `down` labels sit below their word, so a clash pushes them further down; lifting them would
+      // push them back into the text they annotate (and into the next line's labels).
+      var put = function(text, cx, bottom, size, style, down) {
         if (!text) return;
-        var width = text.length * size * 0.5;
+        // Wide (CJK/kana) glyphs are a full em, Latin about 0.55 em: a flat 0.5 em let neighbours overlap.
+        var width = 0;
+        for (var c = 0; c < text.length; c++) width += (text.charCodeAt(c) >= 0x2e80 ? 1 : 0.55) * size;
         var left = cx - width / 2;
         if (left < 0) cx += -left;
         if (left + width > vw) cx -= left + width - vw;
         var box = null;
         for (var level = 0; level < HAN_LIFT_LEVELS && !box; level++) {
-          var lift = level * size * 1.15;
+          var lift = (down ? -level : level) * size * 1.15;
           var candidate = {l: cx - width / 2, r: cx + width / 2, t: bottom - lift - size * 1.15, b: bottom - lift};
           var clash = false;
           for (var i = 0; i < placed.length && !clash; i++) {
@@ -167,7 +171,7 @@ function zdCreateOverlay(doc, win, options) {
             var r = piece.from == null ? first : rectOf(node, piece.from, piece.to);
             if (!r) return;
             var cx = r.left + r.width / 2;
-            if (item.under) put(piece.text, cx, r.bottom + underOffset + size * 1.15, size, style);
+            if (item.under) put(piece.text, cx, r.bottom + underOffset + size * 1.15, size, style, true);
             else put(piece.text, cx, r.top - 1 - overOffset, size, style);
           });
           if (item.under) underOffset += size * 1.2;

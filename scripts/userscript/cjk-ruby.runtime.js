@@ -68,7 +68,7 @@
     var HAN_WORD_JA = /[\p{Unified_Ideograph}々〆]+(?:[ぁ-ゖ]{1,2})?/u;
     var PARTICLE_START = /^[はがをにでとのもへや]/;
     var KANA = /[ぁ-ゖァ-ヺ]/;
-    var EXCLUDED_SELECTOR = 'ruby,rt,rp,script,style,noscript,select,textarea,input,template,[contenteditable="true"],[contenteditable=""]';
+    var EXCLUDED_SELECTOR = 'ruby,rt,rp,script,style,noscript,select,textarea,input,template,[contenteditable="true"],[contenteditable=""],[id^="zoopdog-userscript-"],[id^="zoopdog-nom-review-"]';
     // Not the same list as EXCLUDED_TAGS in nom-ruby.runtime.js; they are not unified because changing
     // either changes what that script annotates. Compared with it, this one also skips template, and
     // lacks rp, button, option, code, pre, kbd and samp (rp is still covered by EXCLUDED_SELECTOR).
