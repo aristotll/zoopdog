@@ -82,6 +82,19 @@ test('a page framework that rewrites its text node does not make the ruby wrap p
   assert.match(source, /node\.nodeValue === rec\.left/, 'our own split is not mistaken for a rewrite');
 });
 
+test('a label-less rt already holds its space and an element rewritten over and over is left alone', () => {
+  const source = buildUserscript(VARIANTS[0]);
+  assert.match(source, /\.zd-cjk-rt:not\(\[data-rt\]\)::before \{ content: "\\\\00a0"; \}/, 'no second layout jump when the label arrives');
+  assert.match(source, /var MAX_REWRAPS = 3/, 'an element re-rendered more than three times is not wrapped again');
+  assert.match(source, /if \(isFrozen\(node\)\) return;/, 'a frozen element is skipped by the scan');
+});
+
+test('the chatgpt.com sidebar is never annotated, so its rows stop jumping while the list loads', () => {
+  const source = buildUserscript(VARIANTS[0]);
+  assert.match(source, /chatgpt\\\.com\$\/,\s+exclude: 'nav, aside, header/, 'app chrome is excluded on chatgpt.com');
+  assert.match(source, /holder\.closest\(siteFix\.exclude\)/, 'the scan honours the site exclusion');
+});
+
 test('rewriting a framework-owned text node keeps one ruby (jsdom behaviour)', async (t) => {
   const fs = require('node:fs');
   const jsdomPath = process.env.CDP_JSDOM_DIR || '/Users/cheng/mine/online-dict/node_modules/jsdom';

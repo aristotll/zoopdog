@@ -878,10 +878,23 @@
     var built = new WeakMap();
     var madeNow = null;
 
+    // A framework that rewrites the same element again and again (a chat page re-rendering a message
+    // while a switcher script rewrites its text) made each pass wrap, drop and wrap again: the text
+    // blinked. After MAX_REWRAPS drops in one element it is left as the page wants it.
+    var MAX_REWRAPS = 3;
+    var rewraps = new WeakMap();
+
+    function isFrozen(node) {
+        var holder = node.parentElement;
+        return !!holder && (rewraps.get(holder) || 0) >= MAX_REWRAPS;
+    }
+
     function dropStale(node) {
         var rec = built.get(node);
         if (!rec || node.nodeValue === rec.left) return;
         built.delete(node);
+        var holder = node.parentElement;
+        if (holder) rewraps.set(holder, (rewraps.get(holder) || 0) + 1);
         rec.made.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
     }
 
@@ -902,9 +915,17 @@
     // ===== per-site fixes ===========================================================================
     // A fix only applies on the hosts it names, so the generic rendering stays untouched:
     //   css:    extra rules appended to the stylesheet (un-clamp a title box, ...);
+    //   exclude: a selector whose subtree is never annotated (app chrome that re-renders on its own);
     //   maxRun: split Han runs into words of at most this many characters, so a long run's wide label
     //           cannot push the line past its container.
     var SITE_FIXES = [
+        {
+            // The sidebar (chat and project titles) is re-rendered and re-measured by the app as its
+            // list loads; every ruby there made rows taller and the whole list jump again and again
+            // while the page loaded. Only the conversation itself is annotated.
+            host: /(^|\.)chatgpt\.com$/,
+            exclude: 'nav, aside, header, [data-thread-title], #history'
+        },
         {
             host: /(^|\.)reddit\.com$/,
             // Reddit's post previews reset every descendant with `all: revert; display: inline !important`,
@@ -1109,6 +1130,7 @@ __ZOOPDOG_USERSCRIPT_COMMON__
             // of zoopdog-nom-ruby) or <ruby> must never get a label of its own.
             var holder = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
             if (holder && holder.closest && holder.closest(EXCLUDED_SELECTOR)) return;
+            if (siteFix.exclude && holder && holder.closest && holder.closest(siteFix.exclude)) return;
             if (node.nodeType === Node.ELEMENT_NODE) {
                 if (EXCLUDED_TAGS[node.tagName.toLowerCase()] || node.isContentEditable) return;
                 if (node.shadowRoot) watchShadow(node.shadowRoot);
@@ -1118,6 +1140,7 @@ __ZOOPDOG_USERSCRIPT_COMMON__
                     overlayScanText(node);
                 } else {
                     dropStale(node);
+                    if (isFrozen(node)) return;
                     var next = node;
                     var guard = 0;
                     madeNow = [];
@@ -1140,7 +1163,10 @@ __ZOOPDOG_USERSCRIPT_COMMON__
 
     var STYLE = [
         '.zd-cjk-rt::before { content: attr(data-rt); }',
-        
+        // A label arrives after its ruby was inserted (batched, from the converter). Until then the rt
+        // holds a non-breaking space, so the line already has its final height and the text does not
+        // jump a second time when data-rt is set (the reload "blink" on chatgpt.com).
+        '.zd-cjk-rt:not([data-rt])::before { content: "\\00a0"; }',
         '.zd-cjk-jp { font-size: 0.7em; font-variant: initial; text-transform: initial; letter-spacing: initial; }',
         // Annotations above AND below a word need room: a block that holds one gets a looser line
         // height, otherwise one line's under-annotation runs into the next line's over-annotation.
